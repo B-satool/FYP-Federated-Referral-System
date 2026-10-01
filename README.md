@@ -62,6 +62,10 @@ Open **http://localhost:3000** and sign in with one of these accounts (password 
 
 The API documentation is generated from the implementation. You can open the OpenAPI docs for each service directly: central http://localhost:8000/docs · clinic :8001/docs · lab :8002/docs · specialist :8003/docs.
 
+### Database access from your computer (optional, local only)
+
+`docker compose -f docker-compose.yml -f docker-compose.dbaccess.yml up -d` publishes PostgreSQL on `127.0.0.1:5432`. Connect with pgAdmin or DBeaver using the per-database logins from `.env`: central/central_db, clinic/clinic_db, lab/lab_db, specialist/specialist_db, or `postgres` (superuser). Without that file, use `docker compose exec postgres psql -U central -d central_db`.
+
 ### Language model (optional)
 
 Put `ANTHROPIC_API_KEY=...` in `.env` and run `docker compose up -d central worker` to enable "Draft with AI" (model `claude-opus-5-5`) and model-based field extraction. Without a key the platform still works fully:

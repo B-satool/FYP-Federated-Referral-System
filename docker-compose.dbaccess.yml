@@ -1,0 +1,8 @@
+# Optional, local development only: lets database tools on THIS computer (pgAdmin, DBeaver,
+# psql) connect to PostgreSQL. Bound to 127.0.0.1 so other machines on the network cannot.
+# Use:  docker compose -f docker-compose.yml -f docker-compose.dbaccess.yml up -d
+# Never use this file on a hosted/shared server.
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"

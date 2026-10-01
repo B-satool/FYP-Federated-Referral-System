@@ -71,8 +71,14 @@ def main() -> None:
         sheet += [v.replace("postgresql+psycopg://", "postgresql://") for v in env_lines.values()]
     else:
         sheet += [f"{k}={v}" for k, v in env_lines.items()]
-    sheet += ["```", "", "Do NOT run `scripts/reset-and-seed.ps1` on the shared database without agreeing with the team: it wipes everyone's data.",
-              "Uploaded document files stay on the computer that uploaded them; other teammates see their metadata but not the file."]
+    sheet += ["```", ""]
+    if copy_only:
+        sheet += ["Each login can open only its own database (same separation as the real system).",
+                  "The copy contains database rows only: no login accounts (Keycloak) and no uploaded document files.",
+                  "In DBeaver/pgAdmin: Host and Port as above, Database / Username / Password from the table, SSL mode = require."]
+    else:
+        sheet += ["Do NOT run `scripts/reset-and-seed.ps1` on the shared database without agreeing with the team: it wipes everyone's data.",
+                  "Uploaded document files stay on the computer that uploaded them; other teammates see their metadata but not the file."]
     (REPO / "shared-db-credentials.md").write_text("\n".join(sheet) + "\n")
     print("wrote .env database URLs and shared-db-credentials.md")
 

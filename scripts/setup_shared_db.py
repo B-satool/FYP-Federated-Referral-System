@@ -24,9 +24,11 @@ PREFIX = "ref_"  # avoid clashing with any existing roles on the hosted server
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    copy_only = "--copy-only" in sys.argv  # do not repoint the app; Neon holds a published copy
+    if len(args) != 1:
         sys.exit(__doc__)
-    admin_url = sys.argv[1].replace("postgresql+psycopg://", "postgresql://")
+    admin_url = args[0].replace("postgresql+psycopg://", "postgresql://")
     u = urlparse(admin_url)
     host, port = u.hostname, u.port or 5432
     query = u.query or "sslmode=require"
@@ -49,6 +51,8 @@ def main() -> None:
     env_lines = {f"{o.upper()}_DATABASE_URL": f"postgresql+psycopg://{r}:{p}@{host}:{port}/{d}?{query}"
                  for o, (r, d, p) in creds.items()}
     env_path = REPO / ".env"
+    if copy_only:
+        env_lines = {k.replace("_DATABASE_URL", "_SHARED_DATABASE_URL"): v for k, v in env_lines.items()}
     lines = [ln for ln in env_path.read_text().splitlines() if ln.split("=", 1)[0] not in env_lines]
     lines += ["", "# Shared hosted database (written by scripts/setup_shared_db.py)"]
     lines += [f"{k}={v}" for k, v in env_lines.items()]
@@ -59,8 +63,14 @@ def main() -> None:
              "| Database | Username | Password | Owned by |", "|---|---|---|---|"]
     for o, (r, d, p) in creds.items():
         sheet.append(f"| `{d}` | `{r}` | `{p}` | {o} service |")
-    sheet += ["", "## For teammates running the app", "Add these lines to your `.env`, then `docker compose up -d`:", "", "```"]
-    sheet += [f"{k}={v}" for k, v in env_lines.items()]
+    if copy_only:
+        sheet += ["", "This is a **published copy** of the team's demo data (refreshed with scripts/publish-shared-db.ps1).", "Connect with pgAdmin/DBeaver/psql using the details above (SSL mode: require). Changes you make here are overwritten at the next publish.", "", "Connection strings:", "", "```"]
+    else:
+        sheet += ["", "## For teammates running the app", "Add these lines to your `.env`, then `docker compose up -d`:", "", "```"]
+    if copy_only:
+        sheet += [v.replace("postgresql+psycopg://", "postgresql://") for v in env_lines.values()]
+    else:
+        sheet += [f"{k}={v}" for k, v in env_lines.items()]
     sheet += ["```", "", "Do NOT run `scripts/reset-and-seed.ps1` on the shared database without agreeing with the team: it wipes everyone's data.",
               "Uploaded document files stay on the computer that uploaded them; other teammates see their metadata but not the file."]
     (REPO / "shared-db-credentials.md").write_text("\n".join(sheet) + "\n")

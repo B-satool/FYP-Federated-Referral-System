@@ -82,7 +82,7 @@ services:
     build: {context: ., dockerfile: services/clinic/Dockerfile}
     environment:
       <<: *keycloak-env
-      DATABASE_URL: postgresql+psycopg://clinic:${CLINIC_DB_PASSWORD}@postgres:5432/clinic_db
+      DATABASE_URL: ${CLINIC_DATABASE_URL:-postgresql+psycopg://clinic:${CLINIC_DB_PASSWORD}@postgres:5432/clinic_db}
       SERVICE_CLIENT_ID: clinic-api
       SERVICE_CLIENT_SECRET: ${CLINIC_CLIENT_SECRET}
     ports: ["8001:8000"]
@@ -97,7 +97,7 @@ services:
     build: {context: ., dockerfile: services/lab/Dockerfile}
     environment:
       <<: *keycloak-env
-      DATABASE_URL: postgresql+psycopg://lab:${LAB_DB_PASSWORD}@postgres:5432/lab_db
+      DATABASE_URL: ${LAB_DATABASE_URL:-postgresql+psycopg://lab:${LAB_DB_PASSWORD}@postgres:5432/lab_db}
       SERVICE_CLIENT_ID: lab-api
       SERVICE_CLIENT_SECRET: ${LAB_CLIENT_SECRET}
     ports: ["8002:8000"]
@@ -108,7 +108,7 @@ services:
     build: {context: ., dockerfile: services/specialist/Dockerfile}
     environment:
       <<: *keycloak-env
-      DATABASE_URL: postgresql+psycopg://specialist:${SPECIALIST_DB_PASSWORD}@postgres:5432/specialist_db
+      DATABASE_URL: ${SPECIALIST_DATABASE_URL:-postgresql+psycopg://specialist:${SPECIALIST_DB_PASSWORD}@postgres:5432/specialist_db}
       SERVICE_CLIENT_ID: specialist-api
       SERVICE_CLIENT_SECRET: ${SPECIALIST_CLIENT_SECRET}
       CENTRAL_URL: http://central:8000
@@ -120,7 +120,7 @@ services:
     build: {context: ., dockerfile: services/central/Dockerfile}
     environment: &central-env
       <<: *keycloak-env
-      DATABASE_URL: postgresql+psycopg://central:${CENTRAL_DB_PASSWORD}@postgres:5432/central_db
+      DATABASE_URL: ${CENTRAL_DATABASE_URL:-postgresql+psycopg://central:${CENTRAL_DB_PASSWORD}@postgres:5432/central_db}
       REDIS_URL: redis://redis:6379/0
       SERVICE_CLIENT_ID: central-api
       SERVICE_CLIENT_SECRET: ${CENTRAL_CLIENT_SECRET}

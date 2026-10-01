@@ -31,3 +31,6 @@ tools/*.jar
 web/e2e/explore.spec.ts
 
 contracts/fhir-samples/validator-output.txt
+
+# Shared hosted-database credentials (never commit)
+shared-db-credentials.md

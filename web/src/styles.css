@@ -1,0 +1,31 @@
+/* Keep focused/scrolled-to controls clear of the sticky header (focus not obscured). */
+html {
+  scroll-padding-top: 140px;
+  scroll-padding-bottom: 24px;
+}
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: #fff;
+  padding: 8px 12px;
+  z-index: 2000;
+}
+.skip-link:focus {
+  left: 8px;
+}
+:focus-visible {
+  outline: 3px solid #f0a500;
+  outline-offset: 2px;
+}
+.region-highlight {
+  position: absolute;
+  border: 3px solid #f0a500;
+  background: rgba(240, 165, 0, 0.18);
+  pointer-events: none;
+}
+.region-line {
+  position: absolute;
+  border: 1px dashed rgba(31, 92, 153, 0.35);
+  pointer-events: none;
+}

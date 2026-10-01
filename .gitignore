@@ -23,3 +23,11 @@ tools/*.jar
 .idea/
 .vscode/
 *.log
+
+# Working copies of the requirement PDFs (versioned copies live in docs/requirements)
+/FYP *.pdf
+
+# Generated artefacts
+contracts/fhir-samples/validation-report.html
+web/e2e/explore.spec.ts
+

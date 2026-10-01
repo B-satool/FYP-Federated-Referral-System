@@ -1,0 +1,37 @@
+{
+  "resourceType": "MedicationStatement",
+  "id": "MS-102-1",
+  "meta": {
+    "versionId": "1",
+    "source": "urn:referral-demo:institution:clinic-a",
+    "lastUpdated": "2026-10-01T19:42:04.866285+00:00"
+  },
+  "status": "unknown",
+  "medicationCodeableConcept": {
+    "text": "Ecosprin 75"
+  },
+  "subject": {
+    "reference": "Patient/MR-102",
+    "identifier": {
+      "system": "urn:referral-demo:institution:clinic-a:patient-id",
+      "value": "MR-102"
+    }
+  },
+  "dateAsserted": "2026-09-10",
+  "informationSource": {
+    "reference": "Patient/MR-102"
+  },
+  "dosage": [
+    {
+      "text": "75 mg daily (patient report)"
+    }
+  ],
+  "note": [
+    {
+      "text": "Patient unsure whether still taking"
+    },
+    {
+      "text": "Recorded by Hina Raza"
+    }
+  ]
+}

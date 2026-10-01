@@ -1,0 +1,35 @@
+{
+  "resourceType": "DocumentReference",
+  "id": "DOC-102-1",
+  "meta": {
+    "versionId": "1",
+    "source": "urn:referral-demo:institution:clinic-a",
+    "lastUpdated": "2026-10-01T19:42:04.869595+00:00"
+  },
+  "status": "current",
+  "type": {
+    "text": "Referral letter (paper)"
+  },
+  "subject": {
+    "reference": "Patient/MR-102",
+    "identifier": {
+      "system": "urn:referral-demo:institution:clinic-a:patient-id",
+      "value": "MR-102"
+    }
+  },
+  "date": "2025-11-03T12:00:00+00:00",
+  "author": [
+    {
+      "display": "Cardiology outpatient"
+    }
+  ],
+  "description": "Cardiology letter 2025",
+  "content": [
+    {
+      "attachment": {
+        "contentType": "application/pdf",
+        "title": "Cardiology letter 2025"
+      }
+    }
+  ]
+}

@@ -1,0 +1,164 @@
+{
+  "generated_at": "2026-10-01T19:13:07.671223+00:00",
+  "ocr_engine": "tesseract 5.5.0",
+  "extractor": "rules-extractor/1",
+  "caveat": "Machine-generated renders only; no claim about real handwriting reliability.",
+  "results": [
+    {
+      "split": "dev",
+      "documents": 3,
+      "mean_cer": 0.0,
+      "mean_wer": 0.0,
+      "field_recall": 1.0,
+      "field_precision": 1.0,
+      "mean_ocr_ms": 2014,
+      "rows": [
+        {
+          "file": "dev01_prescription.jpg",
+          "cer": 0.0,
+          "wer": 0.0,
+          "ocr_ms": 1765,
+          "mean_ocr_confidence": 91.5,
+          "medications_expected": [
+            "clopidogrel",
+            "metformin"
+          ],
+          "medications_found": [
+            "clopidogrel",
+            "metformin"
+          ],
+          "medication_tp": 2,
+          "medication_fp": 0,
+          "labs_expected": {
+            "Platelets": 210.0
+          },
+          "labs_found": {
+            "Platelets": 210.0
+          },
+          "lab_tp": 1,
+          "lab_fp": 0
+        },
+        {
+          "file": "dev02_labslip.jpg",
+          "cer": 0.0,
+          "wer": 0.0,
+          "ocr_ms": 2724,
+          "mean_ocr_confidence": 84.6,
+          "medications_expected": [],
+          "medications_found": [],
+          "medication_tp": 0,
+          "medication_fp": 0,
+          "labs_expected": {
+            "INR": 3.1,
+            "Hemoglobin": 11.8,
+            "HbA1c": 6.9
+          },
+          "labs_found": {
+            "INR": 3.1,
+            "Hemoglobin": 11.8,
+            "HbA1c": 6.9
+          },
+          "lab_tp": 3,
+          "lab_fp": 0
+        },
+        {
+          "file": "dev03_note.jpg",
+          "cer": 0.0,
+          "wer": 0.0,
+          "ocr_ms": 1555,
+          "mean_ocr_confidence": 92.5,
+          "medications_expected": [
+            "prednisolone",
+            "xarelto"
+          ],
+          "medications_found": [
+            "prednisolone",
+            "xarelto"
+          ],
+          "medication_tp": 2,
+          "medication_fp": 0,
+          "labs_expected": {},
+          "labs_found": {},
+          "lab_tp": 0,
+          "lab_fp": 0
+        }
+      ]
+    },
+    {
+      "split": "heldout",
+      "documents": 3,
+      "mean_cer": 0.0078,
+      "mean_wer": 0.0222,
+      "field_recall": 1.0,
+      "field_precision": 1.0,
+      "mean_ocr_ms": 1018,
+      "rows": [
+        {
+          "file": "ho01_prescription.jpg",
+          "cer": 0.0,
+          "wer": 0.0,
+          "ocr_ms": 997,
+          "mean_ocr_confidence": 86.1,
+          "medications_expected": [
+            "apixaban",
+            "atorvastatin"
+          ],
+          "medications_found": [
+            "apixaban",
+            "atorvastatin"
+          ],
+          "medication_tp": 2,
+          "medication_fp": 0,
+          "labs_expected": {},
+          "labs_found": {},
+          "lab_tp": 0,
+          "lab_fp": 0
+        },
+        {
+          "file": "ho02_labslip.jpg",
+          "cer": 0.0,
+          "wer": 0.0,
+          "ocr_ms": 937,
+          "mean_ocr_confidence": 91.4,
+          "medications_expected": [],
+          "medications_found": [],
+          "medication_tp": 0,
+          "medication_fp": 0,
+          "labs_expected": {
+            "INR": 2.4,
+            "Platelets": 188.0,
+            "Hemoglobin": 13.4
+          },
+          "labs_found": {
+            "INR": 2.4,
+            "Platelets": 188.0,
+            "Hemoglobin": 13.4
+          },
+          "lab_tp": 3,
+          "lab_fp": 0
+        },
+        {
+          "file": "ho03_note.jpg",
+          "cer": 0.0235,
+          "wer": 0.0667,
+          "ocr_ms": 1121,
+          "mean_ocr_confidence": 82.5,
+          "medications_expected": [
+            "alendronate",
+            "aspirin"
+          ],
+          "medications_found": [
+            "alendronate",
+            "aspirin"
+          ],
+          "medication_tp": 2,
+          "medication_fp": 0,
+          "labs_expected": {},
+          "labs_found": {},
+          "lab_tp": 0,
+          "lab_fp": 0
+        }
+      ]
+    }
+  ]
+}

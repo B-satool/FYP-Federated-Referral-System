@@ -1,0 +1,51 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    defaults: {run: {working-directory: web}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json}
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+
+  backend-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build central image (no paid model calls in CI)
+        run: docker build -f services/central/Dockerfile -t referral-central .
+      - name: Rule table, evaluator and AI guardrail checks
+        run: docker run --rm -v $PWD/services/central/tests:/srv/tests -e DATABASE_URL=postgresql+psycopg://x:x@localhost/x referral-central python -m pytest tests -q
+      - name: Python syntax check of all services
+        run: docker run --rm -v $PWD:/repo referral-central python -m compileall -q /repo/services /repo/libs /repo/scripts
+
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.example .env
+      - run: docker compose build
+
+  integration:
+    # Full stack checks T1-T6 (API level). Kept on main pushes to bound CI time.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.example .env
+      - run: docker compose up -d --build --wait
+      - run: sh scripts/reset-and-seed.sh --force
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install httpx pytest && python -m pytest tests -q
+      - if: failure()
+        run: docker compose logs --tail 200

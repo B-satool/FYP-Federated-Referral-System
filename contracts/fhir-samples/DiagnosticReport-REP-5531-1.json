@@ -1,0 +1,35 @@
+{
+  "resourceType": "DiagnosticReport",
+  "id": "REP-5531-1",
+  "meta": {
+    "versionId": "1",
+    "source": "urn:referral-demo:institution:lab-b",
+    "lastUpdated": "2026-10-01T19:42:13.423544+00:00"
+  },
+  "status": "final",
+  "code": {
+    "text": "Coagulation panel",
+    "coding": [
+      {
+        "system": "http://loinc.org",
+        "code": "34555-3",
+        "display": "Coagulation panel"
+      }
+    ]
+  },
+  "subject": {
+    "reference": "Patient/LB-5531",
+    "identifier": {
+      "system": "urn:referral-demo:institution:lab-b:patient-id",
+      "value": "LB-5531"
+    }
+  },
+  "effectiveDateTime": "2026-09-05T08:00:00+00:00",
+  "issued": "2026-09-05T14:00:00+00:00",
+  "result": [
+    {
+      "reference": "Observation/OBS-5531-1"
+    }
+  ],
+  "conclusion": "INR within target range for anticoagulation"
+}

@@ -1,0 +1,42 @@
+{
+  "resourceType": "Encounter",
+  "id": "ENC-102-1",
+  "meta": {
+    "versionId": "1",
+    "source": "urn:referral-demo:institution:clinic-a",
+    "lastUpdated": "2026-10-01T19:42:04.854893+00:00"
+  },
+  "status": "finished",
+  "class": {
+    "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+    "code": "AMB",
+    "display": "ambulatory"
+  },
+  "type": [
+    {
+      "text": "General practice consultation"
+    }
+  ],
+  "subject": {
+    "reference": "Patient/MR-102",
+    "identifier": {
+      "system": "urn:referral-demo:institution:clinic-a:patient-id",
+      "value": "MR-102"
+    }
+  },
+  "participant": [
+    {
+      "individual": {
+        "display": "Dr Sana Malik"
+      }
+    }
+  ],
+  "period": {
+    "start": "2026-08-20T10:00:00+00:00"
+  },
+  "reasonCode": [
+    {
+      "text": "Crowded lower incisors and jaw discomfort; patient asks about orthodontic treatment"
+    }
+  ]
+}

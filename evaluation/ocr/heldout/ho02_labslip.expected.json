@@ -1,0 +1,8 @@
+{
+  "medications": [],
+  "labs": {
+    "INR": 2.4,
+    "Platelets": 188.0,
+    "Hemoglobin": 13.4
+  }
+}

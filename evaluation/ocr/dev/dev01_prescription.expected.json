@@ -1,0 +1,9 @@
+{
+  "medications": [
+    "clopidogrel",
+    "metformin"
+  ],
+  "labs": {
+    "Platelets": 210.0
+  }
+}

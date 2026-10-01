@@ -99,11 +99,12 @@ def evaluate(db: Session, referral: Referral) -> list[Finding]:
             "retry retrieval or record this limitation.", key_suffix=s.institution)
 
     for e in evidence:
-        if e.origin != "document" or not e.selected or e.review_state == "excluded":
+        if e.origin not in ("document", "manual") or not e.selected or e.review_state == "excluded":
             continue
         if e.review_state == "unresolved" or e.verification_status != "verified":
             state = "marked unresolved" if e.review_state == "unresolved" else "not yet clinician-verified"
-            add("CL-DOC-FIELDS", "unresolved", f"Document field {state}: {e.display}",
+            kind = "Document field" if e.origin == "document" else "Manually entered field"
+            add("CL-DOC-FIELDS", "unresolved", f"{kind} {state}: {e.display}",
                 "Verify, correct, exclude, or record the uncertainty for this extracted field.",
                 key_suffix=str(e.id), ev_ids=[e.id])
 

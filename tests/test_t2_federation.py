@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import pytest
-from conftest import compose, new_referral
+from conftest import compose, new_referral, start_service
 from helpers import central, ok, wait_for
 
 DR = "dr.malik"
@@ -68,7 +68,7 @@ def test_denied_and_unavailable_are_distinct_and_keep_other_evidence():
     try:
         res2 = _by_source(ok(central(DR).post(f"/referrals/{ref2['id']}/retrieve"))["results"])
     finally:
-        compose("start", "lab")
+        start_service("lab")
     assert res2["lab-b"]["status"] == "unavailable" and res2["lab-b"]["retryable"] is True
     assert res2["lab-b"]["attempts"] >= 2  # bounded retry happened
     assert res2["clinic-a"]["status"] == "successful"  # FR-55

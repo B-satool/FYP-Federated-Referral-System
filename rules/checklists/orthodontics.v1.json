@@ -12,7 +12,7 @@
     {"id": "CL-MEDS-VERIFIED", "check": "medications_verified", "title": "Current medication use verified by a clinician", "blocking": true, "override_allowed": true, "clinical": true},
     {"id": "CL-MED-SOURCES", "check": "medication_sources_complete", "title": "Medication sources retrieved successfully", "blocking": false, "override_allowed": true, "clinical": false},
     {"id": "CL-SOURCES", "check": "sources_available", "title": "Linked source systems retrieved", "blocking": false, "override_allowed": true, "clinical": false},
-    {"id": "CL-DOC-FIELDS", "check": "document_fields_resolved", "title": "Selected document-extracted fields verified or resolved", "blocking": true, "override_allowed": true, "clinical": true},
+    {"id": "CL-DOC-FIELDS", "check": "document_fields_resolved", "title": "Selected document-extracted or manually entered fields verified or resolved", "blocking": true, "override_allowed": true, "clinical": true},
     {"id": "CL-DISCREPANCY", "check": "discrepancies", "title": "Supported discrepancies reviewed by a clinician", "blocking": true, "override_allowed": true, "clinical": true}
   ],
   "discrepancy_types": [

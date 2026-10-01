@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import io
 import logging
+import re
 import time
 from dataclasses import dataclass
 
@@ -224,8 +225,10 @@ def process(db: Session, doc: Document, job_id: str | None) -> ExtractionRun:
                   "lines": [ln for ln in lines if ln["page"] == p.page]} for p in pages]
     run.raw_text = "\n\n".join(f"--- page {p.page} ({p.source}) ---\n{p.text}" for p in pages)
 
-    readable = sum(len(ln["text"]) for ln in lines)
-    if readable < 15:
+    words = [w for ln in lines for w in re.findall(r"[A-Za-z]{3,}", ln["text"])]
+    ocr_confs = [p.mean_confidence for p in pages if p.source == "ocr" and p.mean_confidence is not None]
+    low_confidence = bool(ocr_confs) and max(ocr_confs) < 55
+    if len(words) < 3 or low_confidence:
         run.status = "completed"
         run.notes = ["No readable text was found. Upload a clearer copy or transcribe manually with a page reference."]
         run.extractor, run.extractor_version = "none", None

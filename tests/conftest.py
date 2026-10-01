@@ -33,6 +33,26 @@ def compose(*args: str, check: bool = True) -> subprocess.CompletedProcess:
     return subprocess.run(["docker", "compose", *args], cwd=ROOT, capture_output=True, text=True, check=check, timeout=300)
 
 
+READY_URLS = {"clinic": "http://localhost:8001/ready", "lab": "http://localhost:8002/ready",
+              "specialist": "http://localhost:8003/ready", "central": "http://localhost:8000/ready"}
+
+
+def start_service(name: str) -> None:
+    """Start a stopped service and wait until it reports ready."""
+    import httpx
+    from helpers import wait_for
+
+    compose("start", name)
+
+    def ready():
+        try:
+            return httpx.get(READY_URLS[name], timeout=3).status_code == 200
+        except httpx.HTTPError:
+            return False
+
+    wait_for(ready, timeout=90, interval=2, what=f"{name} ready")
+
+
 @pytest.fixture(scope="session", autouse=True)
 def fresh_seed():
     """Start every test session from the deterministic synthetic seed (set SKIP_RESET=1 to keep data)."""

@@ -11,7 +11,7 @@ x-keycloak-env: &keycloak-env
 x-python-service: &python-service
   restart: unless-stopped
   depends_on:
-    postgres: {condition: service_healthy}
+    postgres: {condition: service_healthy, restart: true}
     keycloak: {condition: service_healthy}
 
 services:
@@ -69,7 +69,7 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      postgres: {condition: service_healthy}
+      postgres: {condition: service_healthy, restart: true}
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
       interval: 10s
@@ -137,7 +137,7 @@ services:
       - documents:/data/documents
     ports: ["8000:8000"]
     depends_on:
-      postgres: {condition: service_healthy}
+      postgres: {condition: service_healthy, restart: true}
       redis: {condition: service_healthy}
       keycloak: {condition: service_healthy}
     healthcheck: *py-health

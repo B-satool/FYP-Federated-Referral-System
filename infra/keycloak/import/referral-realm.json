@@ -1,0 +1,161 @@
+{
+  "realm": "referral",
+  "displayName": "Referral Platform (synthetic demo)",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": false,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "bruteForceProtected": true,
+  "roles": {
+    "realm": [
+      {"name": "clinic_staff", "description": "Clinic staff / referral coordinator"},
+      {"name": "clinician", "description": "Referring clinician (verifies and approves clinical content)"},
+      {"name": "lab_staff", "description": "Laboratory staff"},
+      {"name": "specialist", "description": "Receiving specialist"},
+      {"name": "institution_admin", "description": "Institution administrator (accounts, source access, link corrections; no implicit clinical access)"},
+      {"name": "rule_reviewer", "description": "Clinical reviewer allowed to approve medication rules"},
+      {"name": "svc_central", "description": "Central platform service identity"},
+      {"name": "svc_specialist", "description": "Specialist service identity"}
+    ]
+  },
+  "groups": [
+    {"name": "clinic-a", "attributes": {"display_name": ["Clinic A - Green Valley Family Clinic"]}},
+    {"name": "clinic-x", "attributes": {"display_name": ["Clinic X - Riverside Medical Centre"]}},
+    {"name": "lab-b", "attributes": {"display_name": ["Lab B - CityLab Diagnostics"]}},
+    {"name": "spec-c", "attributes": {"display_name": ["Specialist C - Smile Orthodontic Centre"]}}
+  ],
+  "clients": [
+    {
+      "clientId": "referral-web",
+      "name": "Referral web application",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3000/*"
+      },
+      "protocolMappers": [
+        {"name": "groups", "protocol": "openid-connect", "protocolMapper": "oidc-group-membership-mapper", "consentRequired": false,
+         "config": {"full.path": "false", "claim.name": "groups", "id.token.claim": "true", "access.token.claim": "true", "userinfo.token.claim": "true", "introspection.token.claim": "true"}},
+        {"name": "aud-central", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "consentRequired": false,
+         "config": {"included.client.audience": "central-api", "id.token.claim": "false", "access.token.claim": "true", "introspection.token.claim": "true"}},
+        {"name": "aud-clinic", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "consentRequired": false,
+         "config": {"included.client.audience": "clinic-api", "id.token.claim": "false", "access.token.claim": "true", "introspection.token.claim": "true"}},
+        {"name": "aud-lab", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "consentRequired": false,
+         "config": {"included.client.audience": "lab-api", "id.token.claim": "false", "access.token.claim": "true", "introspection.token.claim": "true"}},
+        {"name": "aud-specialist", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "consentRequired": false,
+         "config": {"included.client.audience": "specialist-api", "id.token.claim": "false", "access.token.claim": "true", "introspection.token.claim": "true"}}
+      ]
+    },
+    {
+      "clientId": "dev-cli",
+      "name": "Development/test client (password grant; local synthetic demo only)",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "protocolMappers": [
+        {"name": "groups", "protocol": "openid-connect", "protocolMapper": "oidc-group-membership-mapper", "consentRequired": false,
+         "config": {"full.path": "false", "claim.name": "groups", "id.token.claim": "true", "access.token.claim": "true", "userinfo.token.claim": "true", "introspection.token.claim": "true"}},
+        {"name": "aud-central", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "consentRequired": false,
+         "config": {"included.client.audience": "central-api", "id.token.claim": "false", "access.token.claim": "true", "introspection.token.claim": "true"}},
+        {"name": "aud-clinic", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "consentRequired": false,
+         "config": {"included.client.audience": "clinic-api", "id.token.claim": "false", "access.token.claim": "true", "introspection.token.claim": "true"}},
+        {"name": "aud-lab", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "consentRequired": false,
+         "config": {"included.client.audience": "lab-api", "id.token.claim": "false", "access.token.claim": "true", "introspection.token.claim": "true"}},
+        {"name": "aud-specialist", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "consentRequired": false,
+         "config": {"included.client.audience": "specialist-api", "id.token.claim": "false", "access.token.claim": "true", "introspection.token.claim": "true"}}
+      ]
+    },
+    {
+      "clientId": "central-api",
+      "name": "Central referral platform",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${CENTRAL_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "protocolMappers": [
+        {"name": "institution", "protocol": "openid-connect", "protocolMapper": "oidc-hardcoded-claim-mapper", "consentRequired": false,
+         "config": {"claim.name": "institution_id", "claim.value": "central-platform", "jsonType.label": "String", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true"}},
+        {"name": "aud-specialist", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "consentRequired": false,
+         "config": {"included.client.audience": "specialist-api", "id.token.claim": "false", "access.token.claim": "true", "introspection.token.claim": "true"}}
+      ]
+    },
+    {
+      "clientId": "clinic-api",
+      "name": "Clinic A source service",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${CLINIC_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false
+    },
+    {
+      "clientId": "lab-api",
+      "name": "Lab B source service",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${LAB_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false
+    },
+    {
+      "clientId": "specialist-api",
+      "name": "Specialist C source service",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${SPECIALIST_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "protocolMappers": [
+        {"name": "institution", "protocol": "openid-connect", "protocolMapper": "oidc-hardcoded-claim-mapper", "consentRequired": false,
+         "config": {"claim.name": "institution_id", "claim.value": "spec-c", "jsonType.label": "String", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true"}},
+        {"name": "aud-central", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "consentRequired": false,
+         "config": {"included.client.audience": "central-api", "id.token.claim": "false", "access.token.claim": "true", "introspection.token.claim": "true"}}
+      ]
+    }
+  ],
+  "users": [
+    {"username": "staff.a", "enabled": true, "emailVerified": true, "firstName": "Hina", "lastName": "Raza", "email": "staff.a@clinic-a.example",
+     "realmRoles": ["clinic_staff"], "groups": ["/clinic-a"], "credentials": [{"type": "password", "value": "${DEMO_USER_PASSWORD}", "temporary": false}]},
+    {"username": "dr.malik", "enabled": true, "emailVerified": true, "firstName": "Sana", "lastName": "Malik", "email": "dr.malik@clinic-a.example",
+     "realmRoles": ["clinician"], "groups": ["/clinic-a"], "credentials": [{"type": "password", "value": "${DEMO_USER_PASSWORD}", "temporary": false}]},
+    {"username": "dr.locum", "enabled": true, "emailVerified": true, "firstName": "Usman", "lastName": "Tariq", "email": "dr.locum@clinic-a.example",
+     "realmRoles": ["clinician"], "groups": ["/clinic-a"], "credentials": [{"type": "password", "value": "${DEMO_USER_PASSWORD}", "temporary": false}]},
+    {"username": "dr.reviewer", "enabled": true, "emailVerified": true, "firstName": "Omar", "lastName": "Farooq", "email": "dr.reviewer@clinic-a.example",
+     "realmRoles": ["clinician", "rule_reviewer"], "groups": ["/clinic-a"], "credentials": [{"type": "password", "value": "${DEMO_USER_PASSWORD}", "temporary": false}]},
+    {"username": "admin.a", "enabled": true, "emailVerified": true, "firstName": "Adeel", "lastName": "Shah", "email": "admin.a@clinic-a.example",
+     "realmRoles": ["institution_admin"], "groups": ["/clinic-a"], "credentials": [{"type": "password", "value": "${DEMO_USER_PASSWORD}", "temporary": false}]},
+    {"username": "staff.x", "enabled": true, "emailVerified": true, "firstName": "Zara", "lastName": "Iqbal", "email": "staff.x@clinic-x.example",
+     "realmRoles": ["clinic_staff", "clinician"], "groups": ["/clinic-x"], "credentials": [{"type": "password", "value": "${DEMO_USER_PASSWORD}", "temporary": false}]},
+    {"username": "lab.b", "enabled": true, "emailVerified": true, "firstName": "Kamran", "lastName": "Butt", "email": "lab.b@lab-b.example",
+     "realmRoles": ["lab_staff"], "groups": ["/lab-b"], "credentials": [{"type": "password", "value": "${DEMO_USER_PASSWORD}", "temporary": false}]},
+    {"username": "admin.b", "enabled": true, "emailVerified": true, "firstName": "Nadia", "lastName": "Aslam", "email": "admin.b@lab-b.example",
+     "realmRoles": ["institution_admin"], "groups": ["/lab-b"], "credentials": [{"type": "password", "value": "${DEMO_USER_PASSWORD}", "temporary": false}]},
+    {"username": "dr.ortho", "enabled": true, "emailVerified": true, "firstName": "Faisal", "lastName": "Haider", "email": "dr.ortho@spec-c.example",
+     "realmRoles": ["specialist"], "groups": ["/spec-c"], "credentials": [{"type": "password", "value": "${DEMO_USER_PASSWORD}", "temporary": false}]},
+    {"username": "admin.c", "enabled": true, "emailVerified": true, "firstName": "Rabia", "lastName": "Javed", "email": "admin.c@spec-c.example",
+     "realmRoles": ["institution_admin"], "groups": ["/spec-c"], "credentials": [{"type": "password", "value": "${DEMO_USER_PASSWORD}", "temporary": false}]},
+    {"username": "service-account-central-api", "enabled": true, "serviceAccountClientId": "central-api",
+     "realmRoles": ["svc_central"], "clientRoles": {"realm-management": ["view-users", "query-users", "manage-users"]}},
+    {"username": "service-account-specialist-api", "enabled": true, "serviceAccountClientId": "specialist-api",
+     "realmRoles": ["svc_specialist"]}
+  ]
+}

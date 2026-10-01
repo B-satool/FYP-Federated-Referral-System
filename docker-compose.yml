@@ -1,0 +1,165 @@
+# Local environment for the Referral Preparation and Follow-through Platform.
+# Copy .env.example to .env first. All data is synthetic.
+name: referral
+
+x-keycloak-env: &keycloak-env
+  KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+  KEYCLOAK_PUBLIC_URL: http://localhost:8080
+  KEYCLOAK_REALM: referral
+  INTROSPECT_TOKENS: "true"
+
+x-python-service: &python-service
+  restart: unless-stopped
+  depends_on:
+    postgres: {condition: service_healthy}
+    keycloak: {condition: service_healthy}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
+      CENTRAL_DB_PASSWORD: ${CENTRAL_DB_PASSWORD}
+      CLINIC_DB_PASSWORD: ${CLINIC_DB_PASSWORD}
+      LAB_DB_PASSWORD: ${LAB_DB_PASSWORD}
+      SPECIALIST_DB_PASSWORD: ${SPECIALIST_DB_PASSWORD}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_HOSTNAME: http://localhost:8080
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      JAVA_OPTS_KC_HEAP: "-Xms128m -Xmx512m"
+      DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD}
+      CENTRAL_CLIENT_SECRET: ${CENTRAL_CLIENT_SECRET}
+      CLINIC_CLIENT_SECRET: ${CLINIC_CLIENT_SECRET}
+      LAB_CLIENT_SECRET: ${LAB_CLIENT_SECRET}
+      SPECIALIST_CLIENT_SECRET: ${SPECIALIST_CLIENT_SECRET}
+    volumes:
+      - ./infra/keycloak/import:/opt/keycloak/data/import:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  clinic:
+    <<: *python-service
+    build: {context: ., dockerfile: services/clinic/Dockerfile}
+    environment:
+      <<: *keycloak-env
+      DATABASE_URL: postgresql+psycopg://clinic:${CLINIC_DB_PASSWORD}@postgres:5432/clinic_db
+      SERVICE_CLIENT_ID: clinic-api
+      SERVICE_CLIENT_SECRET: ${CLINIC_CLIENT_SECRET}
+    ports: ["8001:8000"]
+    healthcheck: &py-health
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/ready').status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  lab:
+    <<: *python-service
+    build: {context: ., dockerfile: services/lab/Dockerfile}
+    environment:
+      <<: *keycloak-env
+      DATABASE_URL: postgresql+psycopg://lab:${LAB_DB_PASSWORD}@postgres:5432/lab_db
+      SERVICE_CLIENT_ID: lab-api
+      SERVICE_CLIENT_SECRET: ${LAB_CLIENT_SECRET}
+    ports: ["8002:8000"]
+    healthcheck: *py-health
+
+  specialist:
+    <<: *python-service
+    build: {context: ., dockerfile: services/specialist/Dockerfile}
+    environment:
+      <<: *keycloak-env
+      DATABASE_URL: postgresql+psycopg://specialist:${SPECIALIST_DB_PASSWORD}@postgres:5432/specialist_db
+      SERVICE_CLIENT_ID: specialist-api
+      SERVICE_CLIENT_SECRET: ${SPECIALIST_CLIENT_SECRET}
+      CENTRAL_URL: http://central:8000
+    ports: ["8003:8000"]
+    healthcheck: *py-health
+
+  central:
+    <<: *python-service
+    build: {context: ., dockerfile: services/central/Dockerfile}
+    environment: &central-env
+      <<: *keycloak-env
+      DATABASE_URL: postgresql+psycopg://central:${CENTRAL_DB_PASSWORD}@postgres:5432/central_db
+      REDIS_URL: redis://redis:6379/0
+      SERVICE_CLIENT_ID: central-api
+      SERVICE_CLIENT_SECRET: ${CENTRAL_CLIENT_SECRET}
+      CLINIC_URL: http://clinic:8000
+      LAB_URL: http://lab:8000
+      SPECIALIST_URL: http://specialist:8000
+      STORAGE_ROOT: /data/documents
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      LLM_MODEL: ${LLM_MODEL:-claude-opus-5-5}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      EXTRACTION_MODE: ${EXTRACTION_MODE:-auto}
+      DOCUMENT_RETENTION_DAYS: ${DOCUMENT_RETENTION_DAYS:-365}
+    volumes:
+      - documents:/data/documents
+    ports: ["8000:8000"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      keycloak: {condition: service_healthy}
+    healthcheck: *py-health
+
+  worker:
+    restart: unless-stopped
+    build: {context: ., dockerfile: services/central/Dockerfile}
+    command: ["celery", "-A", "app.tasks", "worker", "-B", "--loglevel=info", "--concurrency=2", "-Q", "referral"]
+    environment: *central-env
+    volumes:
+      - documents:/data/documents
+    depends_on:
+      central: {condition: service_healthy}
+      redis: {condition: service_healthy}
+
+  web:
+    restart: unless-stopped
+    build: {context: ./web}
+    ports: ["3000:80"]
+    depends_on:
+      central: {condition: service_started}
+
+volumes:
+  pgdata:
+  documents:

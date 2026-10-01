@@ -1,0 +1,75 @@
+{
+  "ruleset_id": "orthodontics-medication-rules",
+  "version": "1.0.0",
+  "specialty": "orthodontics",
+  "governance": "Rules in this file are DRAFT proposals. A rule produces flags only after a user holding the rule_reviewer role approves that exact rule version in the application, recording the reviewer and the reference they checked. Editing a rule requires a new version and a new approval. AI-drafted rules are never auto-activated.",
+  "supported_classes": ["anticoagulant", "antiplatelet", "bisphosphonate", "systemic_corticosteroid"],
+  "supported_procedures": ["orthodontic_assessment", "fixed_appliance", "tooth_extraction", "mini_implant_placement", "orthognathic_surgery"],
+  "rules": [
+    {
+      "rule_id": "ORTHO-ANTICOAG-SURG",
+      "version": 1,
+      "drug_class": "anticoagulant",
+      "specialty": "orthodontics",
+      "requires_procedure": true,
+      "procedures": ["tooth_extraction", "mini_implant_placement", "orthognathic_surgery"],
+      "title": "Medication requires review: anticoagulant recorded",
+      "message": "The patient's verified medication list includes an anticoagulant. Review its relevance to the planned procedure.",
+      "rationale": "Anticoagulants are relevant to bleeding management for invasive dental and surgical procedures.",
+      "reference": "Scottish Dental Clinical Effectiveness Programme (SDCEP). Management of Dental Patients Taking Anticoagulants or Antiplatelet Drugs, 2nd edition (2022). Reviewer to confirm applicability.",
+      "proposed_by": "Project team (AI-assisted draft)"
+    },
+    {
+      "rule_id": "ORTHO-ANTIPLATELET-SURG",
+      "version": 1,
+      "drug_class": "antiplatelet",
+      "specialty": "orthodontics",
+      "requires_procedure": true,
+      "procedures": ["tooth_extraction", "mini_implant_placement", "orthognathic_surgery"],
+      "title": "Medication requires review: antiplatelet agent recorded",
+      "message": "The patient's verified medication list includes an antiplatelet agent. Review its relevance to the planned procedure.",
+      "rationale": "Antiplatelet agents are relevant to bleeding management for invasive dental and surgical procedures.",
+      "reference": "Scottish Dental Clinical Effectiveness Programme (SDCEP). Management of Dental Patients Taking Anticoagulants or Antiplatelet Drugs, 2nd edition (2022). Reviewer to confirm applicability.",
+      "proposed_by": "Project team (AI-assisted draft)"
+    },
+    {
+      "rule_id": "ORTHO-BISPHOS-SURG",
+      "version": 1,
+      "drug_class": "bisphosphonate",
+      "specialty": "orthodontics",
+      "requires_procedure": true,
+      "procedures": ["tooth_extraction", "mini_implant_placement", "orthognathic_surgery"],
+      "title": "Medication requires review: bisphosphonate recorded",
+      "message": "The patient's verified medication list includes a bisphosphonate. Review its relevance to the planned procedure.",
+      "rationale": "Bisphosphonate exposure is relevant to risk assessment for procedures involving bone (medication-related osteonecrosis of the jaw).",
+      "reference": "Scottish Dental Clinical Effectiveness Programme (SDCEP). Oral Health Management of Patients at Risk of Medication-related Osteonecrosis of the Jaw (2017). Reviewer to confirm applicability.",
+      "proposed_by": "Project team (AI-assisted draft)"
+    },
+    {
+      "rule_id": "ORTHO-BISPHOS-ATTN",
+      "version": 1,
+      "drug_class": "bisphosphonate",
+      "specialty": "orthodontics",
+      "requires_procedure": false,
+      "procedures": [],
+      "title": "Attention: bisphosphonate recorded",
+      "message": "A bisphosphonate is recorded as current medication. This is a specialty attention prompt only; it does not assert procedure risk.",
+      "rationale": "Specialty-level attention prompt for orthodontic treatment planning.",
+      "reference": "To be supplied by the clinical reviewer before approval.",
+      "proposed_by": "Project team (AI-assisted draft)"
+    },
+    {
+      "rule_id": "ORTHO-STEROID-SURG",
+      "version": 1,
+      "drug_class": "systemic_corticosteroid",
+      "specialty": "orthodontics",
+      "requires_procedure": true,
+      "procedures": ["tooth_extraction", "orthognathic_surgery"],
+      "title": "Medication requires review: systemic corticosteroid recorded",
+      "message": "The patient's verified medication list includes a systemic corticosteroid. Review its relevance to the planned procedure.",
+      "rationale": "Systemic corticosteroid use may be relevant to peri-operative planning for surgical procedures.",
+      "reference": "To be supplied by the clinical reviewer before approval.",
+      "proposed_by": "Project team (AI-assisted draft)"
+    }
+  ]
+}

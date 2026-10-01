@@ -1,0 +1,16 @@
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+sqlalchemy==2.0.36
+psycopg[binary]==3.2.3
+alembic==1.14.0
+httpx==0.28.1
+pyjwt[crypto]==2.10.1
+pydantic==2.10.3
+python-multipart==0.0.19
+celery[redis]==5.4.0
+anthropic==1.11.0
+pypdfium2==4.30.0
+pytesseract==0.3.13
+pillow==11.0.0
+reportlab==4.2.5
+pytest==8.3.4

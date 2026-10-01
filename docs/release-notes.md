@@ -24,15 +24,17 @@ First complete demonstration release of the Referral Preparation and Follow-thro
 
 See `docs/testing.md`. Results of this build:
 
-| Check | Result |
+| Check | Result (2026-10-01/02) |
 |---|---|
-| T1–T6 API integration checks (`tests/`) | see below |
-| Rule table and AI guardrail unit checks (`services/central/tests`) | see below |
-| Browser smoke journeys (3) | see below |
-| Backup → restore into a disposable environment | see below |
-| 10-user load test (p95 target 2 s) | see below |
+| T1–T6 API integration checks (`tests/`, fresh seed) | **29 passed, 1 skipped.** The skip is live-LLM brief generation (no API key in this environment); before skipping, that test confirms the visible failure and manual fallback. |
+| Evaluator rule table, AI guardrails, offline provider checks (`services/central/tests`) | **37 passed** |
+| Browser smoke journeys (`web/e2e/smoke.spec.ts`): normal end-to-end referral; denied source with unreadable document and manual fallback; changed medication flag requiring renewed review | **3 passed** (2.2 min) |
+| Backup → restore into a disposable environment (`scripts/restore-check.ps1`) | **Passed.** Approved package REF-2026-00019 v2 restored; 4 documents reopened, 0 checksum mismatches. |
+| 10-user load test inside the Compose network (keep-alive, 60 s, screen loads + draft saves) | **3,168 requests, 0 errors, p50 37 ms, p95 90 ms** (target p95 < 2,000 ms). Draft save p95 124 ms. |
 | OCR evaluation (dev / held-out) | CER 0.000 / 0.008, field recall 1.00 / 1.00 (machine-generated renders only) |
-| HL7 FHIR validator | see below |
+| HL7 FHIR validator 6.3.4 (R4 4.0.1), offline (`-tx n/a`), on 10 resource types plus a searchset Bundle and an approved package Bundle | **No structural or reference errors.** 4 errors are the MIME code `application/pdf`, which cannot be resolved without a terminology server. 38 warnings are best-practice recommendations only (resource narrative dom-6, Observation.performer). LOINC and SNOMED codes are reported as "not checked" offline. Report: `contracts/fhir-samples/validation-report.html` (regenerate with `scripts/fhir-validate.ps1`). |
+
+Measured from the Windows host through Docker Desktop's port proxy with a new connection per request, latency was about 2 s and some connections were reset. That is an artefact of the local proxy, not of the services; browsers use keep-alive and were unaffected in the smoke journeys.
 
 ## Known limitations (state these in the demonstration)
 

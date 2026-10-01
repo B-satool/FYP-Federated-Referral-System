@@ -1,0 +1,164 @@
+[
+  {
+    "id": 75,
+    "flag_key": "mapping:53",
+    "version": 2,
+    "kind": "ambiguous_mapping",
+    "title": "Medication mapping unresolved: Calcium D sachet",
+    "message": "This medication could not be mapped to a verified ingredient and drug class, so it was not evaluated against medication rules. Clarify the medication.",
+    "medication": "Calcium D sachet",
+    "drug_class": null,
+    "current_use_status": "uncertain",
+    "source_label": "Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1",
+    "rule_id": null,
+    "rule_version": null,
+    "evidence_ids": [
+      195
+    ],
+    "status": "active",
+    "created_at": "2026-10-01T20:34:39.306917+00:00",
+    "superseded_at": null,
+    "reviews": [
+      {
+        "id": 7,
+        "side": "referring",
+        "action": "reviewed",
+        "reviewer": "Sana Malik",
+        "institution_id": "clinic-a",
+        "flag_version": 2,
+        "package_version": null,
+        "clarification_id": null,
+        "note": "",
+        "created_at": "2026-10-01T20:34:42.189949+00:00"
+      },
+      {
+        "id": 12,
+        "side": "specialist",
+        "action": "reviewed",
+        "reviewer": "Faisal Haider",
+        "institution_id": "spec-c",
+        "flag_version": 2,
+        "package_version": 1,
+        "clarification_id": null,
+        "note": "",
+        "created_at": "2026-10-01T20:35:07.886531+00:00"
+      },
+      {
+        "id": 13,
+        "side": "referring",
+        "action": "reviewed",
+        "reviewer": "Sana Malik",
+        "institution_id": "clinic-a",
+        "flag_version": 2,
+        "package_version": null,
+        "clarification_id": null,
+        "note": "",
+        "created_at": "2026-10-01T20:35:15.007951+00:00"
+      }
+    ]
+  },
+  {
+    "id": 73,
+    "flag_key": "rule:ORTHO-ANTICOAG-SURG:warfarin",
+    "version": 1,
+    "kind": "confirmed",
+    "title": "Medication requires review: anticoagulant recorded",
+    "message": "The patient's verified medication list includes an anticoagulant. Review its relevance to the planned procedure.",
+    "medication": "Warfarin 5 mg tablet",
+    "drug_class": "anticoagulant",
+    "current_use_status": "confirmed_current",
+    "source_label": "Clinic A - Green Valley Family Clinic prescription RX-102-1 v1",
+    "rule_id": "ORTHO-ANTICOAG-SURG",
+    "rule_version": 1,
+    "evidence_ids": [
+      191
+    ],
+    "status": "active",
+    "created_at": "2026-10-01T20:34:34.918773+00:00",
+    "superseded_at": null,
+    "reviews": [
+      {
+        "id": 9,
+        "side": "referring",
+        "action": "reviewed",
+        "reviewer": "Sana Malik",
+        "institution_id": "clinic-a",
+        "flag_version": 1,
+        "package_version": null,
+        "clarification_id": null,
+        "note": "",
+        "created_at": "2026-10-01T20:34:43.999916+00:00"
+      },
+      {
+        "id": 10,
+        "side": "specialist",
+        "action": "reviewed",
+        "reviewer": "Faisal Haider",
+        "institution_id": "spec-c",
+        "flag_version": 1,
+        "package_version": 1,
+        "clarification_id": null,
+        "note": "",
+        "created_at": "2026-10-01T20:35:04.673736+00:00"
+      },
+      {
+        "id": 14,
+        "side": "referring",
+        "action": "reviewed",
+        "reviewer": "Sana Malik",
+        "institution_id": "clinic-a",
+        "flag_version": 1,
+        "package_version": null,
+        "clarification_id": null,
+        "note": "",
+        "created_at": "2026-10-01T20:35:16.247779+00:00"
+      }
+    ]
+  },
+  {
+    "id": 76,
+    "flag_key": "rule:ORTHO-ANTIPLATELET-SURG:aspirin",
+    "version": 1,
+    "kind": "confirmed",
+    "title": "Medication requires review: antiplatelet agent recorded",
+    "message": "The patient's verified medication list includes an antiplatelet agent. Review its relevance to the planned procedure.",
+    "medication": "Ecosprin 75",
+    "drug_class": "antiplatelet",
+    "current_use_status": "confirmed_current",
+    "source_label": "Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1",
+    "rule_id": "ORTHO-ANTIPLATELET-SURG",
+    "rule_version": 1,
+    "evidence_ids": [
+      194
+    ],
+    "status": "active",
+    "created_at": "2026-10-01T20:35:09.058436+00:00",
+    "superseded_at": null,
+    "reviews": [
+      {
+        "id": 15,
+        "side": "referring",
+        "action": "reviewed",
+        "reviewer": "Sana Malik",
+        "institution_id": "clinic-a",
+        "flag_version": 1,
+        "package_version": null,
+        "clarification_id": null,
+        "note": "",
+        "created_at": "2026-10-01T20:35:17.423889+00:00"
+      },
+      {
+        "id": 16,
+        "side": "specialist",
+        "action": "request_clarification",
+        "reviewer": "Faisal Haider",
+        "institution_id": "spec-c",
+        "flag_version": 1,
+        "package_version": 2,
+        "clarification_id": 1,
+        "note": "",
+        "created_at": "2026-10-01T20:35:29.140329+00:00"
+      }
+    ]
+  }
+]

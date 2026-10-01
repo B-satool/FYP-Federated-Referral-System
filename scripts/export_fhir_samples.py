@@ -35,7 +35,20 @@ def main() -> None:
             seen.add(t)
             (OUT / f"{t}-{r['id']}.json").write_text(json.dumps(r, indent=2), encoding="utf-8")
     (OUT / "Bundle-clinic-MR-102.json").write_text(json.dumps(bundles[0], indent=2), encoding="utf-8")
-    print("exported:", ", ".join(sorted(seen)), "+ one searchset Bundle")
+    from helpers import central
+
+    dr = central("dr.malik")
+    submitted = next((r for r in dr.get("/referrals").json() if r["submitted_package_version"]), None)
+    if submitted:
+        env = dr.get(f"/referrals/{submitted['id']}/packages/{submitted['submitted_package_version']}").json()["envelope"]
+        pkg = env["fhir_bundle"]
+        (OUT / "Bundle-referral-package.json").write_text(json.dumps(pkg, indent=2), encoding="utf-8")
+        for e in pkg["entry"]:
+            r = e["resource"]
+            if r["resourceType"] in ("ServiceRequest", "Task"):
+                (OUT / f"{r['resourceType']}-{r['id']}.json").write_text(json.dumps(r, indent=2), encoding="utf-8")
+                seen.add(r["resourceType"])
+    print("exported:", ", ".join(sorted(seen)), "+ searchset and package Bundles")
 
 
 if __name__ == "__main__":

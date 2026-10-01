@@ -1,0 +1,23 @@
+{
+  "resourceType": "Task",
+  "id": "REF-2026-00023-task",
+  "meta": {
+    "source": "urn:referral-demo:institution:clinic-a"
+  },
+  "status": "requested",
+  "intent": "order",
+  "focus": {
+    "reference": "ServiceRequest/REF-2026-00023"
+  },
+  "for": {
+    "reference": "Patient/MR-102",
+    "identifier": {
+      "system": "urn:referral-demo:institution:clinic-a:patient-id",
+      "value": "MR-102"
+    }
+  },
+  "authoredOn": "2026-10-01T21:07:48.059271+00:00",
+  "owner": {
+    "display": "Specialist C - Smile Orthodontic Centre"
+  }
+}

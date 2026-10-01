@@ -578,4 +578,4 @@ def patient_records(local_id: str, request: Request, categories: str | None = No
                  "partial" if decision.denied else "success", referral_ctx,
                  {"categories": sorted(decision.allowed), "withheld": sorted(decision.denied), "count": len(resources)})
     db.commit()
-    return records_bundle(resources, decision.denied)
+    return records_bundle(resources, decision.denied, INSTITUTION, str(request.url))

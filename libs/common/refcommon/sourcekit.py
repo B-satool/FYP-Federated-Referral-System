@@ -198,10 +198,10 @@ def build_admin_router(own_institution: str, grant_model, audit_model, patient_e
     return router
 
 
-def records_bundle(resources: list[dict], withheld: set[str]) -> dict:
+def records_bundle(resources: list[dict], withheld: set[str], institution_id: str, self_link: str | None = None) -> dict:
     """Searchset Bundle; withheld categories are reported as an OperationOutcome so the
     caller can show a *partial* result rather than silently missing data."""
-    b = fhir.bundle(resources, "searchset")
+    b = fhir.bundle(resources, "searchset", institution_id=institution_id, self_link=self_link)
     for entry in b["entry"]:
         entry["search"] = {"mode": "match"}
     if withheld:

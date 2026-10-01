@@ -1,0 +1,271 @@
+[
+  {
+    "id": 43,
+    "event_type": "created",
+    "from_status": null,
+    "to_status": "draft",
+    "actor": "Sana Malik",
+    "institution_id": "clinic-a",
+    "institution_name": "Clinic A - Green Valley Family Clinic",
+    "detail": {},
+    "created_at": "2026-10-01T20:34:31.255487+00:00"
+  },
+  {
+    "id": 44,
+    "event_type": "status_change",
+    "from_status": "draft",
+    "to_status": "awaiting_approval",
+    "actor": "Hina Raza",
+    "institution_id": "clinic-a",
+    "institution_name": "Clinic A - Green Valley Family Clinic",
+    "detail": {
+      "blocking_items": 0
+    },
+    "created_at": "2026-10-01T20:34:46.642222+00:00"
+  },
+  {
+    "id": 45,
+    "event_type": "status_change",
+    "from_status": "awaiting_approval",
+    "to_status": "approved",
+    "actor": "Sana Malik",
+    "institution_id": "clinic-a",
+    "institution_name": "Clinic A - Green Valley Family Clinic",
+    "detail": {
+      "package_version": 1
+    },
+    "created_at": "2026-10-01T20:34:49.324081+00:00"
+  },
+  {
+    "id": 46,
+    "event_type": "send_scheduled",
+    "from_status": null,
+    "to_status": null,
+    "actor": "Hina Raza",
+    "institution_id": "clinic-a",
+    "institution_name": "Clinic A - Green Valley Family Clinic",
+    "detail": {
+      "version": 1,
+      "delivery_key": "clinic-a:REF-2026-00019:v1"
+    },
+    "created_at": "2026-10-01T20:34:51.595253+00:00"
+  },
+  {
+    "id": 47,
+    "event_type": "delivered",
+    "from_status": null,
+    "to_status": null,
+    "actor": "system",
+    "institution_id": "central-platform",
+    "institution_name": "Central referral platform",
+    "detail": {
+      "version": 1,
+      "remote": {
+        "status": "received",
+        "case_id": 20,
+        "version": 1,
+        "received_at": "2026-10-01T20:34:57.450873+00:00"
+      },
+      "amendment": false
+    },
+    "created_at": "2026-10-01T20:34:57.519530+00:00"
+  },
+  {
+    "id": 48,
+    "event_type": "status_change",
+    "from_status": "approved",
+    "to_status": "submitted",
+    "actor": "system (delivery confirmed)",
+    "institution_id": "central-platform",
+    "institution_name": "Central referral platform",
+    "detail": {
+      "version": 1
+    },
+    "created_at": "2026-10-01T20:34:57.519536+00:00"
+  },
+  {
+    "id": 49,
+    "event_type": "status_change",
+    "from_status": "submitted",
+    "to_status": "acknowledged",
+    "actor": "Faisal Haider (Specialist C)",
+    "institution_id": "spec-c",
+    "institution_name": "Specialist C - Smile Orthodontic Centre",
+    "detail": {
+      "package_version": 1
+    },
+    "created_at": "2026-10-01T20:35:04.613756+00:00"
+  },
+  {
+    "id": 50,
+    "event_type": "specialist_flag_review",
+    "from_status": null,
+    "to_status": null,
+    "actor": "Faisal Haider (Specialist C)",
+    "institution_id": "spec-c",
+    "institution_name": "Specialist C - Smile Orthodontic Centre",
+    "detail": {
+      "package_version": 1,
+      "flag_id": 73,
+      "flag_version": 1,
+      "action": "reviewed",
+      "specialist_clarification_id": null
+    },
+    "created_at": "2026-10-01T20:35:04.675374+00:00"
+  },
+  {
+    "id": 51,
+    "event_type": "specialist_flag_review",
+    "from_status": null,
+    "to_status": null,
+    "actor": "Faisal Haider (Specialist C)",
+    "institution_id": "spec-c",
+    "institution_name": "Specialist C - Smile Orthodontic Centre",
+    "detail": {
+      "package_version": 1,
+      "flag_id": 74,
+      "flag_version": 2,
+      "action": "reviewed",
+      "specialist_clarification_id": null
+    },
+    "created_at": "2026-10-01T20:35:07.757992+00:00"
+  },
+  {
+    "id": 52,
+    "event_type": "specialist_flag_review",
+    "from_status": null,
+    "to_status": null,
+    "actor": "Faisal Haider (Specialist C)",
+    "institution_id": "spec-c",
+    "institution_name": "Specialist C - Smile Orthodontic Centre",
+    "detail": {
+      "package_version": 1,
+      "flag_id": 75,
+      "flag_version": 2,
+      "action": "reviewed",
+      "specialist_clarification_id": null
+    },
+    "created_at": "2026-10-01T20:35:07.887999+00:00"
+  },
+  {
+    "id": 53,
+    "event_type": "amendment_started",
+    "from_status": null,
+    "to_status": null,
+    "actor": "Sana Malik",
+    "institution_id": "clinic-a",
+    "institution_name": "Clinic A - Green Valley Family Clinic",
+    "detail": {
+      "reason": "Clinical content changed after submission (medication flags changed); a new approved version is required",
+      "submitted_version": 1
+    },
+    "created_at": "2026-10-01T20:35:09.065680+00:00"
+  },
+  {
+    "id": 54,
+    "event_type": "amendment_approved",
+    "from_status": null,
+    "to_status": null,
+    "actor": "Sana Malik",
+    "institution_id": "clinic-a",
+    "institution_name": "Clinic A - Green Valley Family Clinic",
+    "detail": {
+      "version": 2
+    },
+    "created_at": "2026-10-01T20:35:20.826945+00:00"
+  },
+  {
+    "id": 55,
+    "event_type": "send_scheduled",
+    "from_status": null,
+    "to_status": null,
+    "actor": "Hina Raza",
+    "institution_id": "clinic-a",
+    "institution_name": "Clinic A - Green Valley Family Clinic",
+    "detail": {
+      "version": 2,
+      "delivery_key": "clinic-a:REF-2026-00019:v2"
+    },
+    "created_at": "2026-10-01T20:35:23.203982+00:00"
+  },
+  {
+    "id": 56,
+    "event_type": "delivered",
+    "from_status": null,
+    "to_status": null,
+    "actor": "system",
+    "institution_id": "central-platform",
+    "institution_name": "Central referral platform",
+    "detail": {
+      "version": 2,
+      "remote": {
+        "status": "received",
+        "case_id": 20,
+        "version": 2,
+        "received_at": "2026-10-01T20:35:23.311491+00:00"
+      },
+      "amendment": true
+    },
+    "created_at": "2026-10-01T20:35:23.332038+00:00"
+  },
+  {
+    "id": 57,
+    "event_type": "specialist_clarification_requested",
+    "from_status": null,
+    "to_status": null,
+    "actor": "Faisal Haider (Specialist C)",
+    "institution_id": "spec-c",
+    "institution_name": "Specialist C - Smile Orthodontic Centre",
+    "detail": {
+      "package_version": 2,
+      "specialist_clarification_id": 2,
+      "question": "Is aspirin taken for cardiac indication, and who manages it?",
+      "flag_id": 76
+    },
+    "created_at": "2026-10-01T20:35:29.089410+00:00"
+  },
+  {
+    "id": 58,
+    "event_type": "specialist_flag_review",
+    "from_status": null,
+    "to_status": null,
+    "actor": "Faisal Haider (Specialist C)",
+    "institution_id": "spec-c",
+    "institution_name": "Specialist C - Smile Orthodontic Centre",
+    "detail": {
+      "package_version": 2,
+      "flag_id": 76,
+      "flag_version": 1,
+      "action": "request_clarification",
+      "specialist_clarification_id": 2
+    },
+    "created_at": "2026-10-01T20:35:29.143512+00:00"
+  },
+  {
+    "id": 59,
+    "event_type": "specialist_clarification_answered",
+    "from_status": null,
+    "to_status": null,
+    "actor": "Sana Malik",
+    "institution_id": "clinic-a",
+    "institution_name": "Clinic A - Green Valley Family Clinic",
+    "detail": {
+      "clarification_id": 1
+    },
+    "created_at": "2026-10-01T20:35:32.560801+00:00"
+  },
+  {
+    "id": 60,
+    "event_type": "clarification_answer_delivered",
+    "from_status": null,
+    "to_status": null,
+    "actor": "system",
+    "institution_id": "central-platform",
+    "institution_name": "Central referral platform",
+    "detail": {
+      "status": "received",
+      "clarification_id": 2
+    },
+    "created_at": "2026-10-01T20:35:35.199902+00:00"
+  }
+]

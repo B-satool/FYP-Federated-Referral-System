@@ -6,7 +6,6 @@ with the official HL7 validator (scripts/fhir-validate.ps1).
 """
 from __future__ import annotations
 
-import uuid
 from datetime import datetime, timezone
 from typing import Any
 
@@ -149,18 +148,36 @@ def validate_resource(resource: Any) -> list[str]:
     return problems
 
 
-def bundle(resources: list[dict], bundle_type: str = "collection", bundle_id: str | None = None) -> dict:
+BASE_URL = "https://{institution_id}.referral-demo.example/fhir"
+
+
+def base_url(institution_id: str) -> str:
+    return BASE_URL.format(institution_id=institution_id)
+
+
+def _origin(resource: dict, default: str) -> str:
+    source = (resource.get("meta") or {}).get("source", "")
+    prefix = "urn:referral-demo:institution:"
+    return source[len(prefix):] if source.startswith(prefix) else default
+
+
+def full_url(resource: dict, default_institution: str) -> str:
+    """RESTful fullUrl so relative references (e.g. Patient/MR-102) resolve inside the Bundle
+    against the originating institution's base (FHIR Bundle reference-resolution rules)."""
+    return f"{base_url(_origin(resource, default_institution))}/{resource['resourceType']}/{resource['id']}"
+
+
+def bundle(resources: list[dict], bundle_type: str = "collection", bundle_id: str | None = None,
+           institution_id: str = "central-platform", self_link: str | None = None) -> dict:
     out: dict[str, Any] = {
         "resourceType": "Bundle",
         "type": bundle_type,
         "timestamp": utc_iso(datetime.now(timezone.utc)),
-        "entry": [
-            {"fullUrl": f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, r['resourceType'] + '/' + str(r['id']))}", "resource": r}
-            for r in resources
-        ],
+        "entry": [{"fullUrl": full_url(r, institution_id), "resource": r} for r in resources],
     }
     if bundle_type == "searchset":
         out["total"] = len(resources)
+        out["link"] = [{"relation": "self", "url": self_link or base_url(institution_id)}]
     if bundle_id:
         out["id"] = bundle_id
     return out

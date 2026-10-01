@@ -34,4 +34,11 @@ The integration tests stop and start the `lab` and `clinic` containers to simula
 
 ## Latest recorded results
 
-See the release notes section of `docs/release-notes.md` for the results of the v1.0-demo build.
+The results of the v1.0-demo build are recorded in `docs/release-notes.md`:
+- T1–T6: 29 passed, 1 skipped (live LLM, no key)
+- unit checks: 37 passed
+- browser smoke: 3 passed
+- restore check: passed
+- load: p95 90 ms
+
+Raw outputs are in `evaluation/results/`.

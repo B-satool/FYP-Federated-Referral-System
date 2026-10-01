@@ -68,14 +68,15 @@ def _flag_snapshot(db: Session, f) -> dict:
 
 def _fhir_bundle(referral: Referral, brief: Brief, evidence: list[EvidenceItem], approved_at, approver: str) -> dict:
     subject = fhir.patient_reference(referral.patient_institution, referral.patient_local_id)
+    origin = {"source": f"urn:referral-demo:institution:{referral.source_institution}"}
     resources: list[dict] = [{
-        "resourceType": "Patient", "id": referral.patient_local_id,
+        "resourceType": "Patient", "id": referral.patient_local_id, "meta": dict(origin),
         "identifier": [fhir.patient_identifier(referral.patient_institution, referral.patient_local_id)],
         "name": [{"text": referral.patient_name}],
         **({"birthDate": referral.patient_birth_date} if referral.patient_birth_date else {}),
     }]
     sr = {
-        "resourceType": "ServiceRequest", "id": f"{referral.reference}",
+        "resourceType": "ServiceRequest", "id": f"{referral.reference}", "meta": dict(origin),
         "identifier": [{"system": "urn:referral-demo:referral-id", "value": referral.reference}],
         "status": fhir.REFERRAL_STATUS_TO_SERVICE_REQUEST["approved"], "intent": "order",
         "category": [{"text": "Referral"}],
@@ -88,11 +89,11 @@ def _fhir_bundle(referral: Referral, brief: Brief, evidence: list[EvidenceItem],
         "requester": {"display": approver},
         "performer": [{"display": INSTITUTIONS.get(referral.destination_institution, {}).get("name", referral.destination_institution)}],
         "reasonCode": [{"text": referral.reason}],
-        "supportingInfo": [{"reference": f"{e.source_record_type}/{e.source_record_id}"} for e in evidence
+        "supportingInfo": [{"reference": fhir.full_url(e.fhir, e.source_institution)} for e in evidence
                            if e.origin == "source" and e.fhir],
     }
     task = {
-        "resourceType": "Task", "id": f"{referral.reference}-task", "status": "requested", "intent": "order",
+        "resourceType": "Task", "id": f"{referral.reference}-task", "meta": dict(origin), "status": "requested", "intent": "order",
         "focus": {"reference": f"ServiceRequest/{referral.reference}"},
         "for": subject, "authoredOn": approved_at.isoformat(),
         "owner": {"display": INSTITUTIONS.get(referral.destination_institution, {}).get("name", referral.destination_institution)},
@@ -105,7 +106,7 @@ def _fhir_bundle(referral: Referral, brief: Brief, evidence: list[EvidenceItem],
             if key not in seen:
                 seen.add(key)
                 resources.append(e.fhir)
-    return fhir.bundle(resources, "collection", bundle_id=f"{referral.reference}-bundle")
+    return fhir.bundle(resources, "collection", bundle_id=f"{referral.reference}-bundle", institution_id=referral.source_institution)
 
 
 def build_envelope(db: Session, referral: Referral, principal: Principal, version: int, overrides: list[dict]) -> dict:

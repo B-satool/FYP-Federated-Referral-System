@@ -1,0 +1,1436 @@
+{
+  "envelope_version": "referral-package/1.0",
+  "contract_note": "Project API contract (not a standard FHIR resource)",
+  "delivery_key": "clinic-a:REF-2026-00019:v2",
+  "referral_id": "REF-2026-00019",
+  "package_version": 2,
+  "sender_institution": "clinic-a",
+  "destination_institution": "spec-c",
+  "specialty": "orthodontics",
+  "priority": "routine",
+  "reason": "Crowding and jaw discomfort; orthodontic opinion requested",
+  "planned_procedure": "tooth_extraction",
+  "procedure_known": true,
+  "patient": {
+    "name": "Ayesha Khan",
+    "birth_date": "1987-03-14",
+    "sex": "F",
+    "identifier": {
+      "institution_id": "clinic-a",
+      "local_patient_id": "MR-102"
+    },
+    "verified_links": [
+      {
+        "institution_id": "lab-b",
+        "local_patient_id": "LB-5531"
+      }
+    ]
+  },
+  "referring_clinician": {
+    "name": "Sana Malik",
+    "id": "7b4e5152-e719-418f-b54f-ec18713e8844",
+    "institution": "Clinic A - Green Valley Family Clinic"
+  },
+  "brief_sections": [
+    {
+      "key": "reason",
+      "title": "Reason for referral",
+      "statements": [
+        {
+          "id": "d343eb9a76",
+          "text": "Crowding and jaw discomfort; orthodontic opinion requested",
+          "evidence_ids": [],
+          "author_kind": "clinician",
+          "author_name": "Sana Malik",
+          "edited_by": null,
+          "verification": "none"
+        }
+      ]
+    },
+    {
+      "key": "history",
+      "title": "Relevant documented history",
+      "statements": [
+        {
+          "id": "ee798e8c90",
+          "text": "Atrial fibrillation (active) [2021-05-18]",
+          "evidence_ids": [
+            189
+          ],
+          "author_kind": "template",
+          "author_name": null,
+          "edited_by": null,
+          "verification": "verified"
+        },
+        {
+          "id": "83e2b68a8b",
+          "text": "Osteopenia (active) [2019-01-10]",
+          "evidence_ids": [
+            190
+          ],
+          "author_kind": "template",
+          "author_name": null,
+          "edited_by": null,
+          "verification": "verified"
+        }
+      ]
+    },
+    {
+      "key": "medications",
+      "title": "Medications",
+      "statements": [
+        {
+          "id": "675a287f81",
+          "text": "Warfarin 5 mg tablet - 5 mg once daily (prescription active) - current use: confirmed current [2021-06-01]",
+          "evidence_ids": [
+            191
+          ],
+          "author_kind": "template",
+          "author_name": null,
+          "edited_by": null,
+          "verification": "verified"
+        },
+        {
+          "id": "1b6d4c2766",
+          "text": "Alendronate 70 mg tablet - 70 mg once weekly (prescription stopped) - current use: historical stopped [2019-02-01]",
+          "evidence_ids": [
+            192
+          ],
+          "author_kind": "template",
+          "author_name": null,
+          "edited_by": null,
+          "verification": "verified"
+        },
+        {
+          "id": "e5d7218268",
+          "text": "Atorvastatin 20 mg tablet - 20 mg at night (prescription active) - current use: confirmed current [2022-03-01]",
+          "evidence_ids": [
+            193
+          ],
+          "author_kind": "template",
+          "author_name": null,
+          "edited_by": null,
+          "verification": "verified"
+        },
+        {
+          "id": "1f98f32f5e",
+          "text": "Ecosprin 75 - 75 mg daily (patient report) (reported use, status unknown) - current use: uncertain [2026-09-10]",
+          "evidence_ids": [
+            194
+          ],
+          "author_kind": "template",
+          "author_name": null,
+          "edited_by": null,
+          "verification": "verified"
+        },
+        {
+          "id": "33c446d641",
+          "text": "Calcium D sachet - 1 sachet daily (reported use, status active) - current use: uncertain [2026-09-10]",
+          "evidence_ids": [
+            195
+          ],
+          "author_kind": "template",
+          "author_name": null,
+          "edited_by": null,
+          "verification": "verified"
+        }
+      ]
+    },
+    {
+      "key": "results",
+      "title": "Results",
+      "statements": [
+        {
+          "id": "0df530f770",
+          "text": "INR: 2.6 {INR} (final) [2026-09-05]",
+          "evidence_ids": [
+            198
+          ],
+          "author_kind": "template",
+          "author_name": null,
+          "edited_by": null,
+          "verification": "verified"
+        },
+        {
+          "id": "156453b161",
+          "text": "INR: 3.1 {INR} (final) [2026-07-02]",
+          "evidence_ids": [
+            199
+          ],
+          "author_kind": "template",
+          "author_name": null,
+          "edited_by": null,
+          "verification": "verified"
+        },
+        {
+          "id": "84401f20c2",
+          "text": "Hemoglobin: 12.9 g/dL (final) [2026-09-05]",
+          "evidence_ids": [
+            200
+          ],
+          "author_kind": "template",
+          "author_name": null,
+          "edited_by": null,
+          "verification": "verified"
+        },
+        {
+          "id": "14b64c675f",
+          "text": "Glucose (fasting): value not recorded (preliminary) [2026-09-05]",
+          "evidence_ids": [
+            201
+          ],
+          "author_kind": "template",
+          "author_name": null,
+          "edited_by": null,
+          "verification": "verified"
+        },
+        {
+          "id": "840ef46f1e",
+          "text": "Platelets: 246.0 10*9/L (corrected) [2026-09-05]",
+          "evidence_ids": [
+            202
+          ],
+          "author_kind": "template",
+          "author_name": null,
+          "edited_by": null,
+          "verification": "verified"
+        }
+      ]
+    },
+    {
+      "key": "outstanding",
+      "title": "Outstanding or unavailable information",
+      "statements": []
+    }
+  ],
+  "medication_flags": [
+    {
+      "flag_id": 73,
+      "version": 1,
+      "kind": "confirmed",
+      "title": "Medication requires review: anticoagulant recorded",
+      "message": "The patient's verified medication list includes an anticoagulant. Review its relevance to the planned procedure.",
+      "medication": "Warfarin 5 mg tablet",
+      "drug_class": "anticoagulant",
+      "current_use_status": "confirmed_current",
+      "source_label": "Clinic A - Green Valley Family Clinic prescription RX-102-1 v1",
+      "rule_id": "ORTHO-ANTICOAG-SURG",
+      "rule_version": 1,
+      "evidence_ids": [
+        191
+      ],
+      "clinic_review": {
+        "reviewer": "Sana Malik",
+        "reviewed_at": "2026-10-01T20:35:16.247779+00:00"
+      }
+    },
+    {
+      "flag_id": 75,
+      "version": 2,
+      "kind": "ambiguous_mapping",
+      "title": "Medication mapping unresolved: Calcium D sachet",
+      "message": "This medication could not be mapped to a verified ingredient and drug class, so it was not evaluated against medication rules. Clarify the medication.",
+      "medication": "Calcium D sachet",
+      "drug_class": null,
+      "current_use_status": "uncertain",
+      "source_label": "Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1",
+      "rule_id": null,
+      "rule_version": null,
+      "evidence_ids": [
+        195
+      ],
+      "clinic_review": {
+        "reviewer": "Sana Malik",
+        "reviewed_at": "2026-10-01T20:35:15.007951+00:00"
+      }
+    },
+    {
+      "flag_id": 76,
+      "version": 1,
+      "kind": "confirmed",
+      "title": "Medication requires review: antiplatelet agent recorded",
+      "message": "The patient's verified medication list includes an antiplatelet agent. Review its relevance to the planned procedure.",
+      "medication": "Ecosprin 75",
+      "drug_class": "antiplatelet",
+      "current_use_status": "confirmed_current",
+      "source_label": "Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1",
+      "rule_id": "ORTHO-ANTIPLATELET-SURG",
+      "rule_version": 1,
+      "evidence_ids": [
+        194
+      ],
+      "clinic_review": {
+        "reviewer": "Sana Malik",
+        "reviewed_at": "2026-10-01T20:35:17.423889+00:00"
+      }
+    }
+  ],
+  "medication_evaluation": {
+    "status": "completed",
+    "outcome": "flags",
+    "summary": "2 referral-specific medication flag(s) from approved rules.",
+    "rule_versions": {
+      "ORTHO-ANTICOAG-SURG": 1,
+      "ORTHO-ANTIPLATELET-SURG": 1,
+      "ORTHO-BISPHOS-SURG": 1,
+      "ORTHO-BISPHOS-ATTN": 1,
+      "ORTHO-STEROID-SURG": 1
+    },
+    "mapping_version": "local-medication-dictionary@1.0.0",
+    "evaluated_at": "2026-10-01T20:35:09.049669+00:00"
+  },
+  "evidence": [
+    {
+      "evidence_id": 189,
+      "category": "condition",
+      "display": "Atrial fibrillation (active)",
+      "original": {
+        "condition": "Atrial fibrillation",
+        "coding": [
+          {
+            "system": "http://snomed.info/sct",
+            "code": "49436004",
+            "display": "Atrial fibrillation"
+          }
+        ],
+        "clinical_status": "active",
+        "onset": "2021-05-18",
+        "recorded": "2021-05-20"
+      },
+      "origin": "source",
+      "source_institution": "clinic-a",
+      "source_record_type": "Condition",
+      "source_record_id": "CON-102-1",
+      "source_record_version": "1",
+      "clinical_time": "2021-05-18T00:00:00+00:00",
+      "verification_status": "source_record",
+      "document_ref": null
+    },
+    {
+      "evidence_id": 190,
+      "category": "condition",
+      "display": "Osteopenia (active)",
+      "original": {
+        "condition": "Osteopenia",
+        "coding": [
+          {
+            "system": "http://snomed.info/sct",
+            "code": "312894000",
+            "display": "Osteopenia"
+          }
+        ],
+        "clinical_status": "active",
+        "onset": "2019-01-10",
+        "recorded": "2019-01-15"
+      },
+      "origin": "source",
+      "source_institution": "clinic-a",
+      "source_record_type": "Condition",
+      "source_record_id": "CON-102-2",
+      "source_record_version": "1",
+      "clinical_time": "2019-01-10T00:00:00+00:00",
+      "verification_status": "source_record",
+      "document_ref": null
+    },
+    {
+      "evidence_id": 191,
+      "category": "medication",
+      "display": "Warfarin 5 mg tablet - 5 mg once daily (prescription active)",
+      "original": {
+        "medication": "Warfarin 5 mg tablet",
+        "record_kind": "prescription",
+        "status": "active",
+        "dosage_text": "5 mg once daily",
+        "route": "oral",
+        "frequency": "once daily",
+        "dose_value": 5.0,
+        "dose_unit": "mg",
+        "start": "2021-06-01",
+        "end": null,
+        "authored_on": "2021-06-01T09:00:00+00:00",
+        "prescriber": "Dr Sana Malik",
+        "note": "Dose adjusted by cardiology per INR"
+      },
+      "origin": "source",
+      "source_institution": "clinic-a",
+      "source_record_type": "MedicationRequest",
+      "source_record_id": "RX-102-1",
+      "source_record_version": "1",
+      "clinical_time": "2021-06-01T09:00:00+00:00",
+      "verification_status": "source_record",
+      "document_ref": null
+    },
+    {
+      "evidence_id": 192,
+      "category": "medication",
+      "display": "Alendronate 70 mg tablet - 70 mg once weekly (prescription stopped)",
+      "original": {
+        "medication": "Alendronate 70 mg tablet",
+        "record_kind": "prescription",
+        "status": "stopped",
+        "dosage_text": "70 mg once weekly",
+        "route": "oral",
+        "frequency": "once weekly",
+        "dose_value": 70.0,
+        "dose_unit": "mg",
+        "start": "2019-02-01",
+        "end": "2023-02-01",
+        "authored_on": "2019-02-01T09:00:00+00:00",
+        "prescriber": "Dr Sana Malik",
+        "note": "Stopped after 4-year course"
+      },
+      "origin": "source",
+      "source_institution": "clinic-a",
+      "source_record_type": "MedicationRequest",
+      "source_record_id": "RX-102-2",
+      "source_record_version": "1",
+      "clinical_time": "2019-02-01T09:00:00+00:00",
+      "verification_status": "source_record",
+      "document_ref": null
+    },
+    {
+      "evidence_id": 193,
+      "category": "medication",
+      "display": "Atorvastatin 20 mg tablet - 20 mg at night (prescription active)",
+      "original": {
+        "medication": "Atorvastatin 20 mg tablet",
+        "record_kind": "prescription",
+        "status": "active",
+        "dosage_text": "20 mg at night",
+        "route": "oral",
+        "frequency": "once daily",
+        "dose_value": 20.0,
+        "dose_unit": "mg",
+        "start": "2022-03-01",
+        "end": null,
+        "authored_on": "2022-03-01T09:00:00+00:00",
+        "prescriber": "Dr Sana Malik",
+        "note": null
+      },
+      "origin": "source",
+      "source_institution": "clinic-a",
+      "source_record_type": "MedicationRequest",
+      "source_record_id": "RX-102-3",
+      "source_record_version": "1",
+      "clinical_time": "2022-03-01T09:00:00+00:00",
+      "verification_status": "source_record",
+      "document_ref": null
+    },
+    {
+      "evidence_id": 194,
+      "category": "medication",
+      "display": "Ecosprin 75 - 75 mg daily (patient report) (reported use, status unknown)",
+      "original": {
+        "medication": "Ecosprin 75",
+        "record_kind": "reported",
+        "status": "unknown",
+        "dosage_text": "75 mg daily (patient report)",
+        "date_asserted": "2026-09-10",
+        "note": "Patient unsure whether still taking; Recorded by Hina Raza"
+      },
+      "origin": "source",
+      "source_institution": "clinic-a",
+      "source_record_type": "MedicationStatement",
+      "source_record_id": "MS-102-1",
+      "source_record_version": "1",
+      "clinical_time": "2026-09-10T00:00:00+00:00",
+      "verification_status": "source_record",
+      "document_ref": null
+    },
+    {
+      "evidence_id": 195,
+      "category": "medication",
+      "display": "Calcium D sachet - 1 sachet daily (reported use, status active)",
+      "original": {
+        "medication": "Calcium D sachet",
+        "record_kind": "reported",
+        "status": "active",
+        "dosage_text": "1 sachet daily",
+        "date_asserted": "2026-09-10",
+        "note": "Recorded by Hina Raza"
+      },
+      "origin": "source",
+      "source_institution": "clinic-a",
+      "source_record_type": "MedicationStatement",
+      "source_record_id": "MS-102-2",
+      "source_record_version": "1",
+      "clinical_time": "2026-09-10T00:00:00+00:00",
+      "verification_status": "source_record",
+      "document_ref": null
+    },
+    {
+      "evidence_id": 198,
+      "category": "lab",
+      "display": "INR: 2.6 {INR} (final)",
+      "original": {
+        "test": "INR",
+        "coding": [
+          {
+            "system": "http://loinc.org",
+            "code": "6301-6",
+            "display": "INR"
+          }
+        ],
+        "status": "final",
+        "collected": "2026-09-05T08:00:00+00:00",
+        "issued": "2026-09-05T14:00:00+00:00",
+        "reference_range": "2.0-3.0 (therapeutic)",
+        "specimen": "Venous blood (citrate)",
+        "value": 2.6,
+        "unit": "{INR}"
+      },
+      "origin": "source",
+      "source_institution": "lab-b",
+      "source_record_type": "Observation",
+      "source_record_id": "OBS-5531-1",
+      "source_record_version": "1",
+      "clinical_time": "2026-09-05T08:00:00+00:00",
+      "verification_status": "source_record",
+      "document_ref": null
+    },
+    {
+      "evidence_id": 199,
+      "category": "lab",
+      "display": "INR: 3.1 {INR} (final)",
+      "original": {
+        "test": "INR",
+        "coding": [
+          {
+            "system": "http://loinc.org",
+            "code": "6301-6",
+            "display": "INR"
+          }
+        ],
+        "status": "final",
+        "collected": "2026-07-02T08:00:00+00:00",
+        "issued": "2026-07-02T15:00:00+00:00",
+        "reference_range": "2.0-3.0 (therapeutic)",
+        "specimen": "Venous blood (citrate)",
+        "value": 3.1,
+        "unit": "{INR}"
+      },
+      "origin": "source",
+      "source_institution": "lab-b",
+      "source_record_type": "Observation",
+      "source_record_id": "OBS-5531-0",
+      "source_record_version": "1",
+      "clinical_time": "2026-07-02T08:00:00+00:00",
+      "verification_status": "source_record",
+      "document_ref": null
+    },
+    {
+      "evidence_id": 200,
+      "category": "lab",
+      "display": "Hemoglobin: 12.9 g/dL (final)",
+      "original": {
+        "test": "Hemoglobin",
+        "coding": [
+          {
+            "system": "http://loinc.org",
+            "code": "718-7",
+            "display": "Hemoglobin"
+          }
+        ],
+        "status": "final",
+        "collected": "2026-09-05T08:00:00+00:00",
+        "issued": "2026-09-05T14:00:00+00:00",
+        "reference_range": "12.0-15.5",
+        "specimen": "Venous blood (EDTA)",
+        "value": 12.9,
+        "unit": "g/dL"
+      },
+      "origin": "source",
+      "source_institution": "lab-b",
+      "source_record_type": "Observation",
+      "source_record_id": "OBS-5531-2",
+      "source_record_version": "1",
+      "clinical_time": "2026-09-05T08:00:00+00:00",
+      "verification_status": "source_record",
+      "document_ref": null
+    },
+    {
+      "evidence_id": 201,
+      "category": "lab",
+      "display": "Glucose (fasting): value not recorded (preliminary)",
+      "original": {
+        "test": "Glucose (fasting)",
+        "coding": [
+          {
+            "system": "http://loinc.org",
+            "code": "2345-7",
+            "display": "Glucose (fasting)"
+          }
+        ],
+        "status": "preliminary",
+        "collected": "2026-09-05T08:00:00+00:00",
+        "issued": "2026-09-05T14:00:00+00:00",
+        "reference_range": "70-99",
+        "specimen": "Venous blood",
+        "value": null,
+        "unit": null,
+        "data_absent": true
+      },
+      "origin": "source",
+      "source_institution": "lab-b",
+      "source_record_type": "Observation",
+      "source_record_id": "OBS-5531-4",
+      "source_record_version": "1",
+      "clinical_time": "2026-09-05T08:00:00+00:00",
+      "verification_status": "source_record",
+      "document_ref": null
+    },
+    {
+      "evidence_id": 202,
+      "category": "lab",
+      "display": "Platelets: 246.0 10*9/L (corrected)",
+      "original": {
+        "test": "Platelets",
+        "coding": [
+          {
+            "system": "http://loinc.org",
+            "code": "777-3",
+            "display": "Platelets"
+          }
+        ],
+        "status": "corrected",
+        "collected": "2026-09-05T08:00:00+00:00",
+        "issued": "2026-10-01T20:32:39.953537+00:00",
+        "reference_range": "150-400",
+        "specimen": "Venous blood (EDTA)",
+        "value": 246.0,
+        "unit": "10*9/L"
+      },
+      "origin": "source",
+      "source_institution": "lab-b",
+      "source_record_type": "Observation",
+      "source_record_id": "OBS-5531-3",
+      "source_record_version": "2",
+      "clinical_time": "2026-09-05T08:00:00+00:00",
+      "verification_status": "source_record",
+      "document_ref": null
+    }
+  ],
+  "limitations": [],
+  "checklist": [
+    {
+      "id": "CL-REASON",
+      "title": "Referral reason documented",
+      "state": "present",
+      "blocking": true,
+      "override_allowed": false,
+      "open_items": []
+    },
+    {
+      "id": "CL-PRIORITY",
+      "title": "Clinician-selected priority recorded",
+      "state": "present",
+      "blocking": true,
+      "override_allowed": false,
+      "open_items": []
+    },
+    {
+      "id": "CL-PROCEDURE",
+      "title": "Planned procedure stated, or explicitly recorded as unknown",
+      "state": "present",
+      "blocking": true,
+      "override_allowed": false,
+      "open_items": []
+    },
+    {
+      "id": "CL-CLINICIAN",
+      "title": "Referring clinician assigned",
+      "state": "present",
+      "blocking": true,
+      "override_allowed": false,
+      "open_items": []
+    },
+    {
+      "id": "CL-HISTORY",
+      "title": "Relevant documented medical history included",
+      "state": "present",
+      "blocking": true,
+      "override_allowed": true,
+      "open_items": []
+    },
+    {
+      "id": "CL-MEDS-VERIFIED",
+      "title": "Current medication use verified by a clinician",
+      "state": "present",
+      "blocking": true,
+      "override_allowed": true,
+      "open_items": []
+    },
+    {
+      "id": "CL-MED-SOURCES",
+      "title": "Medication sources retrieved successfully",
+      "state": "present",
+      "blocking": false,
+      "override_allowed": true,
+      "open_items": []
+    },
+    {
+      "id": "CL-SOURCES",
+      "title": "Linked source systems retrieved",
+      "state": "present",
+      "blocking": false,
+      "override_allowed": true,
+      "open_items": []
+    },
+    {
+      "id": "CL-DOC-FIELDS",
+      "title": "Selected document-extracted or manually entered fields verified or resolved",
+      "state": "present",
+      "blocking": true,
+      "override_allowed": true,
+      "open_items": []
+    },
+    {
+      "id": "CL-DISCREPANCY",
+      "title": "Supported discrepancies reviewed by a clinician",
+      "state": "present",
+      "blocking": true,
+      "override_allowed": true,
+      "open_items": []
+    }
+  ],
+  "approved_by": "Sana Malik",
+  "approved_by_id": "7b4e5152-e719-418f-b54f-ec18713e8844",
+  "approved_at": "2026-10-01T20:35:20.801856Z",
+  "content_hash": "5edba6c2e9ed78bebf701de299e1233e0241a805b0e33f2e65138d4bd7c1ae14",
+  "fhir_bundle": {
+    "resourceType": "Bundle",
+    "type": "collection",
+    "timestamp": "2026-10-01T20:35:20.815900+00:00",
+    "entry": [
+      {
+        "fullUrl": "urn:uuid:44db89db-d892-56f7-a9bf-67435532bde8",
+        "resource": {
+          "resourceType": "Patient",
+          "id": "MR-102",
+          "identifier": [
+            {
+              "system": "urn:referral-demo:institution:clinic-a:patient-id",
+              "value": "MR-102"
+            }
+          ],
+          "name": [
+            {
+              "text": "Ayesha Khan"
+            }
+          ],
+          "birthDate": "1987-03-14"
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:94e31974-c82d-518a-8f3f-340a0dbaf37b",
+        "resource": {
+          "resourceType": "ServiceRequest",
+          "id": "REF-2026-00019",
+          "identifier": [
+            {
+              "system": "urn:referral-demo:referral-id",
+              "value": "REF-2026-00019"
+            }
+          ],
+          "status": "active",
+          "intent": "order",
+          "category": [
+            {
+              "text": "Referral"
+            }
+          ],
+          "priority": "routine",
+          "code": {
+            "text": "Referral to orthodontics - Tooth extraction (as part of orthodontic plan)"
+          },
+          "subject": {
+            "reference": "Patient/MR-102",
+            "identifier": {
+              "system": "urn:referral-demo:institution:clinic-a:patient-id",
+              "value": "MR-102"
+            }
+          },
+          "authoredOn": "2026-10-01T20:35:20.801856+00:00",
+          "requester": {
+            "display": "Sana Malik"
+          },
+          "performer": [
+            {
+              "display": "Specialist C - Smile Orthodontic Centre"
+            }
+          ],
+          "reasonCode": [
+            {
+              "text": "Crowding and jaw discomfort; orthodontic opinion requested"
+            }
+          ],
+          "supportingInfo": [
+            {
+              "reference": "Condition/CON-102-1"
+            },
+            {
+              "reference": "Condition/CON-102-2"
+            },
+            {
+              "reference": "MedicationRequest/RX-102-1"
+            },
+            {
+              "reference": "MedicationRequest/RX-102-2"
+            },
+            {
+              "reference": "MedicationRequest/RX-102-3"
+            },
+            {
+              "reference": "MedicationStatement/MS-102-1"
+            },
+            {
+              "reference": "MedicationStatement/MS-102-2"
+            },
+            {
+              "reference": "Observation/OBS-5531-1"
+            },
+            {
+              "reference": "Observation/OBS-5531-0"
+            },
+            {
+              "reference": "Observation/OBS-5531-2"
+            },
+            {
+              "reference": "Observation/OBS-5531-4"
+            },
+            {
+              "reference": "Observation/OBS-5531-3"
+            }
+          ]
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:21f44e1f-0972-5ba3-92fa-def49f9c4acf",
+        "resource": {
+          "resourceType": "Task",
+          "id": "REF-2026-00019-task",
+          "status": "requested",
+          "intent": "order",
+          "focus": {
+            "reference": "ServiceRequest/REF-2026-00019"
+          },
+          "for": {
+            "reference": "Patient/MR-102",
+            "identifier": {
+              "system": "urn:referral-demo:institution:clinic-a:patient-id",
+              "value": "MR-102"
+            }
+          },
+          "authoredOn": "2026-10-01T20:35:20.801856+00:00",
+          "owner": {
+            "display": "Specialist C - Smile Orthodontic Centre"
+          }
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:7c37ca59-d4e3-55be-a371-b7d575a543bb",
+        "resource": {
+          "resourceType": "Condition",
+          "id": "CON-102-1",
+          "meta": {
+            "versionId": "1",
+            "source": "urn:referral-demo:institution:clinic-a",
+            "lastUpdated": "2026-10-01T20:31:14.704010+00:00"
+          },
+          "clinicalStatus": {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+                "code": "active"
+              }
+            ]
+          },
+          "code": {
+            "text": "Atrial fibrillation",
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "49436004",
+                "display": "Atrial fibrillation"
+              }
+            ]
+          },
+          "subject": {
+            "reference": "Patient/MR-102",
+            "identifier": {
+              "system": "urn:referral-demo:institution:clinic-a:patient-id",
+              "value": "MR-102"
+            }
+          },
+          "onsetDateTime": "2021-05-18",
+          "recordedDate": "2021-05-20"
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:91eff0a3-bcea-5ade-8e7b-333619ef150b",
+        "resource": {
+          "resourceType": "Condition",
+          "id": "CON-102-2",
+          "meta": {
+            "versionId": "1",
+            "source": "urn:referral-demo:institution:clinic-a",
+            "lastUpdated": "2026-10-01T20:31:14.704014+00:00"
+          },
+          "clinicalStatus": {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+                "code": "active"
+              }
+            ]
+          },
+          "code": {
+            "text": "Osteopenia",
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "312894000",
+                "display": "Osteopenia"
+              }
+            ]
+          },
+          "subject": {
+            "reference": "Patient/MR-102",
+            "identifier": {
+              "system": "urn:referral-demo:institution:clinic-a:patient-id",
+              "value": "MR-102"
+            }
+          },
+          "onsetDateTime": "2019-01-10",
+          "recordedDate": "2019-01-15"
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:b07ec39f-1bfb-5530-b678-d188c6ce3ca2",
+        "resource": {
+          "resourceType": "MedicationRequest",
+          "id": "RX-102-1",
+          "meta": {
+            "versionId": "1",
+            "source": "urn:referral-demo:institution:clinic-a",
+            "lastUpdated": "2026-10-01T20:31:14.718309+00:00"
+          },
+          "status": "active",
+          "intent": "order",
+          "medicationCodeableConcept": {
+            "text": "Warfarin 5 mg tablet"
+          },
+          "subject": {
+            "reference": "Patient/MR-102",
+            "identifier": {
+              "system": "urn:referral-demo:institution:clinic-a:patient-id",
+              "value": "MR-102"
+            }
+          },
+          "authoredOn": "2021-06-01T09:00:00+00:00",
+          "requester": {
+            "display": "Dr Sana Malik"
+          },
+          "dosageInstruction": [
+            {
+              "text": "5 mg once daily",
+              "route": {
+                "text": "oral"
+              },
+              "timing": {
+                "code": {
+                  "text": "once daily"
+                }
+              },
+              "doseAndRate": [
+                {
+                  "doseQuantity": {
+                    "value": 5.0,
+                    "unit": "mg"
+                  }
+                }
+              ]
+            }
+          ],
+          "dispenseRequest": {
+            "validityPeriod": {
+              "start": "2021-06-01"
+            }
+          },
+          "note": [
+            {
+              "text": "Dose adjusted by cardiology per INR"
+            }
+          ]
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:1c863156-eb47-55fa-8619-6d744926bb92",
+        "resource": {
+          "resourceType": "MedicationRequest",
+          "id": "RX-102-2",
+          "meta": {
+            "versionId": "1",
+            "source": "urn:referral-demo:institution:clinic-a",
+            "lastUpdated": "2026-10-01T20:31:14.718314+00:00"
+          },
+          "status": "stopped",
+          "intent": "order",
+          "medicationCodeableConcept": {
+            "text": "Alendronate 70 mg tablet"
+          },
+          "subject": {
+            "reference": "Patient/MR-102",
+            "identifier": {
+              "system": "urn:referral-demo:institution:clinic-a:patient-id",
+              "value": "MR-102"
+            }
+          },
+          "authoredOn": "2019-02-01T09:00:00+00:00",
+          "requester": {
+            "display": "Dr Sana Malik"
+          },
+          "dosageInstruction": [
+            {
+              "text": "70 mg once weekly",
+              "route": {
+                "text": "oral"
+              },
+              "timing": {
+                "code": {
+                  "text": "once weekly"
+                }
+              },
+              "doseAndRate": [
+                {
+                  "doseQuantity": {
+                    "value": 70.0,
+                    "unit": "mg"
+                  }
+                }
+              ]
+            }
+          ],
+          "dispenseRequest": {
+            "validityPeriod": {
+              "start": "2019-02-01",
+              "end": "2023-02-01"
+            }
+          },
+          "note": [
+            {
+              "text": "Stopped after 4-year course"
+            }
+          ]
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:529afda5-f550-5211-9eea-c45892a91bd0",
+        "resource": {
+          "resourceType": "MedicationRequest",
+          "id": "RX-102-3",
+          "meta": {
+            "versionId": "1",
+            "source": "urn:referral-demo:institution:clinic-a",
+            "lastUpdated": "2026-10-01T20:31:14.718315+00:00"
+          },
+          "status": "active",
+          "intent": "order",
+          "medicationCodeableConcept": {
+            "text": "Atorvastatin 20 mg tablet"
+          },
+          "subject": {
+            "reference": "Patient/MR-102",
+            "identifier": {
+              "system": "urn:referral-demo:institution:clinic-a:patient-id",
+              "value": "MR-102"
+            }
+          },
+          "authoredOn": "2022-03-01T09:00:00+00:00",
+          "requester": {
+            "display": "Dr Sana Malik"
+          },
+          "dosageInstruction": [
+            {
+              "text": "20 mg at night",
+              "route": {
+                "text": "oral"
+              },
+              "timing": {
+                "code": {
+                  "text": "once daily"
+                }
+              },
+              "doseAndRate": [
+                {
+                  "doseQuantity": {
+                    "value": 20.0,
+                    "unit": "mg"
+                  }
+                }
+              ]
+            }
+          ],
+          "dispenseRequest": {
+            "validityPeriod": {
+              "start": "2022-03-01"
+            }
+          }
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:b7309b17-6a51-5a8a-b448-8c89a0d2b9d1",
+        "resource": {
+          "resourceType": "MedicationStatement",
+          "id": "MS-102-1",
+          "meta": {
+            "versionId": "1",
+            "source": "urn:referral-demo:institution:clinic-a",
+            "lastUpdated": "2026-10-01T20:31:14.727540+00:00"
+          },
+          "status": "unknown",
+          "medicationCodeableConcept": {
+            "text": "Ecosprin 75"
+          },
+          "subject": {
+            "reference": "Patient/MR-102",
+            "identifier": {
+              "system": "urn:referral-demo:institution:clinic-a:patient-id",
+              "value": "MR-102"
+            }
+          },
+          "dateAsserted": "2026-09-10",
+          "informationSource": {
+            "reference": "Patient/MR-102"
+          },
+          "dosage": [
+            {
+              "text": "75 mg daily (patient report)"
+            }
+          ],
+          "note": [
+            {
+              "text": "Patient unsure whether still taking"
+            },
+            {
+              "text": "Recorded by Hina Raza"
+            }
+          ]
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:d909f3d8-b011-5931-aafc-be5e6635011d",
+        "resource": {
+          "resourceType": "MedicationStatement",
+          "id": "MS-102-2",
+          "meta": {
+            "versionId": "1",
+            "source": "urn:referral-demo:institution:clinic-a",
+            "lastUpdated": "2026-10-01T20:31:14.727544+00:00"
+          },
+          "status": "active",
+          "medicationCodeableConcept": {
+            "text": "Calcium D sachet"
+          },
+          "subject": {
+            "reference": "Patient/MR-102",
+            "identifier": {
+              "system": "urn:referral-demo:institution:clinic-a:patient-id",
+              "value": "MR-102"
+            }
+          },
+          "dateAsserted": "2026-09-10",
+          "informationSource": {
+            "reference": "Patient/MR-102"
+          },
+          "dosage": [
+            {
+              "text": "1 sachet daily"
+            }
+          ],
+          "note": [
+            {
+              "text": "Recorded by Hina Raza"
+            }
+          ]
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:947de46c-570a-53ea-bf5c-e2b8150737db",
+        "resource": {
+          "resourceType": "Observation",
+          "id": "OBS-5531-1",
+          "meta": {
+            "versionId": "1",
+            "source": "urn:referral-demo:institution:lab-b",
+            "lastUpdated": "2026-10-01T20:31:16.994353+00:00"
+          },
+          "status": "final",
+          "category": [
+            {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                  "code": "laboratory"
+                }
+              ]
+            }
+          ],
+          "code": {
+            "text": "INR",
+            "coding": [
+              {
+                "system": "http://loinc.org",
+                "code": "6301-6",
+                "display": "INR"
+              }
+            ]
+          },
+          "subject": {
+            "reference": "Patient/LB-5531",
+            "identifier": {
+              "system": "urn:referral-demo:institution:lab-b:patient-id",
+              "value": "LB-5531"
+            }
+          },
+          "effectiveDateTime": "2026-09-05T08:00:00+00:00",
+          "issued": "2026-09-05T14:00:00+00:00",
+          "valueQuantity": {
+            "value": 2.6,
+            "unit": "{INR}"
+          },
+          "referenceRange": [
+            {
+              "text": "2.0-3.0 (therapeutic)"
+            }
+          ],
+          "specimen": {
+            "display": "Venous blood (citrate)"
+          }
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:e8e6daf0-7aee-57eb-944f-e7b357922039",
+        "resource": {
+          "resourceType": "Observation",
+          "id": "OBS-5531-0",
+          "meta": {
+            "versionId": "1",
+            "source": "urn:referral-demo:institution:lab-b",
+            "lastUpdated": "2026-10-01T20:31:16.994363+00:00"
+          },
+          "status": "final",
+          "category": [
+            {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                  "code": "laboratory"
+                }
+              ]
+            }
+          ],
+          "code": {
+            "text": "INR",
+            "coding": [
+              {
+                "system": "http://loinc.org",
+                "code": "6301-6",
+                "display": "INR"
+              }
+            ]
+          },
+          "subject": {
+            "reference": "Patient/LB-5531",
+            "identifier": {
+              "system": "urn:referral-demo:institution:lab-b:patient-id",
+              "value": "LB-5531"
+            }
+          },
+          "effectiveDateTime": "2026-07-02T08:00:00+00:00",
+          "issued": "2026-07-02T15:00:00+00:00",
+          "valueQuantity": {
+            "value": 3.1,
+            "unit": "{INR}"
+          },
+          "referenceRange": [
+            {
+              "text": "2.0-3.0 (therapeutic)"
+            }
+          ],
+          "specimen": {
+            "display": "Venous blood (citrate)"
+          }
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:e39c3adc-7d8a-53ce-b2ee-6c6f11ce7e33",
+        "resource": {
+          "resourceType": "Observation",
+          "id": "OBS-5531-2",
+          "meta": {
+            "versionId": "1",
+            "source": "urn:referral-demo:institution:lab-b",
+            "lastUpdated": "2026-10-01T20:31:16.994364+00:00"
+          },
+          "status": "final",
+          "category": [
+            {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                  "code": "laboratory"
+                }
+              ]
+            }
+          ],
+          "code": {
+            "text": "Hemoglobin",
+            "coding": [
+              {
+                "system": "http://loinc.org",
+                "code": "718-7",
+                "display": "Hemoglobin"
+              }
+            ]
+          },
+          "subject": {
+            "reference": "Patient/LB-5531",
+            "identifier": {
+              "system": "urn:referral-demo:institution:lab-b:patient-id",
+              "value": "LB-5531"
+            }
+          },
+          "effectiveDateTime": "2026-09-05T08:00:00+00:00",
+          "issued": "2026-09-05T14:00:00+00:00",
+          "valueQuantity": {
+            "value": 12.9,
+            "unit": "g/dL"
+          },
+          "referenceRange": [
+            {
+              "text": "12.0-15.5"
+            }
+          ],
+          "specimen": {
+            "display": "Venous blood (EDTA)"
+          }
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:255df6b2-50c7-5aa5-ab0e-8fc6d107ce9d",
+        "resource": {
+          "resourceType": "Observation",
+          "id": "OBS-5531-4",
+          "meta": {
+            "versionId": "1",
+            "source": "urn:referral-demo:institution:lab-b",
+            "lastUpdated": "2026-10-01T20:31:16.999778+00:00"
+          },
+          "status": "preliminary",
+          "category": [
+            {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                  "code": "laboratory"
+                }
+              ]
+            }
+          ],
+          "code": {
+            "text": "Glucose (fasting)",
+            "coding": [
+              {
+                "system": "http://loinc.org",
+                "code": "2345-7",
+                "display": "Glucose (fasting)"
+              }
+            ]
+          },
+          "subject": {
+            "reference": "Patient/LB-5531",
+            "identifier": {
+              "system": "urn:referral-demo:institution:lab-b:patient-id",
+              "value": "LB-5531"
+            }
+          },
+          "effectiveDateTime": "2026-09-05T08:00:00+00:00",
+          "issued": "2026-09-05T14:00:00+00:00",
+          "dataAbsentReason": {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/data-absent-reason",
+                "code": "unknown"
+              }
+            ]
+          },
+          "referenceRange": [
+            {
+              "text": "70-99"
+            }
+          ],
+          "specimen": {
+            "display": "Venous blood"
+          }
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:5ea2870c-debc-59b8-8ff3-dc1212f4eead",
+        "resource": {
+          "resourceType": "Observation",
+          "id": "OBS-5531-3",
+          "meta": {
+            "versionId": "2",
+            "source": "urn:referral-demo:institution:lab-b",
+            "lastUpdated": "2026-10-01T20:32:39.956519+00:00"
+          },
+          "status": "corrected",
+          "category": [
+            {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                  "code": "laboratory"
+                }
+              ]
+            }
+          ],
+          "code": {
+            "text": "Platelets",
+            "coding": [
+              {
+                "system": "http://loinc.org",
+                "code": "777-3",
+                "display": "Platelets"
+              }
+            ]
+          },
+          "subject": {
+            "reference": "Patient/LB-5531",
+            "identifier": {
+              "system": "urn:referral-demo:institution:lab-b:patient-id",
+              "value": "LB-5531"
+            }
+          },
+          "effectiveDateTime": "2026-09-05T08:00:00+00:00",
+          "issued": "2026-10-01T20:32:39.953537+00:00",
+          "valueQuantity": {
+            "value": 246.0,
+            "unit": "10*9/L"
+          },
+          "referenceRange": [
+            {
+              "text": "150-400"
+            }
+          ],
+          "specimen": {
+            "display": "Venous blood (EDTA)"
+          }
+        }
+      }
+    ],
+    "id": "REF-2026-00019-bundle"
+  },
+  "supersedes_version": 1
+}

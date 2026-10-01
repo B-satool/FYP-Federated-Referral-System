@@ -78,7 +78,7 @@ python -m venv .venv; .\.venv\Scripts\pip install httpx pytest
 .\.venv\Scripts\python -m pytest tests -q                       # T1–T7 API integration checks (reseeds first)
 docker compose run --rm --no-deps -v ${PWD}/services/central/tests:/srv/tests central python -m pytest tests -q   # rule table + AI guardrails
 cd web; npm ci; npx playwright install chromium; npx playwright test e2e/smoke.spec.ts   # 3 browser smoke journeys
-.\.venv\Scripts\python scripts\loadtest.py --users 10 --seconds 60                          # p95 < 2 s target
+docker compose run --rm --no-deps -v ${PWD}:/repo -e REPO=/repo -e CENTRAL_URL=http://central:8000 -e KEYCLOAK_URL=http://keycloak:8080 central python /repo/scripts/loadtest.py   # 10 users, p95 < 2 s target
 .\scripts\backup.ps1; .\scripts\restore-check.ps1 -BackupDir backups\<timestamp>          # restore into a disposable environment
 ```
 

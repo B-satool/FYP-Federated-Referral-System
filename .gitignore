@@ -28,6 +28,6 @@ tools/*.jar
 /FYP *.pdf
 
 # Generated artefacts
-contracts/fhir-samples/validation-report.html
 web/e2e/explore.spec.ts
 
+contracts/fhir-samples/validator-output.txt

@@ -1,0 +1,27 @@
+{
+  "id": 120,
+  "status": "completed",
+  "outcome": "flags",
+  "summary_message": "2 referral-specific medication flag(s) from approved rules.",
+  "trigger": "medication_use_changed",
+  "rule_versions": {
+    "ORTHO-ANTICOAG-SURG": 1,
+    "ORTHO-ANTIPLATELET-SURG": 1,
+    "ORTHO-BISPHOS-SURG": 1,
+    "ORTHO-BISPHOS-ATTN": 1,
+    "ORTHO-STEROID-SURG": 1
+  },
+  "mapping_version": "local-medication-dictionary@1.0.0",
+  "context": {
+    "specialty": "orthodontics",
+    "procedure_status": "known",
+    "planned_procedure": "tooth_extraction",
+    "sources": {
+      "clinic-a": "successful",
+      "lab-b": "successful"
+    }
+  },
+  "error": null,
+  "changed_flags": 2,
+  "created_at": "2026-10-01T20:35:09.049669+00:00"
+}

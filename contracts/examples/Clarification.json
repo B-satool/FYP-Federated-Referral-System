@@ -1,0 +1,27 @@
+[
+  {
+    "id": 1,
+    "referral_id": 19,
+    "review_item_id": null,
+    "flag_id": 76,
+    "origin": "specialist",
+    "question": "Is aspirin taken for cardiac indication, and who manages it?",
+    "assignee_institution": "clinic-a",
+    "assignee_institution_name": "Clinic A - Green Valley Family Clinic",
+    "assignee_role": "clinician",
+    "status": "resolved",
+    "due_date": null,
+    "created_by": "Faisal Haider (Specialist C)",
+    "created_at": "2026-10-01T20:35:29.078805+00:00",
+    "response_text": "Prescribed by cardiology for AF; managed by cardiology",
+    "response_document_ids": [],
+    "answered_by": "Sana Malik",
+    "answered_at": "2026-10-01T20:35:32.549461+00:00",
+    "resolved_by": "Sana Malik",
+    "resolved_at": "2026-10-01T20:35:32.550717+00:00",
+    "resolution_note": null,
+    "package_version": 2,
+    "referral_reference": "REF-2026-00019",
+    "patient_name": "Ayesha Khan"
+  }
+]

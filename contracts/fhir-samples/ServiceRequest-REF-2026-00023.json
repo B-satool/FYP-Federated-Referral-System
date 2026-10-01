@@ -1,0 +1,83 @@
+{
+  "resourceType": "ServiceRequest",
+  "id": "REF-2026-00023",
+  "meta": {
+    "source": "urn:referral-demo:institution:clinic-a"
+  },
+  "identifier": [
+    {
+      "system": "urn:referral-demo:referral-id",
+      "value": "REF-2026-00023"
+    }
+  ],
+  "status": "active",
+  "intent": "order",
+  "category": [
+    {
+      "text": "Referral"
+    }
+  ],
+  "priority": "routine",
+  "code": {
+    "text": "Referral to orthodontics - Tooth extraction (as part of orthodontic plan)"
+  },
+  "subject": {
+    "reference": "Patient/MR-102",
+    "identifier": {
+      "system": "urn:referral-demo:institution:clinic-a:patient-id",
+      "value": "MR-102"
+    }
+  },
+  "authoredOn": "2026-10-01T21:07:48.059271+00:00",
+  "requester": {
+    "display": "Sana Malik"
+  },
+  "performer": [
+    {
+      "display": "Specialist C - Smile Orthodontic Centre"
+    }
+  ],
+  "reasonCode": [
+    {
+      "text": "Crowding and jaw discomfort; orthodontic opinion requested"
+    }
+  ],
+  "supportingInfo": [
+    {
+      "reference": "https://clinic-a.referral-demo.example/fhir/Condition/CON-102-1"
+    },
+    {
+      "reference": "https://clinic-a.referral-demo.example/fhir/Condition/CON-102-2"
+    },
+    {
+      "reference": "https://clinic-a.referral-demo.example/fhir/MedicationRequest/RX-102-1"
+    },
+    {
+      "reference": "https://clinic-a.referral-demo.example/fhir/MedicationRequest/RX-102-2"
+    },
+    {
+      "reference": "https://clinic-a.referral-demo.example/fhir/MedicationRequest/RX-102-3"
+    },
+    {
+      "reference": "https://clinic-a.referral-demo.example/fhir/MedicationStatement/MS-102-1"
+    },
+    {
+      "reference": "https://clinic-a.referral-demo.example/fhir/MedicationStatement/MS-102-2"
+    },
+    {
+      "reference": "https://lab-b.referral-demo.example/fhir/Observation/OBS-5531-1"
+    },
+    {
+      "reference": "https://lab-b.referral-demo.example/fhir/Observation/OBS-5531-0"
+    },
+    {
+      "reference": "https://lab-b.referral-demo.example/fhir/Observation/OBS-5531-2"
+    },
+    {
+      "reference": "https://lab-b.referral-demo.example/fhir/Observation/OBS-5531-4"
+    },
+    {
+      "reference": "https://lab-b.referral-demo.example/fhir/Observation/OBS-5531-3"
+    }
+  ]
+}

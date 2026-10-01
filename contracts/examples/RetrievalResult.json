@@ -1,0 +1,40 @@
+[
+  {
+    "id": 30,
+    "source_institution": "lab-b",
+    "source_name": "Lab B - CityLab Diagnostics",
+    "local_patient_id": "LB-5531",
+    "link_id": 1,
+    "status": "successful",
+    "record_count": 9,
+    "new_count": 9,
+    "duplicate_count": 0,
+    "invalid_count": 0,
+    "withheld": [],
+    "message": "9 record(s): 9 new, 0 already imported",
+    "retryable": false,
+    "attempts": 1,
+    "duration_ms": 419,
+    "requested_by": "Sana Malik",
+    "requested_at": "2026-10-01T20:34:32.650013+00:00"
+  },
+  {
+    "id": 29,
+    "source_institution": "clinic-a",
+    "source_name": "Clinic A - Green Valley Family Clinic",
+    "local_patient_id": "MR-102",
+    "link_id": null,
+    "status": "successful",
+    "record_count": 11,
+    "new_count": 11,
+    "duplicate_count": 0,
+    "invalid_count": 0,
+    "withheld": [],
+    "message": "11 record(s): 11 new, 0 already imported",
+    "retryable": false,
+    "attempts": 1,
+    "duration_ms": 182,
+    "requested_by": "Sana Malik",
+    "requested_at": "2026-10-01T20:34:32.592628+00:00"
+  }
+]

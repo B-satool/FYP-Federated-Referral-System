@@ -1,17 +1,17 @@
 {
   "resourceType": "Bundle",
   "type": "searchset",
-  "timestamp": "2026-10-01T19:44:07.711213+00:00",
+  "timestamp": "2026-10-01T21:08:11.776044+00:00",
   "entry": [
     {
-      "fullUrl": "urn:uuid:44db89db-d892-56f7-a9bf-67435532bde8",
+      "fullUrl": "https://clinic-a.referral-demo.example/fhir/Patient/MR-102",
       "resource": {
         "resourceType": "Patient",
         "id": "MR-102",
         "meta": {
           "versionId": "1",
           "source": "urn:referral-demo:institution:clinic-a",
-          "lastUpdated": "2026-10-01T19:42:04.820739+00:00"
+          "lastUpdated": "2026-10-01T20:58:21.907774+00:00"
         },
         "identifier": [
           {
@@ -36,14 +36,14 @@
       }
     },
     {
-      "fullUrl": "urn:uuid:d0d05d87-495e-58c5-b9a4-0e93277ab5c1",
+      "fullUrl": "https://clinic-a.referral-demo.example/fhir/Encounter/ENC-102-1",
       "resource": {
         "resourceType": "Encounter",
         "id": "ENC-102-1",
         "meta": {
           "versionId": "1",
           "source": "urn:referral-demo:institution:clinic-a",
-          "lastUpdated": "2026-10-01T19:42:04.854893+00:00"
+          "lastUpdated": "2026-10-01T20:58:21.926827+00:00"
         },
         "status": "finished",
         "class": {
@@ -84,14 +84,14 @@
       }
     },
     {
-      "fullUrl": "urn:uuid:670c5935-f506-5177-b9f5-61f6a0d75cd6",
+      "fullUrl": "https://clinic-a.referral-demo.example/fhir/Encounter/ENC-102-2",
       "resource": {
         "resourceType": "Encounter",
         "id": "ENC-102-2",
         "meta": {
           "versionId": "1",
           "source": "urn:referral-demo:institution:clinic-a",
-          "lastUpdated": "2026-10-01T19:42:04.854900+00:00"
+          "lastUpdated": "2026-10-01T20:58:21.926830+00:00"
         },
         "status": "finished",
         "class": {
@@ -132,14 +132,14 @@
       }
     },
     {
-      "fullUrl": "urn:uuid:7c37ca59-d4e3-55be-a371-b7d575a543bb",
+      "fullUrl": "https://clinic-a.referral-demo.example/fhir/Condition/CON-102-1",
       "resource": {
         "resourceType": "Condition",
         "id": "CON-102-1",
         "meta": {
           "versionId": "1",
           "source": "urn:referral-demo:institution:clinic-a",
-          "lastUpdated": "2026-10-01T19:42:04.845534+00:00"
+          "lastUpdated": "2026-10-01T20:58:21.921982+00:00"
         },
         "clinicalStatus": {
           "coding": [
@@ -174,14 +174,14 @@
       }
     },
     {
-      "fullUrl": "urn:uuid:91eff0a3-bcea-5ade-8e7b-333619ef150b",
+      "fullUrl": "https://clinic-a.referral-demo.example/fhir/Condition/CON-102-2",
       "resource": {
         "resourceType": "Condition",
         "id": "CON-102-2",
         "meta": {
           "versionId": "1",
           "source": "urn:referral-demo:institution:clinic-a",
-          "lastUpdated": "2026-10-01T19:42:04.845540+00:00"
+          "lastUpdated": "2026-10-01T20:58:21.921985+00:00"
         },
         "clinicalStatus": {
           "coding": [
@@ -216,14 +216,14 @@
       }
     },
     {
-      "fullUrl": "urn:uuid:b07ec39f-1bfb-5530-b678-d188c6ce3ca2",
+      "fullUrl": "https://clinic-a.referral-demo.example/fhir/MedicationRequest/RX-102-1",
       "resource": {
         "resourceType": "MedicationRequest",
         "id": "RX-102-1",
         "meta": {
           "versionId": "1",
           "source": "urn:referral-demo:institution:clinic-a",
-          "lastUpdated": "2026-10-01T19:42:04.859146+00:00"
+          "lastUpdated": "2026-10-01T20:58:21.930682+00:00"
         },
         "status": "active",
         "intent": "order",
@@ -278,14 +278,14 @@
       }
     },
     {
-      "fullUrl": "urn:uuid:1c863156-eb47-55fa-8619-6d744926bb92",
+      "fullUrl": "https://clinic-a.referral-demo.example/fhir/MedicationRequest/RX-102-2",
       "resource": {
         "resourceType": "MedicationRequest",
         "id": "RX-102-2",
         "meta": {
           "versionId": "1",
           "source": "urn:referral-demo:institution:clinic-a",
-          "lastUpdated": "2026-10-01T19:42:04.859151+00:00"
+          "lastUpdated": "2026-10-01T20:58:21.930685+00:00"
         },
         "status": "stopped",
         "intent": "order",
@@ -341,14 +341,14 @@
       }
     },
     {
-      "fullUrl": "urn:uuid:529afda5-f550-5211-9eea-c45892a91bd0",
+      "fullUrl": "https://clinic-a.referral-demo.example/fhir/MedicationRequest/RX-102-3",
       "resource": {
         "resourceType": "MedicationRequest",
         "id": "RX-102-3",
         "meta": {
           "versionId": "1",
           "source": "urn:referral-demo:institution:clinic-a",
-          "lastUpdated": "2026-10-01T19:42:04.859152+00:00"
+          "lastUpdated": "2026-10-01T20:58:21.930686+00:00"
         },
         "status": "active",
         "intent": "order",
@@ -398,14 +398,14 @@
       }
     },
     {
-      "fullUrl": "urn:uuid:b7309b17-6a51-5a8a-b448-8c89a0d2b9d1",
+      "fullUrl": "https://clinic-a.referral-demo.example/fhir/MedicationStatement/MS-102-1",
       "resource": {
         "resourceType": "MedicationStatement",
         "id": "MS-102-1",
         "meta": {
           "versionId": "1",
           "source": "urn:referral-demo:institution:clinic-a",
-          "lastUpdated": "2026-10-01T19:42:04.866285+00:00"
+          "lastUpdated": "2026-10-01T20:58:21.935314+00:00"
         },
         "status": "unknown",
         "medicationCodeableConcept": {
@@ -441,14 +441,14 @@
       }
     },
     {
-      "fullUrl": "urn:uuid:d909f3d8-b011-5931-aafc-be5e6635011d",
+      "fullUrl": "https://clinic-a.referral-demo.example/fhir/MedicationStatement/MS-102-2",
       "resource": {
         "resourceType": "MedicationStatement",
         "id": "MS-102-2",
         "meta": {
           "versionId": "1",
           "source": "urn:referral-demo:institution:clinic-a",
-          "lastUpdated": "2026-10-01T19:42:04.866289+00:00"
+          "lastUpdated": "2026-10-01T20:58:21.935317+00:00"
         },
         "status": "active",
         "medicationCodeableConcept": {
@@ -481,14 +481,14 @@
       }
     },
     {
-      "fullUrl": "urn:uuid:9856771d-8484-50ea-b324-33b37b3d8234",
+      "fullUrl": "https://clinic-a.referral-demo.example/fhir/DocumentReference/DOC-102-1",
       "resource": {
         "resourceType": "DocumentReference",
         "id": "DOC-102-1",
         "meta": {
           "versionId": "1",
           "source": "urn:referral-demo:institution:clinic-a",
-          "lastUpdated": "2026-10-01T19:42:04.869595+00:00"
+          "lastUpdated": "2026-10-01T20:58:21.937573+00:00"
         },
         "status": "current",
         "type": {
@@ -522,5 +522,11 @@
       }
     }
   ],
-  "total": 11
+  "total": 11,
+  "link": [
+    {
+      "relation": "self",
+      "url": "http://localhost:8001/fhir/patients/MR-102/records"
+    }
+  ]
 }

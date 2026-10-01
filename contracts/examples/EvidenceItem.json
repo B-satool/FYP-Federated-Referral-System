@@ -1,0 +1,199 @@
+[
+  {
+    "id": 198,
+    "origin": "source",
+    "category": "lab",
+    "display": "INR: 2.6 {INR} (final)",
+    "original": {
+      "test": "INR",
+      "coding": [
+        {
+          "system": "http://loinc.org",
+          "code": "6301-6",
+          "display": "INR"
+        }
+      ],
+      "status": "final",
+      "collected": "2026-09-05T08:00:00+00:00",
+      "issued": "2026-09-05T14:00:00+00:00",
+      "reference_range": "2.0-3.0 (therapeutic)",
+      "specimen": "Venous blood (citrate)",
+      "value": 2.6,
+      "unit": "{INR}"
+    },
+    "current": {
+      "test": "INR",
+      "coding": [
+        {
+          "system": "http://loinc.org",
+          "code": "6301-6",
+          "display": "INR"
+        }
+      ],
+      "status": "final",
+      "collected": "2026-09-05T08:00:00+00:00",
+      "issued": "2026-09-05T14:00:00+00:00",
+      "reference_range": "2.0-3.0 (therapeutic)",
+      "specimen": "Venous blood (citrate)",
+      "value": 2.6,
+      "unit": "{INR}"
+    },
+    "source_institution": "lab-b",
+    "source_name": "Lab B - CityLab Diagnostics",
+    "source_record_type": "Observation",
+    "source_record_id": "OBS-5531-1",
+    "source_record_version": "1",
+    "link_id": 1,
+    "clinical_time": "2026-09-05T08:00:00+00:00",
+    "retrieved_at": "2026-10-01T20:34:32.603591+00:00",
+    "document_id": null,
+    "page": null,
+    "region": null,
+    "source_text": null,
+    "confidence": null,
+    "review_state": "imported",
+    "verification_status": "source_record",
+    "verified_by": null,
+    "verified_at": null,
+    "selected": true,
+    "superseded_by": null,
+    "author": null,
+    "row_version": 1,
+    "patient_ref": {
+      "institution_id": "lab-b",
+      "local_patient_id": "LB-5531"
+    }
+  },
+  {
+    "id": 200,
+    "origin": "source",
+    "category": "lab",
+    "display": "Hemoglobin: 12.9 g/dL (final)",
+    "original": {
+      "test": "Hemoglobin",
+      "coding": [
+        {
+          "system": "http://loinc.org",
+          "code": "718-7",
+          "display": "Hemoglobin"
+        }
+      ],
+      "status": "final",
+      "collected": "2026-09-05T08:00:00+00:00",
+      "issued": "2026-09-05T14:00:00+00:00",
+      "reference_range": "12.0-15.5",
+      "specimen": "Venous blood (EDTA)",
+      "value": 12.9,
+      "unit": "g/dL"
+    },
+    "current": {
+      "test": "Hemoglobin",
+      "coding": [
+        {
+          "system": "http://loinc.org",
+          "code": "718-7",
+          "display": "Hemoglobin"
+        }
+      ],
+      "status": "final",
+      "collected": "2026-09-05T08:00:00+00:00",
+      "issued": "2026-09-05T14:00:00+00:00",
+      "reference_range": "12.0-15.5",
+      "specimen": "Venous blood (EDTA)",
+      "value": 12.9,
+      "unit": "g/dL"
+    },
+    "source_institution": "lab-b",
+    "source_name": "Lab B - CityLab Diagnostics",
+    "source_record_type": "Observation",
+    "source_record_id": "OBS-5531-2",
+    "source_record_version": "1",
+    "link_id": 1,
+    "clinical_time": "2026-09-05T08:00:00+00:00",
+    "retrieved_at": "2026-10-01T20:34:32.615541+00:00",
+    "document_id": null,
+    "page": null,
+    "region": null,
+    "source_text": null,
+    "confidence": null,
+    "review_state": "imported",
+    "verification_status": "source_record",
+    "verified_by": null,
+    "verified_at": null,
+    "selected": true,
+    "superseded_by": null,
+    "author": null,
+    "row_version": 1,
+    "patient_ref": {
+      "institution_id": "lab-b",
+      "local_patient_id": "LB-5531"
+    }
+  },
+  {
+    "id": 201,
+    "origin": "source",
+    "category": "lab",
+    "display": "Glucose (fasting): value not recorded (preliminary)",
+    "original": {
+      "test": "Glucose (fasting)",
+      "coding": [
+        {
+          "system": "http://loinc.org",
+          "code": "2345-7",
+          "display": "Glucose (fasting)"
+        }
+      ],
+      "status": "preliminary",
+      "collected": "2026-09-05T08:00:00+00:00",
+      "issued": "2026-09-05T14:00:00+00:00",
+      "reference_range": "70-99",
+      "specimen": "Venous blood",
+      "value": null,
+      "unit": null,
+      "data_absent": true
+    },
+    "current": {
+      "test": "Glucose (fasting)",
+      "coding": [
+        {
+          "system": "http://loinc.org",
+          "code": "2345-7",
+          "display": "Glucose (fasting)"
+        }
+      ],
+      "status": "preliminary",
+      "collected": "2026-09-05T08:00:00+00:00",
+      "issued": "2026-09-05T14:00:00+00:00",
+      "reference_range": "70-99",
+      "specimen": "Venous blood",
+      "value": null,
+      "unit": null,
+      "data_absent": true
+    },
+    "source_institution": "lab-b",
+    "source_name": "Lab B - CityLab Diagnostics",
+    "source_record_type": "Observation",
+    "source_record_id": "OBS-5531-4",
+    "source_record_version": "1",
+    "link_id": 1,
+    "clinical_time": "2026-09-05T08:00:00+00:00",
+    "retrieved_at": "2026-10-01T20:34:32.622565+00:00",
+    "document_id": null,
+    "page": null,
+    "region": null,
+    "source_text": null,
+    "confidence": null,
+    "review_state": "imported",
+    "verification_status": "source_record",
+    "verified_by": null,
+    "verified_at": null,
+    "selected": true,
+    "superseded_by": null,
+    "author": null,
+    "row_version": 1,
+    "patient_ref": {
+      "institution_id": "lab-b",
+      "local_patient_id": "LB-5531"
+    }
+  }
+]

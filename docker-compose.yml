@@ -64,6 +64,7 @@ services:
       CLINIC_CLIENT_SECRET: ${CLINIC_CLIENT_SECRET}
       LAB_CLIENT_SECRET: ${LAB_CLIENT_SECRET}
       SPECIALIST_CLIENT_SECRET: ${SPECIALIST_CLIENT_SECRET}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
     volumes:
       - ./infra/keycloak/import:/opt/keycloak/data/import:ro
     ports:

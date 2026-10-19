@@ -9,6 +9,8 @@ export default defineConfig({
   reporter: [["list"]],
   use: {
     baseURL: process.env.WEB_URL ?? "http://localhost:3000",
+    // Allow self-signed certificates when rehearsing the HTTPS server setup locally.
+    ignoreHTTPSErrors: process.env.IGNORE_HTTPS_ERRORS === "1",
     viewport: { width: 1440, height: 900 },
     trace: "retain-on-failure",
     screenshot: "only-on-failure",

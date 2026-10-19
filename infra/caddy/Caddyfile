@@ -1,0 +1,19 @@
+# Public entry point: automatic HTTPS (Let's Encrypt) for SITE_HOST.
+{$SITE_HOST} {
+	encode gzip
+
+	# Login server (Keycloak runs with http-relative-path /auth)
+	handle /auth/* {
+		reverse_proxy keycloak:8080
+	}
+
+	# Website and its API proxy (/api/*) - handled by the web container's nginx
+	handle {
+		reverse_proxy web:80
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+}

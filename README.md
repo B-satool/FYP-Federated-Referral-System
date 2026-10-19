@@ -37,6 +37,8 @@ The system is **9 programs that run together**:
 
 **End users (doctors, staff) never touch Docker.** In a real deployment, IT runs these containers once on a server and users simply open the website address in a browser. On your laptop, *you* are both the IT person and the user, which is why you see the Docker side.
 
+**Put it online for free:** [`docs/deploy-cloud.md`](docs/deploy-cloud.md) explains how to run it on an Oracle Cloud Always Free server with HTTPS. You get a public link and nobody else installs anything; on the server it's one command, `bash scripts/deploy-server.sh`.
+
 ---
 
 ## 2. Run it on your computer

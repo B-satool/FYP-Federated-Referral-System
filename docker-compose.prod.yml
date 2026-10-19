@@ -1,0 +1,66 @@
+# Server (internet) deployment overlay. Use together with docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# Requires SITE_HOST in .env (e.g. 129-146-12-34.sslip.io). See docs/deploy-cloud.md.
+#
+# Only Caddy is reachable from the internet (ports 80/443, automatic HTTPS).
+# The website is served at https://SITE_HOST/ and the login server at https://SITE_HOST/auth.
+# Every other service is reachable only inside the Docker network.
+
+x-public-keycloak: &public-keycloak
+  KEYCLOAK_INTERNAL_URL: http://keycloak:8080/auth
+  KEYCLOAK_PUBLIC_URL: https://${SITE_HOST}/auth
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      SITE_HOST: ${SITE_HOST}
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web: {condition: service_started}
+      keycloak: {condition: service_healthy}
+
+  keycloak:
+    command: ["start", "--import-realm"]
+    ports: !reset []
+    environment:
+      KC_HOSTNAME: https://${SITE_HOST}/auth
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_HTTP_MANAGEMENT_RELATIVE_PATH: /
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: "true"
+      WEB_ORIGIN: https://${SITE_HOST}
+
+  web:
+    build:
+      context: ./web
+      args:
+        VITE_OIDC_AUTHORITY: https://${SITE_HOST}/auth/realms/referral
+    ports: !reset []
+
+  postgres:
+    ports: !reset []
+
+  clinic:
+    ports: !reset []
+    environment: *public-keycloak
+  lab:
+    ports: !reset []
+    environment: *public-keycloak
+  specialist:
+    ports: !reset []
+    environment: *public-keycloak
+  central:
+    ports: !reset []
+    environment: *public-keycloak
+  worker:
+    environment: *public-keycloak
+
+volumes:
+  caddy_data:
+  caddy_config:

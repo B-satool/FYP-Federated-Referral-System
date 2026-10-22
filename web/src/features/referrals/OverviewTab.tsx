@@ -41,6 +41,11 @@ export function OverviewTab({ r }: { r: ReferralDetail }) {
   const locked = ["response_returned", "followup_pending", "closed", "declined", "cancelled"].includes(r.status);
   const [form, setForm] = useState({ reason: r.reason, priority: r.priority ?? "", procedure_status: r.procedure_status, planned_procedure: r.planned_procedure ?? "" });
   const [cancelOpen, setCancelOpen] = useState(false);
+  // Drafts are edited in place. Later the details read as a summary; editing them is a deliberate step
+  // because a clinical change after approval creates a new version that needs approval again.
+  const draftLike = ["draft", "awaiting_information"].includes(r.status);
+  const [editing, setEditing] = useState(false);
+  const showForm = !locked && (draftLike || editing);
   useEffect(() => {
     setForm({ reason: r.reason, priority: r.priority ?? "", procedure_status: r.procedure_status, planned_procedure: r.planned_procedure ?? "" });
   }, [r.row_version]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -55,7 +60,10 @@ export function OverviewTab({ r }: { r: ReferralDetail }) {
         procedure_status: form.procedure_status,
         planned_procedure: form.procedure_status === "known" ? form.planned_procedure : null,
       }),
-    onSuccess: refresh,
+    onSuccess: () => {
+      setEditing(false);
+      refresh();
+    },
   });
   const assign = useMutation({ mutationFn: () => api.patch(`/referrals/${r.id}`, { expected_version: r.row_version, assign_me_as_clinician: true }), onSuccess: refresh });
   const requestApproval = useMutation({ mutationFn: () => api.post(`/referrals/${r.id}/request-approval`, { expected_version: r.row_version }), onSuccess: refresh });
@@ -72,48 +80,84 @@ export function OverviewTab({ r }: { r: ReferralDetail }) {
     <Grid container spacing={2}>
       <Grid item xs={12} lg={7}>
         <Stack spacing={2}>
-          <Section title="Referral details" description="What the specialist is being asked, and for which procedure.">
+          <Section
+            title="Referral details"
+            description="What the specialist is being asked, and for which procedure."
+            actions={
+              !showForm && !locked ? (
+                <Button variant="outlined" size="small" onClick={() => setEditing(true)}>
+                  Edit details
+                </Button>
+              ) : undefined
+            }
+          >
             <Stack spacing={2}>
-              <TextField label="Reason for referral" multiline minRows={3} value={form.reason} disabled={locked} onChange={(e) => setForm({ ...form, reason: e.target.value })} />
-              <TextField select label="Priority (clinician-selected)" value={form.priority} disabled={locked || !isClinician} onChange={(e) => setForm({ ...form, priority: e.target.value })} helperText={isClinician ? "The system never assigns urgency." : "Only a clinician can set priority."}>
-                <MenuItem value="">Not set</MenuItem>
-                {ref.data?.priorities.map((p) => (
-                  <MenuItem key={p} value={p}>
-                    {p}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <div>
-                <Typography variant="body2" color="text.secondary" id="proc">
-                  Planned procedure
-                </Typography>
-                <RadioGroup row aria-labelledby="proc" value={form.procedure_status} onChange={(e) => setForm({ ...form, procedure_status: e.target.value as typeof form.procedure_status })}>
-                  <FormControlLabel value="known" control={<Radio />} label="Known" disabled={locked} />
-                  <FormControlLabel value="unknown" control={<Radio />} label="Explicitly unknown" disabled={locked} />
-                  <FormControlLabel value="not_stated" control={<Radio />} label="Not yet stated" disabled={locked} />
-                </RadioGroup>
-                {form.procedure_status === "known" && (
-                  <TextField select fullWidth label="Procedure" value={form.planned_procedure} disabled={locked} onChange={(e) => setForm({ ...form, planned_procedure: e.target.value })}>
-                    {Object.entries(ref.data?.procedures ?? {}).map(([k, v]) => (
-                      <MenuItem key={k} value={k}>
-                        {v}
+              {!showForm && (
+                <KeyValue
+                  items={[
+                    ["Patient", `${r.patient.name}, ${r.patient.institution_id} / ${r.patient.local_patient_id}`],
+                    ["Reason for referral", r.reason],
+                    ["Priority (clinician-selected)", r.priority ?? "Not set"],
+                    ["Planned procedure", r.procedure_label],
+                  ]}
+                />
+              )}
+              {showForm && (
+                <Stack spacing={2}>
+                  {editing && <Alert severity="warning">This referral has been sent for approval or approved. Saving a clinical change creates a new version that a clinician must approve again.</Alert>}
+                  <TextField label="Reason for referral" multiline minRows={3} value={form.reason} disabled={locked} onChange={(e) => setForm({ ...form, reason: e.target.value })} />
+                  <TextField select label="Priority (clinician-selected)" value={form.priority} disabled={locked || !isClinician} onChange={(e) => setForm({ ...form, priority: e.target.value })} helperText={isClinician ? "The system never assigns urgency." : "Only a clinician can set priority."}>
+                    <MenuItem value="">Not set</MenuItem>
+                    {ref.data?.priorities.map((p) => (
+                      <MenuItem key={p} value={p}>
+                        {p}
                       </MenuItem>
                     ))}
                   </TextField>
-                )}
-                {form.procedure_status !== "known" && (
-                  <Alert severity="info" sx={{ mt: 1 }}>
-                    Procedure-dependent medication rules stay unevaluated until the procedure is known. The system never guesses it.
-                  </Alert>
-                )}
-              </div>
-              <ErrorAlert error={save.error} />
-              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                <Button variant="contained" disabled={!dirty || locked || save.isPending} onClick={() => save.mutate()}>
-                  Save details
-                </Button>
-                {r.current_package_version && dirty && <Typography variant="caption" color="warning.main">Saving changes approved content and requires renewed approval.</Typography>}
-              </Stack>
+                  <div>
+                    <Typography variant="body2" color="text.secondary" id="proc">
+                      Planned procedure
+                    </Typography>
+                    <RadioGroup row aria-labelledby="proc" value={form.procedure_status} onChange={(e) => setForm({ ...form, procedure_status: e.target.value as typeof form.procedure_status })}>
+                      <FormControlLabel value="known" control={<Radio />} label="Known" disabled={locked} />
+                      <FormControlLabel value="unknown" control={<Radio />} label="Explicitly unknown" disabled={locked} />
+                      <FormControlLabel value="not_stated" control={<Radio />} label="Not yet stated" disabled={locked} />
+                    </RadioGroup>
+                    {form.procedure_status === "known" && (
+                      <TextField select fullWidth label="Procedure" value={form.planned_procedure} disabled={locked} onChange={(e) => setForm({ ...form, planned_procedure: e.target.value })}>
+                        {Object.entries(ref.data?.procedures ?? {}).map(([k, v]) => (
+                          <MenuItem key={k} value={k}>
+                            {v}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                    )}
+                    {form.procedure_status !== "known" && (
+                      <Alert severity="info" sx={{ mt: 1 }}>
+                        Procedure-dependent medication rules stay unevaluated until the procedure is known. The system never guesses it.
+                      </Alert>
+                    )}
+                  </div>
+                  <ErrorAlert error={save.error} />
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                    <Button variant="contained" disabled={!dirty || locked || save.isPending} onClick={() => save.mutate()}>
+                      Save details
+                    </Button>
+                    {editing && (
+                      <Button
+                        variant="text"
+                        onClick={() => {
+                          setEditing(false);
+                          setForm({ reason: r.reason, priority: r.priority ?? "", procedure_status: r.procedure_status, planned_procedure: r.planned_procedure ?? "" });
+                        }}
+                      >
+                        Discard changes
+                      </Button>
+                    )}
+                    {r.current_package_version && dirty && <Typography variant="caption" color="warning.main">Saving changes approved content and requires renewed approval.</Typography>}
+                  </Stack>
+                </Stack>
+              )}
               <Divider />
               <KeyValue
                 items={[

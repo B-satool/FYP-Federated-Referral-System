@@ -16,6 +16,8 @@ const STATE_TEXT: Record<StepState, string> = {
   ended: tokens.muted,
 };
 
+const VISUALLY_HIDDEN = { position: "absolute", width: "1px", height: "1px", overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" } as const;
+
 function Marker({ n, state }: { n: number; state: StepState }) {
   const filled = state === "done";
   const alert = state === "attention";
@@ -84,28 +86,37 @@ export function JourneyNav({ r, active, onSelect }: { r: ReferralDetail; active:
           display: "flex",
           alignItems: "flex-start",
           justifyContent: "flex-start",
-          gap: 1.25,
+          gap: { xs: 1.25, lg: 1 },
           textAlign: "left",
-          minWidth: { xs: "100%", sm: 168 },
-          px: 1.5,
+          // One compact row on wide screens: every step shares the width; below that the steps wrap or stack.
+          flex: { lg: "1 1 0" },
+          minWidth: { xs: "100%", sm: 168, lg: 0 },
+          px: { xs: 1.5, lg: 1 },
           py: 1,
-          borderRadius: 1,
-          border: "1px solid",
-          borderColor: selected ? tokens.brand : tokens.line,
-          outline: selected ? `1px solid ${tokens.brand}` : "none",
-          backgroundColor: selected ? tokens.surface : "transparent",
+          borderRadius: { xs: 1, lg: 0 },
+          border: { xs: "1px solid", lg: "none" },
+          borderColor: { xs: selected ? tokens.brand : tokens.line },
+          outline: { xs: selected ? `1px solid ${tokens.brand}` : "none", lg: "none" },
+          boxShadow: { lg: selected ? `inset 0 -3px 0 ${tokens.brand}` : "none" },
+          backgroundColor: selected ? tokens.sunken : "transparent",
           "&:hover": { backgroundColor: tokens.sunken },
         }}
       >
         {n !== null && <Marker n={n} state={s.state} />}
-        <Box sx={{ minWidth: 0 }}>
-          <Typography component="span" display="block" sx={{ fontWeight: selected ? 700 : 600, fontSize: "0.9375rem", color: tokens.ink }}>
+        <Box lang="en" sx={{ minWidth: 0, hyphens: "auto", overflowWrap: "break-word" }}>
+          <Typography component="span" display="block" sx={{ fontWeight: selected ? 700 : 600, fontSize: { xs: "0.9375rem", lg: "0.875rem" }, lineHeight: 1.3, color: tokens.ink }}>
             {label}
           </Typography>
           {(n !== null || s.note) && (
             <Typography component="span" display="block" sx={{ fontSize: "0.8125rem", lineHeight: 1.35, color: STATE_TEXT[s.state], fontWeight: s.state === "attention" ? 600 : 400 }}>
-              {n !== null ? STATE_LABEL[s.state] : ""}
-              {n !== null && s.note ? `: ${s.note}` : ""}
+              {/* In the compact row the marker shows the state, so the word stays for screen readers only. */}
+              {n !== null && (
+                <Box component="span" sx={s.note ? { "@media (min-width:1200px)": VISUALLY_HIDDEN } : undefined}>
+                  {STATE_LABEL[s.state]}
+                  {s.note ? ": " : ""}
+                </Box>
+              )}
+              {n !== null && s.note}
             </Typography>
           )}
         </Box>
@@ -114,21 +125,21 @@ export function JourneyNav({ r, active, onSelect }: { r: ReferralDetail; active:
   };
 
   return (
-    <Paper sx={{ p: 1.5, mb: 2 }} component="section" aria-label="Referral journey">
-      <Box role="tablist" aria-label="Referral steps" sx={{ display: "flex", flexWrap: "wrap", gap: { xs: 1.5, md: 2.5 }, alignItems: "flex-start", overflow: "visible" }}>
-        {PHASES.map((p) => (
-          <Box key={p.title} sx={{ width: { xs: "100%", md: "auto" } }}>
-            <Typography aria-hidden variant="overline" component="div" sx={{ color: tokens.muted, mb: 0.5 }}>
+    <Paper sx={{ p: { xs: 1.5, lg: 0 }, mb: 2, overflow: "hidden" }} component="section" aria-label="Referral journey">
+      <Box role="tablist" aria-label="Referral steps" sx={{ display: "flex", flexWrap: { xs: "wrap", lg: "nowrap" }, gap: { xs: 1.5, md: 2.5, lg: 0 }, alignItems: "stretch" }}>
+        {PHASES.map((p, i) => (
+          <Box key={p.title} sx={{ width: { xs: "100%", md: "auto" }, flex: { lg: `${p.steps.length} 1 0` }, minWidth: { lg: 0 }, display: { lg: "flex" }, flexDirection: "column", borderLeft: { lg: i === 0 ? "none" : `1px solid ${tokens.line}` } }}>
+            <Typography aria-hidden variant="overline" component="div" sx={{ color: tokens.muted, mb: 0.5, px: { lg: 1 }, pt: { lg: 0.75 }, lineHeight: 1.6 }}>
               {p.title}
             </Typography>
-            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>{p.steps.map(([key, label]) => tab(key, label, ++counter))}</Box>
+            <Box sx={{ display: "flex", flexWrap: { xs: "wrap", lg: "nowrap" }, gap: { xs: 1, lg: 0 }, flex: { lg: 1 } }}>{p.steps.map(([key, label]) => tab(key, label, ++counter))}</Box>
           </Box>
         ))}
-        <Box sx={{ width: { xs: "100%", md: "auto" }, ml: { md: "auto" } }}>
-          <Typography aria-hidden variant="overline" component="div" sx={{ color: tokens.muted, mb: 0.5 }}>
+        <Box sx={{ width: { xs: "100%", md: "auto" }, ml: { md: "auto", lg: 0 }, flex: { lg: "0.7 1 0" }, minWidth: { lg: 0 }, display: { lg: "flex" }, flexDirection: "column", borderLeft: { lg: `1px solid ${tokens.line}` } }}>
+          <Typography aria-hidden variant="overline" component="div" sx={{ color: tokens.muted, mb: 0.5, px: { lg: 1 }, pt: { lg: 0.75 }, lineHeight: 1.6 }}>
             Record
           </Typography>
-          {tab(AUDIT_STEP[0], AUDIT_STEP[1], null)}
+          <Box sx={{ display: "flex", flex: { lg: 1 } }}>{tab(AUDIT_STEP[0], AUDIT_STEP[1], null)}</Box>
         </Box>
       </Box>
     </Paper>

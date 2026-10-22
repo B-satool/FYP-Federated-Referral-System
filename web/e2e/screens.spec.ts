@@ -35,6 +35,19 @@ test("desktop screens", async ({ page }) => {
   await page.screenshot({ path: `${OUT}-privacy.png`, fullPage: true });
 });
 
+test("work queue with items", async ({ browser }) => {
+  // Move the seeded draft forward so the clinician's queue has rows to show.
+  const staff = await asUser(browser, "staff.a");
+  await staff.goto("/work-queue");
+  await staff.getByRole("link", { name: /Open REF-/ }).first().click();
+  const send = staff.getByRole("button", { name: "Send for clinician approval" });
+  await send.click({ timeout: 30_000 });
+  await expect(staff.getByRole("button", { name: "Return to draft" })).toBeVisible({ timeout: 30_000 });
+  const dr = await asUser(browser, "dr.malik");
+  await dr.waitForLoadState("networkidle");
+  await dr.screenshot({ path: `${OUT}-workqueue-items.png`, fullPage: true });
+});
+
 test("other roles", async ({ browser }) => {
   for (const user of ["staff.a", "lab.b", "dr.ortho", "admin.a"]) {
     const page = await asUser(browser, user);

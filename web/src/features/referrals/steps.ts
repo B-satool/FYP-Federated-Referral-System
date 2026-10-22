@@ -64,7 +64,7 @@ export function computeSteps(r: ReferralDetail): Record<StepKey, StepStatus> {
   if (!r.reason.trim()) missing.push("Add a reason");
   if (!r.referring_clinician_id) missing.push("Assign a clinician");
   if (r.procedure_status === "not_stated") missing.push("Procedure not stated");
-  const overview: StepStatus = missing.length ? { state: "attention", note: missing[0] } : { state: "done", note: "Details complete" };
+  const overview: StepStatus = missing.length ? { state: "attention", note: missing[0] } : { state: "done", note: "Details saved" };
 
   // Sources
   const linked = r.sources.filter((s) => s.linked);
@@ -121,7 +121,7 @@ export function computeSteps(r: ReferralDetail): Record<StepKey, StepStatus> {
       followthrough = { state: "later", note: "After sending" };
   }
 
-  return { overview, sources, documents: { state: "optional", note: "Optional step" }, medications, review, brief, followthrough, audit: { state: "optional", note: "" } };
+  return { overview, sources, documents: { state: "optional", note: "Paper records" }, medications, review, brief, followthrough, audit: { state: "optional", note: "" } };
 }
 
 export type NextStep = { heading: string; body: string; tab?: StepKey; action?: string; tone: "info" | "warn" | "ok" };

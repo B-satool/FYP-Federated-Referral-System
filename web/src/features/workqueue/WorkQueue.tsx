@@ -70,6 +70,22 @@ export function WorkQueue() {
   const clinic = me?.institution_kind === "clinic";
   const total = actionableCount(d);
 
+  const listed =
+    d.clarifications.length +
+    (d.tasks?.length ?? 0) +
+    (d.awaiting_approval?.length ?? 0) +
+    (d.responses_to_review?.length ?? 0) +
+    (d.delivery_problems?.length ?? 0) +
+    (d.awaiting_information?.length ?? 0) +
+    (d.drafts?.length ?? 0);
+  const where = me?.institution_name;
+  const subtitle =
+    total > 0
+      ? `${total} ${total === 1 ? "item needs" : "items need"} action at ${where}.`
+      : listed > 0
+        ? `Nothing needs action at ${where}. The items below are in progress or waiting on others.`
+        : `Nothing needs action at ${where}.`;
+
   const empty: string[] = [];
   const noteEmpty = (label: string, n: number | undefined) => {
     if (!n) empty.push(label);
@@ -80,7 +96,19 @@ export function WorkQueue() {
     <>
       <PageHeader
         title="Work queue"
-        subtitle={total === 0 ? `Nothing needs action at ${me?.institution_name}.` : `${total} ${total === 1 ? "item needs" : "items need"} action at ${me?.institution_name}.`}
+        subtitle={subtitle}
+        actions={
+          clinic && (
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Button variant="contained" component={RouterLink} to="/referrals/new">
+                New referral
+              </Button>
+              <Button variant="outlined" component={RouterLink} to="/referrals">
+                View all referrals
+              </Button>
+            </Stack>
+          )
+        }
       />
       <ErrorAlert error={answer.error} />
       <Stack spacing={2}>
@@ -194,10 +222,16 @@ export function WorkQueue() {
             )}
           </>
         )}
-        {empty.length > 0 && (
-          <Typography variant="body2" color="text.secondary">
-            Nothing to show for: {empty.join(", ").toLowerCase()}.
-          </Typography>
+        {listed === 0 ? (
+          <Section title="All clear">
+            <Typography color="text.secondary">There is nothing in your queue. New requests and tasks will appear here.</Typography>
+          </Section>
+        ) : (
+          empty.length > 0 && (
+            <Typography variant="body2" color="text.secondary">
+              Nothing to show for: {empty.join(", ").toLowerCase()}.
+            </Typography>
+          )
         )}
       </Stack>
       {answering && (

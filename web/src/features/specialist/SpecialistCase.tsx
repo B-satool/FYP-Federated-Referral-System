@@ -88,7 +88,7 @@ function SnapshotRef({ ev }: { ev?: Snapshot }) {
               ["Source", ev.origin === "source" ? `${ev.source_institution} ${ev.source_record_type}/${ev.source_record_id} v${ev.source_record_version}` : ev.origin === "document" ? `uploaded document page ${ev.document_ref?.page}` : "clinician entry"],
               ["Clinical date", fmtDate(ev.clinical_time, false)],
               ["Verification", ev.verification_status.replace("_", " ")],
-              ["Source text", ev.document_ref?.source_text ?? "—"],
+              ["Source text", ev.document_ref?.source_text ?? "Not recorded"],
             ]}
           />
           <Divider sx={{ my: 1 }} />
@@ -253,7 +253,7 @@ export function SpecialistCase() {
                 <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                   {s.title}
                 </Typography>
-                {s.statements.length === 0 && <Typography variant="body2" color="text.secondary">—</Typography>}
+                {s.statements.length === 0 && <Typography variant="body2" color="text.secondary">None</Typography>}
                 {s.statements.map((st) => (
                   <Typography key={st.id} variant="body2" sx={{ mt: 0.5 }}>
                     {st.text} {st.evidence_ids.map((eid) => <SnapshotRef key={eid} ev={evidenceById[eid]} />)}
@@ -347,7 +347,7 @@ export function SpecialistCase() {
                 </Typography>
                 {d.local_history.map((h) => (
                   <Typography key={h.id} variant="body2">
-                    {fmtDate(h.seen_at, false)} — {h.summary} {h.diagnosis ? `(${h.diagnosis})` : ""}
+                    {fmtDate(h.seen_at, false)}: {h.summary} {h.diagnosis ? `(${h.diagnosis})` : ""}
                   </Typography>
                 ))}
               </Paper>

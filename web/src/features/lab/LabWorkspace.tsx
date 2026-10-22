@@ -91,7 +91,7 @@ export function LabWorkspace() {
                         <Tag tone={r.status === "final" ? "ok" : r.status === "corrected" ? "info" : "warn"} label={`${r.status} v${r.version}`} />
                         {r.revisions.map((rv) => (
                           <Typography key={rv.version} variant="caption" display="block">
-                            v{rv.version}: {String(rv.snapshot.value_num ?? rv.snapshot.value_text ?? "—")} → corrected by {rv.changed_by}: {rv.reason}
+                            v{rv.version}: {String(rv.snapshot.value_num ?? rv.snapshot.value_text ?? "no value")} → corrected by {rv.changed_by}: {rv.reason}
                           </Typography>
                         ))}
                       </TableCell>

@@ -12,6 +12,7 @@ A web application that helps a **referring clinic** prepare a verified referral 
 | Step-by-step demo / test walkthrough | [`docs/demo-script.md`](docs/demo-script.md) |
 | Which code and test covers each SRS requirement | [`docs/traceability.md`](docs/traceability.md) |
 | Design decisions (Stage 0) | [`docs/architecture.md`](docs/architecture.md) |
+| Web interface redesign: issues, flow, compliance notes | [`docs/ui-redesign.md`](docs/ui-redesign.md) |
 | Test results and known limitations | [`docs/release-notes.md`](docs/release-notes.md), [`docs/testing.md`](docs/testing.md) |
 | Deployment, backup/restore, security operations | [`docs/operations.md`](docs/operations.md) |
 

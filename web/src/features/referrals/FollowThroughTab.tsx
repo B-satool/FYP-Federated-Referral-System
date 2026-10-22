@@ -88,7 +88,7 @@ export function FollowThroughTab({ r }: { r: ReferralDetail }) {
           {specialistEvents.length === 0 && <Empty>No activity yet.</Empty>}
           {specialistEvents.map((e) => (
             <Typography key={e.id} variant="body2" sx={{ mb: 0.5 }}>
-              {fmtDate(e.created_at)} — {e.event_type === "status_change" ? `status → ${e.to_status}` : e.event_type.replace(/_/g, " ")} ({e.actor})
+              {fmtDate(e.created_at)}: {e.event_type === "status_change" ? `status → ${e.to_status}` : e.event_type.replace(/_/g, " ")} ({e.actor})
               {e.detail?.package_version ? ` · package v${String(e.detail.package_version)}` : ""}
             </Typography>
           ))}
@@ -149,8 +149,8 @@ export function FollowThroughTab({ r }: { r: ReferralDetail }) {
                         specified by {t.specified_by}
                       </Typography>
                     </TableCell>
-                    <TableCell>{t.assignee_name ?? "—"}</TableCell>
-                    <TableCell>{t.due_date ?? "—"}</TableCell>
+                    <TableCell>{t.assignee_name ?? "Unassigned"}</TableCell>
+                    <TableCell>{t.due_date ?? "No due date"}</TableCell>
                     <TableCell>
                       {t.status === "open" ? (
                         <Stack direction="row" spacing={0.5}>

@@ -52,7 +52,7 @@ function MappingDialog({ entry, referralId, onClose, onDone }: { entry: Medicati
         <TextField select fullWidth label="Verified ingredient" value={ingredient} onChange={(e) => setIngredient(e.target.value)} sx={{ mb: 2 }}>
           {dict.data?.reviewed_entries.map((d) => (
             <MenuItem key={d.ingredient} value={d.ingredient}>
-              {d.ingredient} — {d.class.replace(/_/g, " ")} ({d.names.join(", ")})
+              {d.ingredient}: {d.class.replace(/_/g, " ")} ({d.names.join(", ")})
             </MenuItem>
           ))}
         </TextField>
@@ -150,7 +150,7 @@ export function MedicationsTab({ r }: { r: ReferralDetail }) {
         {showHistory &&
           data.flag_history.map((f) => (
             <Typography key={f.id} variant="body2" color="text.secondary">
-              v{f.version} {f.status}: {f.title} {f.medication ? `— ${f.medication}` : ""} ({fmtDate(f.superseded_at)})
+              v{f.version} {f.status}: {f.title} {f.medication ? `, ${f.medication}` : ""} ({fmtDate(f.superseded_at)})
             </Typography>
           ))}
       </Paper>

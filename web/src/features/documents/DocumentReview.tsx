@@ -71,7 +71,7 @@ function CorrectDialog({ field, onClose, onSave, busy }: { field: Evidence; onCl
       <DialogTitle>Correct E{field.id}</DialogTitle>
       <DialogContent>
         <Alert severity="info" sx={{ mb: 2 }}>
-          The original extracted value is kept in the history. Leave a field empty if it is not present in the document — do not guess.
+          The original extracted value is kept in the history. Leave a field empty if it is not present in the document. Do not guess.
         </Alert>
         <Typography variant="body2" sx={{ mb: 1 }}>
           Source text: <em>{field.source_text}</em>
@@ -229,8 +229,8 @@ export function DocumentReview() {
               <KeyValue
                 items={[
                   ["Text source", extraction.text_source === "embedded" ? "embedded PDF text" : extraction.text_source === "ocr" ? "OCR" : extraction.text_source],
-                  ["OCR engine", extraction.ocr_engine ? `${extraction.ocr_engine} ${extraction.ocr_engine_version}` : "—"],
-                  ["Field extractor", `${extraction.extractor ?? "—"} ${extraction.extractor_version ?? ""}`],
+                  ["OCR engine", extraction.ocr_engine ? `${extraction.ocr_engine} ${extraction.ocr_engine_version}` : "Not recorded"],
+                  ["Field extractor", `${extraction.extractor ?? "Not recorded"} ${extraction.extractor_version ?? ""}`],
                   ["Processing time", `${extraction.duration_ms} ms`],
                 ]}
               />

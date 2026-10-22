@@ -1,9 +1,12 @@
 import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Box, Paper, Stack, Tab, Tabs, Typography } from "@mui/material";
+import { Alert, Box, Link, Paper, Stack, Typography } from "@mui/material";
+import { Link as RouterLink } from "react-router-dom";
+import ArrowBack from "@mui/icons-material/ArrowBack";
 import { api } from "../../api/client";
 import type { ReferralDetail } from "../../api/types";
 import { ErrorAlert, Loading, ReferralStatus, Tag } from "../../components/common";
+import { hasRole, useMe, usePageTitle } from "../../hooks";
 import { OverviewTab } from "./OverviewTab";
 import { SourcesTab } from "./SourcesTab";
 import { DocumentsTab } from "../documents/DocumentsTab";
@@ -12,6 +15,8 @@ import { ReviewTab } from "../reviews/ReviewTab";
 import { BriefTab } from "../brief/BriefTab";
 import { FollowThroughTab } from "./FollowThroughTab";
 import { AuditTab } from "./AuditTab";
+import { JourneyNav, NextStepBanner, StepPager } from "./Journey";
+import { nextStep, STEP_ORDER, StepKey } from "./steps";
 
 const AWAITING_REMOTE = ["submitted", "acknowledged", "accepted"];
 
@@ -34,38 +39,42 @@ export function useInvalidateReferral(id: number) {
   return () => qc.invalidateQueries({ queryKey: ["referral", id] });
 }
 
-const TABS = [
-  ["overview", "Overview"],
-  ["sources", "Sources & evidence"],
-  ["documents", "Documents"],
-  ["medications", "Medications & flags"],
-  ["review", "Checklist & clarifications"],
-  ["brief", "Brief & approval"],
-  ["followthrough", "Specialist & follow-up"],
-  ["audit", "Audit trail"],
-] as const;
-
 export function ReferralWorkspace() {
   const id = Number(useParams().id);
   const [params, setParams] = useSearchParams();
-  const tab = params.get("tab") ?? "overview";
+  const { data: me } = useMe();
   const q = useReferral(id);
+  usePageTitle(q.data ? `${q.data.reference} ${q.data.patient.name}` : "Referral");
+  const requested = params.get("tab") as StepKey | null;
+  const tab: StepKey = requested && STEP_ORDER.includes(requested) ? requested : "overview";
+  const go = (k: StepKey) => {
+    setParams({ tab: k });
+    // Move to the top of the new step so the person always starts at its beginning.
+    window.scrollTo({ top: 0 });
+  };
+
   if (q.isLoading) return <Loading />;
   if (q.error) return <ErrorAlert error={q.error} />;
   const r = q.data!;
+  const step = nextStep(r, hasRole(me, "clinician"));
+
   return (
     <Box>
-      <Paper sx={{ p: 2, mb: 2 }}>
-        <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1}>
-          <Box>
-            <Typography variant="h5" component="h1">
+      <Link component={RouterLink} to="/referrals" underline="hover" sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, mb: 1, fontSize: "0.875rem" }}>
+        <ArrowBack fontSize="inherit" aria-hidden />
+        All referrals
+      </Link>
+      <Paper sx={{ p: { xs: 2, md: 2.5 }, mb: 2 }}>
+        <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.5}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="h5" component="h1" sx={{ overflowWrap: "anywhere" }}>
               {r.reference} · {r.patient.name}
             </Typography>
-            <Typography color="text.secondary">
+            <Typography color="text.secondary" className="tabular">
               {r.patient.institution_id} / {r.patient.local_patient_id} · born {r.patient.birth_date} · to {r.destination_name}
             </Typography>
           </Box>
-          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
             <ReferralStatus status={r.status} label={r.status_label} />
             {r.current_package_version && <Tag tone="ok" label={`approved v${r.current_package_version}`} />}
             {r.submitted_package_version && <Tag tone="info" label={`delivered v${r.submitted_package_version}`} />}
@@ -73,25 +82,25 @@ export function ReferralWorkspace() {
           </Stack>
         </Stack>
         {r.amendment_open && (
-          <Alert severity="warning" sx={{ mt: 1 }}>
+          <Alert severity="warning" sx={{ mt: 1.5 }}>
             Clinical content changed after version {r.submitted_package_version} was submitted. A new version must be approved and sent; the
             submitted version stays unchanged.
           </Alert>
         )}
       </Paper>
-      <Tabs value={tab} onChange={(_, v) => setParams({ tab: v })} variant="scrollable" scrollButtons="auto" aria-label="Referral sections" sx={{ mb: 2 }}>
-        {TABS.map(([k, label]) => (
-          <Tab key={k} value={k} label={label} />
-        ))}
-      </Tabs>
-      {tab === "overview" && <OverviewTab r={r} />}
-      {tab === "sources" && <SourcesTab r={r} />}
-      {tab === "documents" && <DocumentsTab r={r} />}
-      {tab === "medications" && <MedicationsTab r={r} />}
-      {tab === "review" && <ReviewTab r={r} />}
-      {tab === "brief" && <BriefTab r={r} />}
-      {tab === "followthrough" && <FollowThroughTab r={r} />}
-      {tab === "audit" && <AuditTab r={r} />}
+      <NextStepBanner step={step} onGo={go} />
+      <JourneyNav r={r} active={tab} onSelect={go} />
+      <Box role="tabpanel" id="journey-panel" aria-labelledby={`tab-${tab}`}>
+        {tab === "overview" && <OverviewTab r={r} />}
+        {tab === "sources" && <SourcesTab r={r} />}
+        {tab === "documents" && <DocumentsTab r={r} />}
+        {tab === "medications" && <MedicationsTab r={r} />}
+        {tab === "review" && <ReviewTab r={r} />}
+        {tab === "brief" && <BriefTab r={r} />}
+        {tab === "followthrough" && <FollowThroughTab r={r} />}
+        {tab === "audit" && <AuditTab r={r} />}
+        <StepPager active={tab} onGo={go} />
+      </Box>
     </Box>
   );
 }

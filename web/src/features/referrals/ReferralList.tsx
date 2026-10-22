@@ -37,18 +37,19 @@ export function ReferralList() {
     <>
       <PageHeader
         title="Referrals"
-        subtitle="Search and filter your institution's referrals"
+        subtitle={q.data ? `${q.data.length} ${q.data.length === 1 ? "referral" : "referrals"} shown` : "Search and filter your institution's referrals"}
         actions={
           <Button variant="contained" startIcon={<Add />} onClick={() => nav("/referrals/new")}>
             New referral
           </Button>
         }
       />
-      <Paper sx={{ p: 2, mb: 2 }}>
+      <Paper component="section" aria-label="Search and filter" sx={{ p: 2, mb: 2 }}>
         <Stack
           component="form"
           direction={{ xs: "column", md: "row" }}
           spacing={2}
+          alignItems={{ md: "flex-end" }}
           onSubmit={(e) => {
             e.preventDefault();
             setApplied(filters);
@@ -109,13 +110,20 @@ export function ReferralList() {
                       {r.amendment_open && <Tag tone="warn" label="amendment" />}
                     </Stack>
                   </TableCell>
-                  <TableCell>{r.delivery_status === "none" ? "—" : r.delivery_status}</TableCell>
+                  <TableCell>{r.delivery_status === "none" ? "None" : r.delivery_status}</TableCell>
                   <TableCell>{fmtDate(r.updated_at)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-          {q.data.length === 0 && <Empty>No referrals match.</Empty>}
+          {q.data.length === 0 && (
+            <Stack spacing={1.5} alignItems="flex-start" sx={{ p: 3 }}>
+              <Empty>No referrals match these filters.</Empty>
+              <Button variant="outlined" startIcon={<Add />} onClick={() => nav("/referrals/new")}>
+                Start a new referral
+              </Button>
+            </Stack>
+          )}
         </TableContainer>
       )}
     </>

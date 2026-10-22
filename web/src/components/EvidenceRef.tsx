@@ -37,10 +37,10 @@ export function EvidenceDialog({ id, open, onClose }: { id: number; open: boolea
               items={[
                 ["Source", e.source_name],
                 ["Patient record", `${e.patient_ref.institution_id} / ${e.patient_ref.local_patient_id}`],
-                ["Record", e.source_record_id ? `${e.source_record_type}/${e.source_record_id} (version ${e.source_record_version})` : "—"],
+                ["Record", e.source_record_id ? `${e.source_record_type}/${e.source_record_id} (version ${e.source_record_version})` : "Not recorded"],
                 ["Clinical date", fmtDate(e.clinical_time, false)],
                 ["Retrieved / uploaded", fmtDate(e.retrieved_at)],
-                ["Verified by", e.verified_by ? `${e.verified_by}, ${fmtDate(e.verified_at)}` : "—"],
+                ["Verified by", e.verified_by ? `${e.verified_by}, ${fmtDate(e.verified_at)}` : "Not yet verified"],
                 ["Source text", e.source_text],
               ]}
             />
@@ -64,7 +64,7 @@ export function EvidenceDialog({ id, open, onClose }: { id: number; open: boolea
                 <Typography variant="subtitle2">History</Typography>
                 {e.revisions.map((r) => (
                   <Typography key={r.id} variant="body2">
-                    {fmtDate(r.created_at)} — <strong>{r.action}</strong> by {r.editor}
+                    {fmtDate(r.created_at)}: <strong>{r.action}</strong> by {r.editor}
                     {r.note ? `: ${r.note}` : ""}
                   </Typography>
                 ))}

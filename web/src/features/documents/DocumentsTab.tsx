@@ -119,7 +119,7 @@ export function DocumentsTab({ r }: { r: ReferralDetail }) {
                     </Typography>
                   </TableCell>
                   <TableCell>{d.doc_type.replace("_", " ")}</TableCell>
-                  <TableCell>{d.page_count || "—"}</TableCell>
+                  <TableCell>{d.page_count || "Not recorded"}</TableCell>
                   <TableCell>
                     <Tag tone={STATUS_TONE[d.status] ?? "neutral"} label={d.status} />
                     {d.error && (

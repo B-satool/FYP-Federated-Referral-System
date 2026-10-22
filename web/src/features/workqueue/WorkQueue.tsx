@@ -1,54 +1,213 @@
-import { useState } from "react";
+import { ReactNode, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Grid, Link, List, ListItem, ListItemText, Paper, Button, Stack, Typography } from "@mui/material";
+import { Box, Button, Link, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography, useMediaQuery } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import { api } from "../../api/client";
-import type { Clarification, FollowupTask, Referral } from "../../api/types";
-import { Empty, ErrorAlert, fmtDate, Loading, PageHeader, ReasonDialog, ReferralStatus, Tag } from "../../components/common";
+import type { Clarification, Me, Referral } from "../../api/types";
+import { ErrorAlert, fmtDate, Loading, PageHeader, ReasonDialog, ReferralStatus, Section, Tag } from "../../components/common";
 import { useMe } from "../../hooks";
+import { actionableCount, Queue } from "./queue";
 
-type Queue = {
-  clarifications: Clarification[];
-  tasks?: FollowupTask[];
-  awaiting_approval?: Referral[];
-  awaiting_information?: Referral[];
-  responses_to_review?: { referral_id: number; referral_reference: string; specialist_name: string; received_at: string }[];
-  delivery_problems?: Referral[];
-  drafts?: Referral[];
+/** One row of the queue: which referral, what to do about it, and where to go. */
+type Item = {
+  key: string;
+  reference: string;
+  patient: string;
+  todo: ReactNode;
+  status: ReactNode;
+  when: string | null;
+  to: string;
+  overdue?: boolean;
+  actions?: ReactNode;
 };
 
-function RefList({ title, rows, empty }: { title: string; rows?: Referral[]; empty: string }) {
+const ts = (d: string | null) => (d ? new Date(d).getTime() : Number.MAX_SAFE_INTEGER);
+
+/** Overdue first, then oldest first. The order only reflects due dates and age; it never assigns clinical urgency. */
+function byOverdueThenOldest(a: Item, b: Item) {
+  if (!!a.overdue !== !!b.overdue) return a.overdue ? -1 : 1;
+  return ts(a.when) - ts(b.when);
+}
+
+function referralItem(r: Referral, todo: ReactNode, tab?: string): Item {
+  return {
+    key: `ref-${r.id}`,
+    reference: r.reference,
+    patient: r.patient.name,
+    todo,
+    status: <ReferralStatus status={r.status} label={r.status_label} />,
+    when: r.updated_at,
+    to: `/referrals/${r.id}${tab ? `?tab=${tab}` : ""}`,
+  };
+}
+
+function buildItems(d: Queue, me: Me | undefined, answer: (c: Clarification) => void) {
+  const clinic = me?.institution_kind === "clinic";
+  const lab = me?.institution_kind === "laboratory";
+  const now: Item[] = [];
+  const waiting: Item[] = [];
+
+  for (const c of d.clarifications) {
+    const open = c.status === "open";
+    const item: Item = {
+      key: `clar-${c.id}`,
+      reference: c.referral_reference ?? `Referral ${c.referral_id}`,
+      patient: c.patient_ref_at_assignee ? `Your record ${c.patient_ref_at_assignee}` : (c.patient_name ?? "Not recorded"),
+      todo: (
+        <>
+          {open ? "Answer request" : "Answered, waiting for the requester"} {c.origin === "specialist" ? "from the specialist" : `from ${c.created_by}`}
+          <Box component="span" sx={{ display: "block", color: "text.secondary" }}>
+            {c.question}
+            {c.due_date ? ` · due ${c.due_date}` : ""}
+          </Box>
+        </>
+      ),
+      status: <Tag tone={c.overdue ? "bad" : open ? "warn" : "info"} label={c.overdue ? "overdue" : c.status} />,
+      when: c.created_at,
+      to: clinic ? `/referrals/${c.referral_id}?tab=review` : lab ? `/lab?patient=${c.patient_ref_at_assignee ?? ""}` : "/work-queue",
+      overdue: c.overdue,
+      actions: open ? (
+        <Button size="small" variant="contained" onClick={() => answer(c)}>
+          Answer
+        </Button>
+      ) : undefined,
+    };
+    (open ? now : waiting).push(item);
+  }
+
+  for (const r of d.delivery_problems ?? []) now.push(referralItem(r, "Delivery failed: retry sending", "brief"));
+  for (const r of d.awaiting_approval ?? []) now.push(referralItem(r, r.amendment_open ? "Approve the new version after a change" : "Review and approve the brief", "brief"));
+  for (const x of d.responses_to_review ?? [])
+    now.push({
+      key: `resp-${x.referral_id}`,
+      reference: x.referral_reference,
+      patient: "",
+      todo: `Read the response from ${x.specialist_name}`,
+      status: <Tag tone="ok" label="response returned" />,
+      when: x.received_at,
+      to: `/referrals/${x.referral_id}?tab=followthrough`,
+    });
+  for (const t of d.tasks ?? [])
+    now.push({
+      key: `task-${t.id}`,
+      reference: t.referral_reference ?? `Referral ${t.referral_id}`,
+      patient: "",
+      todo: (
+        <>
+          Follow-up task: {t.description}
+          <Box component="span" sx={{ display: "block", color: "text.secondary" }}>
+            Owner {t.assignee_name ?? "unassigned"} · specified by {t.specified_by}
+          </Box>
+        </>
+      ),
+      status: t.overdue ? <Tag tone="bad" label="overdue" /> : t.due_date ? <Tag tone="wait" label={`due ${t.due_date}`} /> : <Tag tone="info" label="open" />,
+      when: t.due_date ?? t.created_at,
+      to: `/referrals/${t.referral_id}?tab=followthrough`,
+      overdue: t.overdue,
+    });
+  for (const r of d.awaiting_information ?? []) waiting.push(referralItem(r, "Records or answers before approval", "review"));
+
+  now.sort(byOverdueThenOldest);
+  waiting.sort(byOverdueThenOldest);
+  const drafts = (d.drafts ?? []).map((r) => referralItem(r, r.amendment_open ? "Amendment open: finish and send for approval" : "Finish the draft and send for approval"));
+  return { now, waiting, drafts };
+}
+
+function QueueTable({ items, todoHeading }: { items: Item[]; todoHeading: string }) {
   return (
-    <Paper sx={{ p: 2, height: "100%" }}>
-      <Typography variant="h6" gutterBottom>
-        {title} ({rows?.length ?? 0})
-      </Typography>
-      {!rows?.length && <Empty>{empty}</Empty>}
-      <List dense>
-        {rows?.map((r) => (
-          <ListItem key={r.id} secondaryAction={<ReferralStatus status={r.status} label={r.status_label} />}>
-            <ListItemText
-              primary={
-                <Link component={RouterLink} to={`/referrals/${r.id}`}>
-                  {r.reference} · {r.patient.name}
-                </Link>
-              }
-              secondary={`updated ${fmtDate(r.updated_at)}${r.amendment_open ? " · amendment open" : ""}`}
-            />
-          </ListItem>
-        ))}
-      </List>
-    </Paper>
+    <TableContainer>
+      <Table size="small">
+        <TableHead>
+          <TableRow>
+            <TableCell>Referral</TableCell>
+            <TableCell>Patient</TableCell>
+            <TableCell>{todoHeading}</TableCell>
+            <TableCell>Status</TableCell>
+            <TableCell>Updated</TableCell>
+            <TableCell>
+              <span className="sr-only">Actions</span>
+            </TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {items.map((i) => (
+            <TableRow key={i.key}>
+              <TableCell sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>{i.reference}</TableCell>
+              <TableCell>{i.patient}</TableCell>
+              <TableCell>{i.todo}</TableCell>
+              <TableCell>{i.status}</TableCell>
+              <TableCell sx={{ whiteSpace: "nowrap" }}>{fmtDate(i.when)}</TableCell>
+              <TableCell align="right">
+                <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
+                  {i.actions}
+                  <Link component={RouterLink} to={i.to} aria-label={`Open ${i.reference}`}>
+                    Open
+                  </Link>
+                </Stack>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+}
+
+function QueueCards({ items }: { items: Item[] }) {
+  return (
+    <Stack component="ul" spacing={1.5} sx={{ listStyle: "none", m: 0, p: 0 }}>
+      {items.map((i) => (
+        <Paper component="li" key={i.key} sx={{ p: 2 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+            <Typography sx={{ fontWeight: 700 }}>{i.reference}</Typography>
+            {i.status}
+          </Stack>
+          {i.patient && <Typography>{i.patient}</Typography>}
+          <Typography variant="body2" component="div" sx={{ mt: 0.5 }}>
+            {i.todo}
+          </Typography>
+          <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1.5 }}>
+            <Link component={RouterLink} to={i.to} aria-label={`Open ${i.reference}`}>
+              Open
+            </Link>
+            {i.actions}
+          </Stack>
+        </Paper>
+      ))}
+    </Stack>
+  );
+}
+
+function Group({ title, items, todoHeading, wide }: { title: string; items: Item[]; todoHeading: string; wide: boolean }) {
+  if (items.length === 0) return null;
+  const heading = `${title} (${items.length})`;
+  if (!wide)
+    return (
+      <Box component="section" aria-label={heading}>
+        <Typography variant="h6" component="h2" sx={{ mb: 1 }}>
+          {heading}
+        </Typography>
+        <QueueCards items={items} />
+      </Box>
+    );
+  return (
+    <Section title={heading}>
+      <QueueTable items={items} todoHeading={todoHeading} />
+    </Section>
   );
 }
 
 export function WorkQueue() {
   const { data: me } = useMe();
   const qc = useQueryClient();
+  const theme = useTheme();
+  const wide = useMediaQuery(theme.breakpoints.up("md"), { noSsr: true });
   const q = useQuery({ queryKey: ["work-queue"], queryFn: () => api.get<Queue>("/work-queue"), refetchInterval: 15000 });
   const [answering, setAnswering] = useState<Clarification | null>(null);
   const answer = useMutation({
     mutationFn: ({ id, text }: { id: number; text: string }) => api.post(`/clarifications/${id}/answer`, { response_text: text }),
+    meta: { success: "Answer sent." },
     onSuccess: () => {
       setAnswering(null);
       qc.invalidateQueries({ queryKey: ["work-queue"] });
@@ -56,123 +215,47 @@ export function WorkQueue() {
   });
   if (q.isLoading) return <Loading />;
   if (q.error) return <ErrorAlert error={q.error} />;
-  const d = q.data!;
   const clinic = me?.institution_kind === "clinic";
+  const total = actionableCount(q.data);
+  const { now, waiting, drafts } = buildItems(q.data!, me, setAnswering);
+  const listed = now.length + waiting.length + drafts.length;
+  const where = me?.institution_name;
+  const subtitle =
+    total > 0
+      ? `${total} ${total === 1 ? "item needs" : "items need"} you, overdue first.`
+      : listed > 0
+        ? `Nothing needs action at ${where}. The items below are in progress or waiting on others.`
+        : `Nothing needs action at ${where}.`;
 
   return (
     <>
-      <PageHeader title="Work queue" subtitle={`Open requests and tasks for ${me?.institution_name}`} />
-      <ErrorAlert error={answer.error} />
-      <Grid container spacing={2}>
-        <Grid item xs={12} lg={clinic ? 6 : 12}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              Information requests assigned to {me?.institution_name} ({d.clarifications.length})
-            </Typography>
-            {!d.clarifications.length && <Empty>Nothing waiting.</Empty>}
-            <Stack spacing={1.5}>
-              {d.clarifications.map((c) => (
-                <Paper key={c.id} sx={{ p: 1.5 }}>
-                  <Stack direction="row" justifyContent="space-between">
-                    <Typography variant="subtitle2">
-                      {c.referral_reference} · {c.origin === "specialist" ? "from the specialist" : `from ${c.created_by}`}
-                    </Typography>
-                    <Stack direction="row" spacing={0.5}>
-                      {c.overdue && <Tag tone="bad" label="overdue" />}
-                      <Tag tone={c.status === "open" ? "warn" : "info"} label={c.status} />
-                    </Stack>
-                  </Stack>
-                  <Typography variant="body2" sx={{ my: 0.5 }}>
-                    {c.question}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    {c.patient_ref_at_assignee ? `Your patient record: ${c.patient_ref_at_assignee}` : c.patient_name ? `Patient: ${c.patient_name}` : ""}
-                    {c.due_date ? ` · due ${c.due_date}` : ""} · asked {fmtDate(c.created_at)}
-                  </Typography>
-                  {c.response_text && <Typography variant="body2">Answered: {c.response_text}</Typography>}
-                  <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                    {c.status === "open" && (
-                      <Button size="small" variant="contained" onClick={() => setAnswering(c)}>
-                        Answer
-                      </Button>
-                    )}
-                    {clinic && (
-                      <Button size="small" component={RouterLink} to={`/referrals/${c.referral_id}?tab=review`}>
-                        Open referral
-                      </Button>
-                    )}
-                    {me?.institution_kind === "laboratory" && (
-                      <Button size="small" component={RouterLink} to={`/lab?patient=${c.patient_ref_at_assignee ?? ""}`}>
-                        Open laboratory record
-                      </Button>
-                    )}
-                  </Stack>
-                </Paper>
-              ))}
+      <PageHeader
+        title="Work queue"
+        subtitle={subtitle}
+        actions={
+          clinic && (
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Button variant="contained" component={RouterLink} to="/referrals/new">
+                New referral
+              </Button>
+              <Button variant="outlined" component={RouterLink} to="/referrals">
+                View all referrals
+              </Button>
             </Stack>
-          </Paper>
-        </Grid>
-        {clinic && (
-          <>
-            <Grid item xs={12} lg={6}>
-              <Paper sx={{ p: 2 }}>
-                <Typography variant="h6" gutterBottom>
-                  Follow-up tasks ({d.tasks?.length ?? 0})
-                </Typography>
-                {!d.tasks?.length && <Empty>No open tasks.</Empty>}
-                <List dense>
-                  {d.tasks?.map((t) => (
-                    <ListItem key={t.id} secondaryAction={t.overdue ? <Tag tone="bad" label="overdue" /> : t.due_date ? <Tag tone="wait" label={`due ${t.due_date}`} /> : undefined}>
-                      <ListItemText
-                        primary={
-                          <Link component={RouterLink} to={`/referrals/${t.referral_id}?tab=followthrough`}>
-                            {t.referral_reference}: {t.description}
-                          </Link>
-                        }
-                        secondary={`owner ${t.assignee_name ?? "unassigned"} · specified by ${t.specified_by}`}
-                      />
-                    </ListItem>
-                  ))}
-                </List>
-              </Paper>
-            </Grid>
-            <Grid item xs={12} md={6} lg={4}>
-              <RefList title="Awaiting clinician approval / amendments" rows={d.awaiting_approval} empty="Nothing to approve." />
-            </Grid>
-            <Grid item xs={12} md={6} lg={4}>
-              <RefList title="Awaiting information" rows={d.awaiting_information} empty="None." />
-            </Grid>
-            <Grid item xs={12} md={6} lg={4}>
-              <Paper sx={{ p: 2, height: "100%" }}>
-                <Typography variant="h6" gutterBottom>
-                  Responses to review ({d.responses_to_review?.length ?? 0})
-                </Typography>
-                {!d.responses_to_review?.length && <Empty>None.</Empty>}
-                <List dense>
-                  {d.responses_to_review?.map((x) => (
-                    <ListItem key={x.referral_id}>
-                      <ListItemText
-                        primary={
-                          <Link component={RouterLink} to={`/referrals/${x.referral_id}?tab=followthrough`}>
-                            {x.referral_reference}
-                          </Link>
-                        }
-                        secondary={`${x.specialist_name}, received ${fmtDate(x.received_at)}`}
-                      />
-                    </ListItem>
-                  ))}
-                </List>
-              </Paper>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <RefList title="Delivery problems" rows={d.delivery_problems} empty="No delivery problems." />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <RefList title="Drafts in progress" rows={d.drafts} empty="No drafts." />
-            </Grid>
-          </>
+          )
+        }
+      />
+      <ErrorAlert error={answer.error} />
+      <Stack spacing={2.5}>
+        <Group title="Needs your action now" items={now} todoHeading="What to do" wide={wide} />
+        <Group title="Waiting on others" items={waiting} todoHeading="Waiting for" wide={wide} />
+        <Group title="Drafts in progress" items={drafts} todoHeading="Next" wide={wide} />
+        {listed === 0 && (
+          <Section title="All clear">
+            <Typography color="text.secondary">There is nothing in your queue. New requests and tasks will appear here.</Typography>
+          </Section>
         )}
-      </Grid>
+      </Stack>
       {answering && (
         <ReasonDialog open title={`Answer request on ${answering.referral_reference}`} label="Answer" confirm="Send answer" minLength={2} onClose={() => setAnswering(null)} onConfirm={(text) => answer.mutate({ id: answering.id, text })} busy={answer.isPending}>
           <Typography variant="body2" sx={{ mb: 1 }}>

@@ -57,7 +57,7 @@ export function RulesReview() {
               <Typography variant="h6">
                 {r.rule_id} v{r.version}
               </Typography>
-              <Tag tone={STATE_TONE[r.approval_state] ?? "warn"} label={r.approval_state === "approval_invalid_content_changed" ? "content changed — approval invalid" : r.active ? "active (approved)" : r.approval_state} />
+              <Tag tone={STATE_TONE[r.approval_state] ?? "warn"} label={r.approval_state === "approval_invalid_content_changed" ? "content changed, approval invalid" : r.active ? "active (approved)" : r.approval_state} />
             </Stack>
             <Typography variant="subtitle1">{r.title}</Typography>
             <Typography variant="body2" sx={{ mb: 1 }}>
@@ -71,7 +71,7 @@ export function RulesReview() {
                 ["Reference", r.reference],
                 ["Proposed by", r.proposed_by],
                 ["Content hash", <code key="h">{r.content_hash.slice(0, 20)}…</code>],
-                ["Decision", r.reviewer ? `${r.approval_state} by ${r.reviewer}, ${fmtDate(r.decided_at)} — reference checked: ${r.reference_checked}` : "awaiting clinical review"],
+                ["Decision", r.reviewer ? `${r.approval_state} by ${r.reviewer}, ${fmtDate(r.decided_at)}, reference checked: ${r.reference_checked}` : "awaiting clinical review"],
               ]}
             />
             {rs.can_approve && (

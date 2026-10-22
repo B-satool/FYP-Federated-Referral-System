@@ -19,7 +19,7 @@ import {
 } from "@mui/material";
 import Delete from "@mui/icons-material/DeleteOutline";
 import Add from "@mui/icons-material/Add";
-import AutoAwesome from "@mui/icons-material/AutoAwesome";
+import EditNote from "@mui/icons-material/EditNote";
 import { api } from "../../api/client";
 import type { Blocker, BriefResponse, BriefSection, Evidence, Job, MedicationsResponse, ReferralDetail } from "../../api/types";
 import { ErrorAlert, fmtDate, Loading, Tag } from "../../components/common";
@@ -123,7 +123,7 @@ export function BriefTab({ r }: { r: ReferralDetail }) {
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               <Button
                 variant="contained"
-                startIcon={<AutoAwesome />}
+                startIcon={<EditNote />}
                 disabled={locked || !brief.data?.llm_configured || generate.isPending || (!!jobId && !["completed", "failed"].includes(job.data?.status ?? ""))}
                 onClick={() => generate.mutate()}
                 title={brief.data?.llm_configured ? `Draft with ${brief.data.llm_model}` : "No language model configured"}
@@ -137,7 +137,7 @@ export function BriefTab({ r }: { r: ReferralDetail }) {
           </Stack>
           {!brief.data?.llm_configured && (
             <Alert severity="info" sx={{ mb: 1 }}>
-              No language model is configured. Use the evidence template or write the brief manually — preparation never depends on the model.
+              No language model is configured. Use the evidence template or write the brief manually. Preparation never depends on the model.
             </Alert>
           )}
           {jobId && job.data && job.data.status !== "completed" && (
@@ -145,7 +145,7 @@ export function BriefTab({ r }: { r: ReferralDetail }) {
               {job.data.status === "failed" ? (
                 <>
                   <AlertTitle>Draft generation failed</AlertTitle>
-                  {job.data.error} — you can continue with the template or manual editor.
+                  {job.data.error}. You can continue with the template or manual editor.
                 </>
               ) : (
                 `Generating draft (${job.data.status})…`
@@ -155,7 +155,7 @@ export function BriefTab({ r }: { r: ReferralDetail }) {
           <ErrorAlert error={generate.error || template.error || save.error} />
           <Alert severity="warning" icon={false} sx={{ mb: 2 }}>
             AI-drafted text is a proposal until a clinician approves it. Every record-derived statement must keep its source references (E-chips).
-            Medication flags are shown separately below from the deterministic rules — the model never writes them.
+            Medication flags are shown separately below from the deterministic rules. The model never writes them.
           </Alert>
 
           {sections.map((s, si) => (
@@ -326,7 +326,7 @@ export function BriefTab({ r }: { r: ReferralDetail }) {
           {r.packages.map((p) => (
             <Box key={p.version} sx={{ mt: 1 }}>
               <Typography variant="body2">
-                <strong>v{p.version}</strong> — {p.approved_by}, {fmtDate(p.approved_at)} {p.superseded && <Tag tone="neutral" label="superseded" />}
+                <strong>v{p.version}</strong> approved by {p.approved_by}, {fmtDate(p.approved_at)} {p.superseded && <Tag tone="neutral" label="superseded" />}
                 {r.submitted_package_version === p.version && <Tag tone="ok" label="delivered" />}
               </Typography>
               <Typography variant="caption" color="text.secondary" sx={{ wordBreak: "break-all" }}>

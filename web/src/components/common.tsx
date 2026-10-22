@@ -1,32 +1,29 @@
 import { ReactNode, useState } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import {
   Alert,
   AlertTitle,
   Box,
   Button,
   Chip,
-  ChipProps,
-  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  Link,
+  Paper,
+  Skeleton,
   Stack,
   TextField,
   Typography,
 } from "@mui/material";
-import CheckCircleOutline from "@mui/icons-material/CheckCircleOutline";
-import ErrorOutline from "@mui/icons-material/ErrorOutline";
-import HelpOutline from "@mui/icons-material/HelpOutline";
-import HourglassEmpty from "@mui/icons-material/HourglassEmpty";
-import Block from "@mui/icons-material/Block";
-import WarningAmber from "@mui/icons-material/WarningAmber";
-import RemoveCircleOutline from "@mui/icons-material/RemoveCircleOutline";
-import CloudOff from "@mui/icons-material/CloudOff";
+import ArrowBack from "@mui/icons-material/ArrowBack";
 import { errorMessage } from "../api/client";
+import { usePageTitle } from "../hooks";
+import { tokens } from "../theme";
 
 export function fmtDate(value: string | null | undefined, withTime = true): string {
-  if (!value) return "—";
+  if (!value) return "Not recorded";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   return withTime
@@ -34,12 +31,17 @@ export function fmtDate(value: string | null | undefined, withTime = true): stri
     : d.toLocaleDateString(undefined, { dateStyle: "medium" });
 }
 
+/** Skeleton placeholder that keeps the page layout stable while data loads. */
 export function Loading({ label = "Loading…" }: { label?: string }) {
   return (
-    <Stack direction="row" spacing={1.5} alignItems="center" sx={{ p: 3 }} role="status" aria-live="polite">
-      <CircularProgress size={20} />
-      <Typography color="text.secondary">{label}</Typography>
-    </Stack>
+    <Box role="status" aria-live="polite" aria-busy="true" sx={{ py: 1 }}>
+      <span className="sr-only">{label}</span>
+      <Stack spacing={1.5} aria-hidden>
+        <Skeleton variant="rounded" height={30} width="38%" />
+        <Skeleton variant="rounded" height={96} />
+        <Skeleton variant="rounded" height={96} />
+      </Stack>
+    </Box>
   );
 }
 
@@ -54,7 +56,7 @@ export function ErrorAlert({ error, title }: { error: unknown; title?: string })
         <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
           {detail.blockers.map((b, i) => (
             <li key={i}>
-              {b.message} — <em>{b.how}</em>
+              {b.message}. <em>{b.how}.</em>
             </li>
           ))}
         </ul>
@@ -63,39 +65,104 @@ export function ErrorAlert({ error, title }: { error: unknown; title?: string })
   );
 }
 
-export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
+export function PageHeader({
+  title,
+  subtitle,
+  actions,
+  back,
+}: {
+  title: string;
+  subtitle?: ReactNode;
+  actions?: ReactNode;
+  back?: { to: string; label: string };
+}) {
+  usePageTitle(title);
   return (
-    <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ md: "center" }} spacing={1} sx={{ mb: 2 }}>
-      <Box>
-        <Typography variant="h5" component="h1">
-          {title}
-        </Typography>
-        {subtitle && (
-          <Typography color="text.secondary" component="div">
-            {subtitle}
+    <Box sx={{ mb: 3 }}>
+      {back && (
+        <Link component={RouterLink} to={back.to} underline="hover" sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, mb: 1, fontSize: "0.875rem" }}>
+          <ArrowBack fontSize="inherit" aria-hidden />
+          {back.label}
+        </Link>
+      )}
+      <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ md: "flex-end" }} spacing={1.5}>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="h5" component="h1" sx={{ overflowWrap: "anywhere" }}>
+            {title}
           </Typography>
+          {subtitle && (
+            <Typography color="text.secondary" component="div" sx={{ mt: 0.5 }}>
+              {subtitle}
+            </Typography>
+          )}
+        </Box>
+        {actions && (
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            {actions}
+          </Stack>
         )}
-      </Box>
-      {actions && <Stack direction="row" spacing={1} flexWrap="wrap">{actions}</Stack>}
-    </Stack>
+      </Stack>
+    </Box>
+  );
+}
+
+/** A titled block of related content. Replaces ad hoc Paper + heading pairs. */
+export function Section({
+  title,
+  description,
+  actions,
+  children,
+  id,
+}: {
+  title: string;
+  description?: ReactNode;
+  actions?: ReactNode;
+  children: ReactNode;
+  id?: string;
+}) {
+  return (
+    <Paper component="section" aria-labelledby={id ? `${id}-title` : undefined} sx={{ p: { xs: 2, md: 2.5 } }}>
+      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2} sx={{ mb: description || children ? 1.5 : 0 }}>
+        <Box>
+          <Typography variant="h6" id={id ? `${id}-title` : undefined}>
+            {title}
+          </Typography>
+          {description && (
+            <Typography variant="body2" color="text.secondary" component="div">
+              {description}
+            </Typography>
+          )}
+        </Box>
+        {actions && <Box sx={{ flexShrink: 0 }}>{actions}</Box>}
+      </Stack>
+      {children}
+    </Paper>
   );
 }
 
 type Tone = "ok" | "warn" | "bad" | "info" | "neutral" | "wait" | "off";
-const toneProps: Record<Tone, { color: ChipProps["color"]; icon: JSX.Element }> = {
-  ok: { color: "success", icon: <CheckCircleOutline /> },
-  warn: { color: "warning", icon: <WarningAmber /> },
-  bad: { color: "error", icon: <ErrorOutline /> },
-  info: { color: "info", icon: <HelpOutline /> },
-  neutral: { color: "default", icon: <RemoveCircleOutline /> },
-  wait: { color: "default", icon: <HourglassEmpty /> },
-  off: { color: "default", icon: <Block /> },
+const toneStyle: Record<Tone, { text: string; bg: string; border: string; dashed?: boolean }> = {
+  ok: { ...tokens.ok, border: tokens.ok.text },
+  warn: { ...tokens.warn, border: tokens.warn.text },
+  bad: { ...tokens.bad, border: tokens.bad.text },
+  info: { ...tokens.info, border: tokens.info.text },
+  neutral: { ...tokens.neutral, border: tokens.field },
+  wait: { ...tokens.neutral, border: tokens.field },
+  off: { ...tokens.neutral, border: tokens.field, dashed: true },
 };
 
-/** A status label that never relies on colour alone (icon + text). */
+/** A status label. The meaning is always in the text; colour and border style only reinforce it. */
 export function Tag({ tone, label, title }: { tone: Tone; label: string; title?: string }) {
-  const p = toneProps[tone];
-  return <Chip size="small" variant="outlined" color={p.color} icon={p.icon} label={label} title={title} />;
+  const t = toneStyle[tone];
+  return (
+    <Chip
+      size="small"
+      variant="outlined"
+      label={label}
+      title={title}
+      sx={{ backgroundColor: t.bg, color: t.text, borderColor: t.border, borderStyle: t.dashed ? "dashed" : "solid", maxWidth: "100%" }}
+    />
+  );
 }
 
 const REFERRAL_TONES: Record<string, Tone> = {
@@ -127,8 +194,6 @@ export function RetrievalStatus({ status }: { status: string }) {
     invalid: "bad",
     not_retrieved: "wait",
   };
-  const icon = status === "unavailable" ? <CloudOff /> : undefined;
-  if (icon) return <Chip size="small" variant="outlined" color="error" icon={icon} label="unavailable" />;
   return <Tag tone={tones[status] ?? "neutral"} label={status.replace(/_/g, " ")} />;
 }
 
@@ -211,7 +276,7 @@ export function KeyValue({ items }: { items: [string, ReactNode][] }) {
             {k}
           </Typography>
           <Typography component="dd" variant="body2" sx={{ m: 0, wordBreak: "break-word" }}>
-            {v ?? "—"}
+            {v ?? "Not recorded"}
           </Typography>
         </Box>
       ))}

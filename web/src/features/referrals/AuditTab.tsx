@@ -22,7 +22,7 @@ export function AuditTable({ rows }: { rows: AuditEvent[] }) {
           <TableRow key={a.id}>
             <TableCell sx={{ whiteSpace: "nowrap" }}>{fmtDate(a.created_at)}</TableCell>
             <TableCell>{a.actor_name}</TableCell>
-            <TableCell>{a.institution_id ?? "—"}</TableCell>
+            <TableCell>{a.institution_id ?? "None"}</TableCell>
             <TableCell>
               {a.action}
               {Object.keys(a.detail ?? {}).length > 0 && (

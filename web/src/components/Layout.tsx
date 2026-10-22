@@ -1,79 +1,218 @@
-import { ReactNode } from "react";
-import { NavLink, useLocation } from "react-router-dom";
-import { AppBar, Box, Button, Chip, Container, Stack, Toolbar, Typography } from "@mui/material";
-import LocalHospital from "@mui/icons-material/LocalHospital";
+import { ReactNode, useState } from "react";
+import { Link as RouterLink, NavLink } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { Box, Button, Container, Divider, Drawer, IconButton, Link, Stack, Typography, useMediaQuery } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
+import MenuIcon from "@mui/icons-material/Menu";
+import CloseIcon from "@mui/icons-material/Close";
+import { api } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
+import { actionableCount, Queue } from "../features/workqueue/queue";
 import { hasRole, useMe } from "../hooks";
+import { tokens } from "../theme";
+import { Brand } from "./Brand";
 
-type NavItem = { to: string; label: string; show: boolean };
+type NavItem = { to: string; label: string; show: boolean; badge?: number };
+type NavGroup = { title: string; items: NavItem[] };
 
-export function Layout({ children }: { children: ReactNode }) {
+const ROLE_LABELS: Record<string, string> = {
+  clinic_staff: "Clinic staff",
+  clinician: "Clinician",
+  lab_staff: "Laboratory staff",
+  specialist: "Specialist",
+  institution_admin: "Administrator",
+  rule_reviewer: "Rule reviewer",
+};
+
+function roleText(roles: string[]): string {
+  return roles
+    .filter((r) => r in ROLE_LABELS)
+    .map((r) => ROLE_LABELS[r])
+    .join(", ");
+}
+
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { logout } = useAuth();
   const { data: me } = useMe();
-  const loc = useLocation();
   const kind = me?.institution_kind;
   const clinicUser = kind === "clinic" && hasRole(me, "clinic_staff", "clinician");
-  const items: NavItem[] = [
-    { to: "/referrals", label: "Referrals", show: clinicUser },
-    { to: "/work-queue", label: "Work queue", show: hasRole(me, "clinic_staff", "clinician", "lab_staff") },
-    { to: "/patient-links", label: "Patient links", show: kind === "clinic" && hasRole(me, "clinic_staff", "clinician", "institution_admin") },
-    { to: "/rules", label: "Medication rules", show: clinicUser || hasRole(me, "rule_reviewer") },
-    { to: "/specialist", label: "Specialist inbox", show: hasRole(me, "specialist") },
-    { to: "/lab", label: "Laboratory records", show: hasRole(me, "lab_staff") },
-    { to: "/admin/users", label: "Accounts", show: hasRole(me, "institution_admin") },
-    { to: "/admin/access", label: "Source access", show: hasRole(me, "institution_admin") && kind !== "platform" },
-    { to: "/admin/audit", label: "Audit log", show: hasRole(me, "institution_admin") },
+  const hasQueue = hasRole(me, "clinic_staff", "clinician", "lab_staff");
+  const queue = useQuery({ queryKey: ["work-queue"], queryFn: () => api.get<Queue>("/work-queue"), enabled: hasQueue, refetchInterval: 30000, staleTime: 15000 });
+  const open = actionableCount(queue.data);
+
+  const groups: NavGroup[] = [
+    {
+      title: "Work",
+      items: [
+        { to: "/work-queue", label: "Work queue", show: hasQueue, badge: open },
+        { to: "/referrals", label: "Referrals", show: clinicUser },
+        { to: "/specialist", label: "Specialist inbox", show: hasRole(me, "specialist") },
+        { to: "/lab", label: "Laboratory records", show: hasRole(me, "lab_staff") },
+      ],
+    },
+    {
+      title: "Records and rules",
+      items: [
+        { to: "/patient-links", label: "Patient links", show: kind === "clinic" && hasRole(me, "clinic_staff", "clinician", "institution_admin") },
+        { to: "/rules", label: "Medication rules", show: clinicUser || hasRole(me, "rule_reviewer") },
+      ],
+    },
+    {
+      title: "Administration",
+      items: [
+        { to: "/admin/users", label: "Accounts", show: hasRole(me, "institution_admin") },
+        { to: "/admin/access", label: "Source access", show: hasRole(me, "institution_admin") && kind !== "platform" },
+        { to: "/admin/audit", label: "Audit log", show: hasRole(me, "institution_admin") },
+      ],
+    },
   ];
+
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "grey.50" }}>
+    <Stack className="on-dark" sx={{ height: "100%", color: tokens.navText, p: 2 }}>
+      <Box sx={{ px: 0.5, py: 1 }}>
+        <Brand onDark />
+      </Box>
+      <Box component="nav" aria-label="Main" sx={{ mt: 2, flexGrow: 1, overflowY: "auto" }}>
+        {groups
+          .map((g) => ({ ...g, items: g.items.filter((i) => i.show) }))
+          .filter((g) => g.items.length > 0)
+          .map((g) => (
+            <Box key={g.title} sx={{ mb: 2.5 }}>
+              <Typography variant="overline" component="div" sx={{ color: tokens.navMuted, px: 1.5, mb: 0.5 }}>
+                {g.title}
+              </Typography>
+              <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0 }}>
+                {g.items.map((i) => (
+                  <li key={i.to}>
+                    <Box
+                      component={NavLink}
+                      to={i.to}
+                      onClick={onNavigate}
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 1,
+                        minHeight: 40,
+                        px: 1.5,
+                        borderRadius: 1,
+                        color: tokens.navText,
+                        textDecoration: "none",
+                        fontWeight: 500,
+                        border: "1px solid transparent",
+                        "&:hover": { backgroundColor: tokens.navActive },
+                        "&.active": { backgroundColor: tokens.navActive, fontWeight: 700, borderColor: tokens.navMuted },
+                      }}
+                    >
+                      <span>{i.label}</span>
+                      {!!i.badge && (
+                        <Box component="span" sx={{ minWidth: 24, px: 0.75, textAlign: "center", borderRadius: 1, backgroundColor: tokens.focusOnDark, color: tokens.ink, fontSize: "0.8125rem", fontWeight: 700 }}>
+                          {i.badge}
+                          <span className="sr-only"> open items</span>
+                        </Box>
+                      )}
+                    </Box>
+                  </li>
+                ))}
+              </Box>
+            </Box>
+          ))}
+      </Box>
+      <Divider sx={{ borderColor: tokens.navActive, my: 1.5 }} />
+      {me && (
+        <Stack spacing={1.25}>
+          <Box sx={{ px: 0.5 }}>
+            <Typography sx={{ fontWeight: 600, color: "inherit", overflowWrap: "anywhere" }}>{me.name}</Typography>
+            <Typography variant="body2" sx={{ color: tokens.navMuted }}>
+              {me.institution_name}
+            </Typography>
+            <Typography variant="body2" sx={{ color: tokens.navMuted }}>
+              {roleText(me.roles)}
+            </Typography>
+          </Box>
+          <Button
+            variant="outlined"
+            onClick={() => logout()}
+            sx={{ color: tokens.navText, borderColor: tokens.navMuted, "&:hover": { backgroundColor: tokens.navActive, borderColor: tokens.navText } }}
+          >
+            Sign out
+          </Button>
+        </Stack>
+      )}
+    </Stack>
+  );
+}
+
+export function Footer() {
+  return (
+    <Box component="footer" sx={{ borderTop: `1px solid ${tokens.line}`, mt: 4 }}>
+      <Container maxWidth="xl" sx={{ py: 2.5 }}>
+        <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.5}>
+          <Typography variant="body2" color="text.secondary">
+            © {new Date().getFullYear()} Referral Preparation and Follow-through Platform. Final year project prototype, synthetic data only.
+          </Typography>
+          <Stack component="nav" aria-label="Policies" direction="row" spacing={2.5} flexWrap="wrap" useFlexGap>
+            <Link component={RouterLink} to="/privacy">
+              Privacy notice
+            </Link>
+            <Link component={RouterLink} to="/terms">
+              Terms of use
+            </Link>
+            <Link component={RouterLink} to="/accessibility">
+              Accessibility
+            </Link>
+          </Stack>
+        </Stack>
+      </Container>
+    </Box>
+  );
+}
+
+export function Layout({ children }: { children: ReactNode }) {
+  const theme = useTheme();
+  const desktop = useMediaQuery(theme.breakpoints.up("md"), { noSsr: true });
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  return (
+    <Box sx={{ display: "flex", minHeight: "100vh" }}>
       <a href="#main" className="skip-link">
         Skip to main content
       </a>
-      <AppBar position="static" elevation={1} color="primary">
-        <Toolbar sx={{ gap: 2, flexWrap: "wrap" }}>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <LocalHospital aria-hidden />
-            <Typography variant="h6" component="div" sx={{ whiteSpace: "nowrap" }}>
-              Referral Platform
-            </Typography>
-          </Stack>
-          <Box component="nav" aria-label="Main" sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, flexGrow: 1 }}>
-            {items
-              .filter((i) => i.show)
-              .map((i) => (
-                <Button
-                  key={i.to}
-                  component={NavLink}
-                  to={i.to}
-                  color="inherit"
-                  sx={{ opacity: loc.pathname.startsWith(i.to) ? 1 : 0.8, borderBottom: loc.pathname.startsWith(i.to) ? "2px solid white" : "2px solid transparent", borderRadius: 0 }}
-                >
-                  {i.label}
-                </Button>
-              ))}
+      {desktop ? (
+        <Box component="aside" sx={{ width: 272, flexShrink: 0, backgroundColor: tokens.nav, position: "sticky", top: 0, height: "100vh" }}>
+          <SidebarContent />
+        </Box>
+      ) : (
+        <Drawer open={menuOpen} onClose={() => setMenuOpen(false)} PaperProps={{ sx: { width: 288, maxWidth: "88vw", backgroundColor: tokens.nav, backgroundImage: "none" } }}>
+          <Box sx={{ display: "flex", justifyContent: "flex-end", p: 1, pb: 0 }} className="on-dark">
+            <IconButton aria-label="Close menu" onClick={() => setMenuOpen(false)} sx={{ color: tokens.navText, "&:hover": { backgroundColor: tokens.navActive } }}>
+              <CloseIcon />
+            </IconButton>
           </Box>
-          {me && (
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Box sx={{ textAlign: "right" }}>
-                <Typography variant="body2">{me.name}</Typography>
-                <Typography variant="caption" sx={{ opacity: 0.85 }}>
-                  {me.institution_name}
-                </Typography>
-              </Box>
-              <Chip size="small" label={me.roles.filter((r) => !r.startsWith("default") && !["offline_access", "uma_authorization"].includes(r)).join(", ")} sx={{ bgcolor: "rgba(255,255,255,0.15)", color: "white" }} />
-              <Button color="inherit" variant="outlined" size="small" onClick={() => logout()}>
-                Sign out
-              </Button>
-            </Stack>
-          )}
-        </Toolbar>
-      </AppBar>
-      <Box sx={{ bgcolor: "warning.light", py: 0.25, textAlign: "center" }}>
-        <Typography variant="caption">Prototype with synthetic data only. Not for clinical use.</Typography>
+          <Box sx={{ flexGrow: 1, minHeight: 0 }}>
+            <SidebarContent onNavigate={() => setMenuOpen(false)} />
+          </Box>
+        </Drawer>
+      )}
+      <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+        {!desktop && (
+          <Box sx={{ position: "sticky", top: 0, zIndex: 1100, display: "flex", alignItems: "center", gap: 1, px: 1.5, height: 60, backgroundColor: tokens.surface, borderBottom: `1px solid ${tokens.line}` }}>
+            <IconButton aria-label="Open menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}>
+              <MenuIcon />
+            </IconButton>
+            <Brand />
+          </Box>
+        )}
+        <Box role="note" sx={{ backgroundColor: tokens.warn.bg, color: tokens.ink, borderBottom: `1px solid ${tokens.line}`, px: 2, py: 0.5, textAlign: "center" }}>
+          <Typography variant="caption" component="span">
+            Prototype with synthetic data only. Not for clinical use.
+          </Typography>
+        </Box>
+        <Container component="main" id="main" tabIndex={-1} maxWidth="xl" sx={{ flex: 1, py: { xs: 2, md: 3.5 }, "&:focus": { outline: "none" } }}>
+          {children}
+        </Container>
+        <Footer />
       </Box>
-      <Container component="main" id="main" maxWidth="xl" sx={{ py: 3 }}>
-        {children}
-      </Container>
     </Box>
   );
 }

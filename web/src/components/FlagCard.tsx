@@ -80,7 +80,7 @@ export function FlagCard({
         <Box sx={{ mt: 1 }}>
           {reviews.map((r, i) => (
             <Typography key={i} variant="caption" display="block">
-              {r.side === "specialist" ? "Specialist" : "Referring clinician"}: <strong>{r.action === "reviewed" ? "Reviewed" : "Requested clarification"}</strong> — {r.reviewer}, flag v
+              {r.side === "specialist" ? "Specialist" : "Referring clinician"}: <strong>{r.action === "reviewed" ? "Reviewed" : "Requested clarification"}</strong> by {r.reviewer}, flag v
               {r.flag_version}
               {r.package_version ? `, package v${r.package_version}` : ""}, {fmtDate(r.created_at)}
             </Typography>
@@ -93,7 +93,7 @@ export function FlagCard({
         </Stack>
       )}
       <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
-        "Reviewed" records acknowledgment only — it is not treatment clearance and does not close the referral.
+        "Reviewed" records acknowledgment only. It is not treatment clearance and does not close the referral.
       </Typography>
     </Alert>
   );

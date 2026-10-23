@@ -31,7 +31,7 @@ export function SpecialistInbox() {
   const q = useQuery({ queryKey: ["spec-cases"], queryFn: () => api.get<CaseSummary[]>("/specialist/cases", "specialist"), refetchInterval: 10000 });
   return (
     <>
-      <PageHeader title="Incoming referrals" subtitle="Specialist C - Smile Orthodontic Centre" />
+      <PageHeader title="Incoming referrals" subtitle="Specialist C - Clifton Dental & Orthodontic Centre, Karachi" />
       {q.isLoading && <Loading />}
       <ErrorAlert error={q.error} />
       {q.data && (

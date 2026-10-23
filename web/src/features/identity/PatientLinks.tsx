@@ -165,8 +165,8 @@ export function PatientLinks() {
                   <Stack spacing={1.5}>
                     <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
                       <TextField select size="small" label="Institution" value={form.b_institution} onChange={(e) => setForm({ ...form, b_institution: e.target.value })} sx={{ minWidth: 260 }}>
-                        <MenuItem value="lab-b">Lab B - CityLab Diagnostics</MenuItem>
-                        <MenuItem value="spec-c">Specialist C - Smile Orthodontic Centre</MenuItem>
+                        <MenuItem value="lab-b">Lab B - Saddar Diagnostic Laboratory, Karachi</MenuItem>
+                        <MenuItem value="spec-c">Specialist C - Clifton Dental & Orthodontic Centre, Karachi</MenuItem>
                       </TextField>
                       <TextField size="small" label="Their local patient ID" value={form.b_local_id} onChange={(e) => setForm({ ...form, b_local_id: e.target.value })} />
                     </Stack>

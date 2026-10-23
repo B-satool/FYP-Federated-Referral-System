@@ -33,10 +33,10 @@ def dt(y, m, d, h=10):
 
 def seed(db) -> None:
     db.add_all([
-        Patient(local_id="MR-102", given="Ayesha", family="Khan", birth_date=date(1987, 3, 14), sex="F", phone="0300-0000102", city="Lahore"),
-        Patient(local_id="MR-215", given="Imran", family="Qureshi", birth_date=date(1979, 11, 2), sex="M", phone="0300-0000215", city="Lahore"),
-        Patient(local_id="MR-330", given="Fatima", family="Noor", birth_date=date(2009, 6, 21), sex="F", phone="0300-0000330", city="Lahore"),
-        Patient(local_id="MR-418", given="Hamza", family="Siddiqui", birth_date=date(1995, 8, 9), sex="M", phone="0300-0000418", city="Lahore"),
+        Patient(local_id="MR-102", given="Ayesha", family="Khan", birth_date=date(1987, 3, 14), sex="F", phone="0300-0000102", city="Karachi"),
+        Patient(local_id="MR-215", given="Imran", family="Qureshi", birth_date=date(1979, 11, 2), sex="M", phone="0300-0000215", city="Karachi"),
+        Patient(local_id="MR-330", given="Fatima", family="Noor", birth_date=date(2009, 6, 21), sex="F", phone="0300-0000330", city="Karachi"),
+        Patient(local_id="MR-418", given="Hamza", family="Siddiqui", birth_date=date(1995, 8, 9), sex="M", phone="0300-0000418", city="Karachi"),
     ])
     db.flush()
     db.add_all([

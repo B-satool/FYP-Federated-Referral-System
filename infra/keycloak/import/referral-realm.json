@@ -22,10 +22,10 @@
     ]
   },
   "groups": [
-    {"name": "clinic-a", "attributes": {"display_name": ["Clinic A - Gulshan Family Clinic, Karachi"]}},
+    {"name": "clinic-a", "attributes": {"display_name": ["Ziauddin Hospital"]}},
     {"name": "clinic-x", "attributes": {"display_name": ["Clinic X - Nazimabad Medical Centre, Karachi"]}},
     {"name": "lab-b", "attributes": {"display_name": ["Lab B - Saddar Diagnostic Laboratory, Karachi"]}},
-    {"name": "spec-c", "attributes": {"display_name": ["Specialist C - Clifton Dental & Orthodontic Centre, Karachi"]}}
+    {"name": "spec-c", "attributes": {"display_name": ["Aga Khan University Hospital"]}}
   ],
   "clients": [
     {

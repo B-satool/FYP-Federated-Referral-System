@@ -89,7 +89,7 @@ export function NewReferral() {
             ) : (
               <Alert severity="warning">Select a patient first.</Alert>
             )}
-            <TextField label="Destination" value="Specialist C - Clifton Dental & Orthodontic Centre, Karachi (Orthodontics)" disabled />
+            <TextField label="Destination" value="Aga Khan University Hospital (Orthodontics)" disabled />
             <TextField label="Reason for referral" multiline minRows={3} {...register("reason")} helperText="What do you want the specialist to address?" />
             <Controller
               name="priority"

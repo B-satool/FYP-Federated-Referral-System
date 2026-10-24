@@ -203,11 +203,6 @@ export function Layout({ children }: { children: ReactNode }) {
             <Brand />
           </Box>
         )}
-        <Box role="note" sx={{ backgroundColor: tokens.warn.bg, color: tokens.ink, borderBottom: `1px solid ${tokens.line}`, px: 2, py: 0.5, textAlign: "center" }}>
-          <Typography variant="caption" component="span">
-            Prototype with synthetic data only. Not for clinical use.
-          </Typography>
-        </Box>
         <Container component="main" id="main" tabIndex={-1} maxWidth="xl" sx={{ flex: 1, py: { xs: 2, md: 3.5 }, "&:focus": { outline: "none" } }}>
           {children}
         </Container>

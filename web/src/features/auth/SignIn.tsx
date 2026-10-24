@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Container, Link, Paper, Stack, Typography } from "@mui/material";
+import { Box, Button, Container, Link, Paper, Stack, Typography } from "@mui/material";
 import { Link as RouterLink } from "react-router-dom";
 import { useAuth } from "../../auth/AuthProvider";
 import { Brand } from "../../components/Brand";
@@ -58,7 +58,6 @@ export function SignIn() {
                 Sign in
               </Typography>
               <Typography color="text.secondary">You will be taken to your institution's sign-in page and returned here afterwards.</Typography>
-              <Alert severity="warning">Prototype using synthetic data only. Not for clinical use.</Alert>
               <Button variant="contained" size="large" onClick={() => login()}>
                 Sign in with your institution account
               </Button>

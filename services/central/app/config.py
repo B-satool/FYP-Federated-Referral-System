@@ -42,10 +42,10 @@ settings = Settings()
 
 # Institutions participating in the demonstration (reference data).
 INSTITUTIONS = {
-    "clinic-a": {"name": "Clinic A - Gulshan Family Clinic, Karachi", "kind": "clinic"},
+    "clinic-a": {"name": "Ziauddin Hospital", "kind": "clinic"},
     "clinic-x": {"name": "Clinic X - Nazimabad Medical Centre, Karachi", "kind": "clinic"},
     "lab-b": {"name": "Lab B - Saddar Diagnostic Laboratory, Karachi", "kind": "laboratory"},
-    "spec-c": {"name": "Specialist C - Clifton Dental & Orthodontic Centre, Karachi", "kind": "specialist"},
+    "spec-c": {"name": "Aga Khan University Hospital", "kind": "specialist"},
     "central-platform": {"name": "Central referral platform", "kind": "platform"},
 }
 

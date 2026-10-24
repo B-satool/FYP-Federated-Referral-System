@@ -22,10 +22,10 @@
     ]
   },
   "groups": [
-    {"name": "clinic-a", "attributes": {"display_name": ["Clinic A - Green Valley Family Clinic"]}},
-    {"name": "clinic-x", "attributes": {"display_name": ["Clinic X - Riverside Medical Centre"]}},
-    {"name": "lab-b", "attributes": {"display_name": ["Lab B - CityLab Diagnostics"]}},
-    {"name": "spec-c", "attributes": {"display_name": ["Specialist C - Smile Orthodontic Centre"]}}
+    {"name": "clinic-a", "attributes": {"display_name": ["Clinic A - Gulshan Family Clinic, Karachi"]}},
+    {"name": "clinic-x", "attributes": {"display_name": ["Clinic X - Nazimabad Medical Centre, Karachi"]}},
+    {"name": "lab-b", "attributes": {"display_name": ["Lab B - Saddar Diagnostic Laboratory, Karachi"]}},
+    {"name": "spec-c", "attributes": {"display_name": ["Specialist C - Clifton Dental & Orthodontic Centre, Karachi"]}}
   ],
   "clients": [
     {

@@ -69,7 +69,7 @@ def unreadable(path: Path, seed: int) -> None:
 
 
 SAMPLE_DOCS = {
-    "prescription_cardiology_digital.pdf": ("pdf", "Lahore Heart Centre - Prescription (synthetic)", [
+    "prescription_cardiology_digital.pdf": ("pdf", "Tariq Road Heart Clinic, Karachi - Prescription (synthetic)", [
         "Patient: Ayesha Khan    DOB: 14/03/1987    MRN (Clinic A): MR-102",
         "Date: 01/09/2026",
         "Prescriber: Dr Hassan Rafiq, Cardiology",

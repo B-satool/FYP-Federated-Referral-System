@@ -40,7 +40,7 @@ export function LabWorkspace() {
   });
   return (
     <>
-      <PageHeader title="Laboratory records" subtitle="Lab B - CityLab Diagnostics. Corrections publish a new record version; earlier versions are retained." />
+      <PageHeader title="Laboratory records" subtitle="Lab B - Saddar Diagnostic Laboratory, Karachi. Corrections publish a new record version; earlier versions are retained." />
       <Grid container spacing={2}>
         <Grid item xs={12} md={3}>
           <Paper>

@@ -48,6 +48,6 @@ Needs Pillow and reportlab (both are in the central image). Edit `data.py`, not 
 
 ## Limits
 
-- This folder is **not wired into** the existing `services/*/app/seed.py`, which still load the older orthodontic patients. Loading these into the services means mapping each `sources.<institution>` block onto that service's tables and adding multi-specialty departments, which touches schemas and is owned by other members, so it needs their approval (AGENTS.md).
+- This folder **is the seed** for version 2. Each institution service loads only its own blocks (`clinic-ali` → Dr Ali's Clinic, `lab-b` → Chughtai Lab, `zia`/`rad-zia` → Ziauddin, `aku`/`rad-aku` → Aga Khan), and the central seed creates the earlier patient links. Edit `data.py`, regenerate, then run `scripts/reset-and-seed.ps1 -Force`.
 - Brand names (Brufen, Panadol, Glucophage, Plavix and so on) are common in Pakistan but are used here only as examples. Check dose forms against a pharmacist before showing the data to anyone.
 - The clinical content is plausible, not clinically reviewed. Have a clinician supervisor check it before a formal demo.

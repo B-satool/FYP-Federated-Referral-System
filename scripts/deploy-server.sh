@@ -30,17 +30,19 @@ if [ ! -f .env ]; then
 SITE_HOST=${host}
 POSTGRES_SUPERUSER_PASSWORD=$(rnd)
 CENTRAL_DB_PASSWORD=$(rnd)
-CLINIC_DB_PASSWORD=$(rnd)
-LAB_DB_PASSWORD=$(rnd)
-SPECIALIST_DB_PASSWORD=$(rnd)
+DRALI_DB_PASSWORD=$(rnd)
+CHUGHTAI_DB_PASSWORD=$(rnd)
+ZIAUDDIN_DB_PASSWORD=$(rnd)
+AKUH_DB_PASSWORD=$(rnd)
 KEYCLOAK_DB_PASSWORD=$(rnd)
 KEYCLOAK_ADMIN_PASSWORD=$(rnd)
 # Password for the synthetic demo accounts (change for anything beyond a supervised demo)
 DEMO_USER_PASSWORD=${DEMO_USER_PASSWORD:-demo1234}
 CENTRAL_CLIENT_SECRET=$(rnd)
-CLINIC_CLIENT_SECRET=$(rnd)
-LAB_CLIENT_SECRET=$(rnd)
-SPECIALIST_CLIENT_SECRET=$(rnd)
+DRALI_CLIENT_SECRET=$(rnd)
+CHUGHTAI_CLIENT_SECRET=$(rnd)
+ZIAUDDIN_CLIENT_SECRET=$(rnd)
+AKUH_CLIENT_SECRET=$(rnd)
 LLM_PROVIDER=anthropic
 ANTHROPIC_API_KEY=
 LLM_MODEL=claude-opus-5-5
@@ -64,7 +66,7 @@ $COMPOSE ps
 
 if [ "$($COMPOSE exec -T postgres psql -U postgres -d central_db -tAc 'select count(*) from patient_links' 2>/dev/null || echo 0)" = "0" ]; then
   say "Loading synthetic demo data"
-  for svc in clinic lab specialist central; do $COMPOSE exec -T "$svc" python -m app.seed --reset --yes; done
+  for svc in drali chughtai ziauddin akuh central; do $COMPOSE exec -T "$svc" python -m app.seed --reset --yes; done
 fi
 
 say "Done. Open:  https://${host}"

@@ -1,5 +1,7 @@
 # Architecture and Stage 0 decisions
 
+> **Version 1 document.** Version 2 changed the institutions, roles, linking, retrieval, medicines and sending; see [v2-changes.md](v2-changes.md) for what differs. This page has not been rewritten for v2 yet.
+
 This file records the implementable scope agreed in Stage 0 (Roadmap §7) and the system boundaries (Roadmap §1). Items marked **(provisional)** are reasonable defaults chosen so the prototype could be built. They still require confirmation by the supervisor and a clinical reviewer, as SRS §12 requires.
 
 ## 1. System boundaries

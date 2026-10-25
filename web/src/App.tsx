@@ -15,10 +15,10 @@ import { ReferralWorkspace } from "./features/referrals/ReferralWorkspace";
 import { DocumentReview } from "./features/documents/DocumentReview";
 import { WorkQueue } from "./features/workqueue/WorkQueue";
 import { PatientLinks } from "./features/identity/PatientLinks";
-import { RulesReview } from "./features/rules/RulesReview";
-import { SpecialistInbox } from "./features/specialist/SpecialistInbox";
-import { SpecialistCase } from "./features/specialist/SpecialistCase";
-import { LabWorkspace } from "./features/lab/LabWorkspace";
+import { RulesPage } from "./features/rules/RulesPage";
+import { MedicineNames } from "./features/rules/MedicineNames";
+import { IncomingCase, IncomingList } from "./features/incoming/Incoming";
+import { OrderList, OrderView } from "./features/orders/Orders";
 import { AdminUsers } from "./features/admin/AdminUsers";
 import { SourceAccess } from "./features/admin/SourceAccess";
 import { AuditLog } from "./features/admin/AuditLog";
@@ -27,9 +27,8 @@ function Home() {
   const { data: me, isLoading, error } = useMe();
   if (isLoading) return <Loading />;
   if (error) return <ErrorAlert error={error} />;
-  if (hasRole(me, "specialist")) return <Navigate to="/specialist" replace />;
-  if (hasRole(me, "lab_staff")) return <Navigate to="/work-queue" replace />;
   if (hasRole(me, "clinic_staff", "clinician")) return <Navigate to="/work-queue" replace />;
+  if (hasRole(me, "diagnostics_staff")) return <Navigate to="/orders" replace />;
   if (hasRole(me, "rule_reviewer")) return <Navigate to="/rules" replace />;
   if (hasRole(me, "institution_admin")) return <Navigate to="/admin/users" replace />;
   return <Alert severity="info">Your account has no role in this application. Ask your institution administrator to assign one.</Alert>;
@@ -71,16 +70,18 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/callback" element={<Home />} />
+        <Route path="/work-queue" element={<WorkQueue />} />
         <Route path="/referrals" element={<ReferralList />} />
         <Route path="/referrals/new" element={<NewReferral />} />
         <Route path="/referrals/:id" element={<ReferralWorkspace />} />
         <Route path="/documents/:id" element={<DocumentReview />} />
-        <Route path="/work-queue" element={<WorkQueue />} />
         <Route path="/patient-links" element={<PatientLinks />} />
-        <Route path="/rules" element={<RulesReview />} />
-        <Route path="/specialist" element={<SpecialistInbox />} />
-        <Route path="/specialist/cases/:id" element={<SpecialistCase />} />
-        <Route path="/lab" element={<LabWorkspace />} />
+        <Route path="/incoming" element={<IncomingList />} />
+        <Route path="/incoming/:id" element={<IncomingCase />} />
+        <Route path="/orders" element={<OrderList />} />
+        <Route path="/orders/:id" element={<OrderView />} />
+        <Route path="/rules" element={<RulesPage />} />
+        <Route path="/medicine-names" element={<MedicineNames />} />
         <Route path="/admin/users" element={<AdminUsers />} />
         <Route path="/admin/access" element={<SourceAccess />} />
         <Route path="/admin/audit" element={<AuditLog />} />

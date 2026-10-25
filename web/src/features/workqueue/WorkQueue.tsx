@@ -1,120 +1,34 @@
-import { ReactNode, useState } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { ReactNode } from "react";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Box, Button, Link, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography, useMediaQuery } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { api } from "../../api/client";
-import type { Clarification, Me, Referral } from "../../api/types";
-import { ErrorAlert, fmtDate, Loading, PageHeader, ReasonDialog, ReferralStatus, Section, Tag } from "../../components/common";
-import { useMe } from "../../hooks";
+import { ErrorAlert, fmtDate, Loading, OrderStatus, PageHeader, ReferralStatus, Section, Tag, UrgencyTag } from "../../components/common";
+import { isDoctor, useMe } from "../../hooks";
 import { actionableCount, Queue } from "./queue";
 
-/** One row of the queue: which referral, what to do about it, and where to go. */
-type Item = {
-  key: string;
-  reference: string;
-  patient: string;
-  todo: ReactNode;
-  status: ReactNode;
-  when: string | null;
-  to: string;
-  overdue?: boolean;
-  actions?: ReactNode;
-};
+type Row = { key: string; reference: string; patient: string; what: ReactNode; status?: ReactNode; when: string | null; to: string; urgency?: { u: string; label: string } };
 
-const ts = (d: string | null) => (d ? new Date(d).getTime() : Number.MAX_SAFE_INTEGER);
-
-/** Overdue first, then oldest first. The order only reflects due dates and age; it never assigns clinical urgency. */
-function byOverdueThenOldest(a: Item, b: Item) {
-  if (!!a.overdue !== !!b.overdue) return a.overdue ? -1 : 1;
-  return ts(a.when) - ts(b.when);
-}
-
-function referralItem(r: Referral, todo: ReactNode, tab?: string): Item {
-  return {
-    key: `ref-${r.id}`,
-    reference: r.reference,
-    patient: r.patient.name,
-    todo,
-    status: <ReferralStatus status={r.status} label={r.status_label} />,
-    when: r.updated_at,
-    to: `/referrals/${r.id}${tab ? `?tab=${tab}` : ""}`,
-  };
-}
-
-function buildItems(d: Queue, me: Me | undefined, answer: (c: Clarification) => void) {
-  const clinic = me?.institution_kind === "clinic";
-  const lab = me?.institution_kind === "laboratory";
-  const now: Item[] = [];
-  const waiting: Item[] = [];
-
-  for (const c of d.clarifications) {
-    const open = c.status === "open";
-    const item: Item = {
-      key: `clar-${c.id}`,
-      reference: c.referral_reference ?? `Referral ${c.referral_id}`,
-      patient: c.patient_ref_at_assignee ? `Your record ${c.patient_ref_at_assignee}` : (c.patient_name ?? "Not recorded"),
-      todo: (
-        <>
-          {open ? "Answer request" : "Answered, waiting for the requester"} {c.origin === "specialist" ? "from the specialist" : `from ${c.created_by}`}
-          <Box component="span" sx={{ display: "block", color: "text.secondary" }}>
-            {c.question}
-            {c.due_date ? ` · due ${c.due_date}` : ""}
-          </Box>
-        </>
-      ),
-      status: <Tag tone={c.overdue ? "bad" : open ? "warn" : "info"} label={c.overdue ? "overdue" : c.status} />,
-      when: c.created_at,
-      to: clinic ? `/referrals/${c.referral_id}?tab=review` : lab ? `/lab?patient=${c.patient_ref_at_assignee ?? ""}` : "/work-queue",
-      overdue: c.overdue,
-      actions: open ? (
-        <Button size="small" variant="contained" onClick={() => answer(c)}>
-          Answer
-        </Button>
-      ) : undefined,
-    };
-    (open ? now : waiting).push(item);
-  }
-
-  for (const r of d.delivery_problems ?? []) now.push(referralItem(r, "Delivery failed: retry sending", "brief"));
-  for (const r of d.awaiting_approval ?? []) now.push(referralItem(r, r.amendment_open ? "Approve the new version after a change" : "Review and approve the brief", "brief"));
-  for (const x of d.responses_to_review ?? [])
-    now.push({
-      key: `resp-${x.referral_id}`,
-      reference: x.referral_reference,
-      patient: "",
-      todo: `Read the response from ${x.specialist_name}`,
-      status: <Tag tone="ok" label="response returned" />,
-      when: x.received_at,
-      to: `/referrals/${x.referral_id}?tab=followthrough`,
-    });
-  for (const t of d.tasks ?? [])
-    now.push({
-      key: `task-${t.id}`,
-      reference: t.referral_reference ?? `Referral ${t.referral_id}`,
-      patient: "",
-      todo: (
-        <>
-          Follow-up task: {t.description}
-          <Box component="span" sx={{ display: "block", color: "text.secondary" }}>
-            Owner {t.assignee_name ?? "unassigned"} · specified by {t.specified_by}
-          </Box>
-        </>
-      ),
-      status: t.overdue ? <Tag tone="bad" label="overdue" /> : t.due_date ? <Tag tone="wait" label={`due ${t.due_date}`} /> : <Tag tone="info" label="open" />,
-      when: t.due_date ?? t.created_at,
-      to: `/referrals/${t.referral_id}?tab=followthrough`,
-      overdue: t.overdue,
-    });
-  for (const r of d.awaiting_information ?? []) waiting.push(referralItem(r, "Records or answers before approval", "review"));
-
-  now.sort(byOverdueThenOldest);
-  waiting.sort(byOverdueThenOldest);
-  const drafts = (d.drafts ?? []).map((r) => referralItem(r, r.amendment_open ? "Amendment open: finish and send for approval" : "Finish the draft and send for approval"));
-  return { now, waiting, drafts };
-}
-
-function QueueTable({ items, todoHeading }: { items: Item[]; todoHeading: string }) {
+function Rows({ rows, heading }: { rows: Row[]; heading: string }) {
+  const theme = useTheme();
+  const wide = useMediaQuery(theme.breakpoints.up("md"), { noSsr: true });
+  if (!wide)
+    return (
+      <Stack component="ul" spacing={1.5} sx={{ listStyle: "none", m: 0, p: 0 }}>
+        {rows.map((i) => (
+          <Paper component="li" key={i.key} variant="outlined" sx={{ p: 1.5 }}>
+            <Stack direction="row" justifyContent="space-between" spacing={1}>
+              <Typography sx={{ fontWeight: 700 }}>{i.reference}</Typography>
+              {i.status}
+            </Stack>
+            <Typography>{i.patient}</Typography>
+            <Typography variant="body2" component="div">{i.what}</Typography>
+            <Link component={RouterLink} to={i.to}>Open</Link>
+          </Paper>
+        ))}
+      </Stack>
+    );
   return (
     <TableContainer>
       <Table size="small">
@@ -122,29 +36,27 @@ function QueueTable({ items, todoHeading }: { items: Item[]; todoHeading: string
           <TableRow>
             <TableCell>Referral</TableCell>
             <TableCell>Patient</TableCell>
-            <TableCell>{todoHeading}</TableCell>
+            <TableCell>{heading}</TableCell>
             <TableCell>Status</TableCell>
             <TableCell>Updated</TableCell>
-            <TableCell>
-              <span className="sr-only">Actions</span>
-            </TableCell>
+            <TableCell><span className="sr-only">Open</span></TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
-          {items.map((i) => (
-            <TableRow key={i.key}>
+          {rows.map((i) => (
+            <TableRow key={i.key} hover>
               <TableCell sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>{i.reference}</TableCell>
               <TableCell>{i.patient}</TableCell>
-              <TableCell>{i.todo}</TableCell>
-              <TableCell>{i.status}</TableCell>
+              <TableCell>{i.what}</TableCell>
+              <TableCell>
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  {i.urgency && <UrgencyTag urgency={i.urgency.u} label={i.urgency.label} />}
+                  {i.status}
+                </Stack>
+              </TableCell>
               <TableCell sx={{ whiteSpace: "nowrap" }}>{fmtDate(i.when)}</TableCell>
               <TableCell align="right">
-                <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
-                  {i.actions}
-                  <Link component={RouterLink} to={i.to} aria-label={`Open ${i.reference}`}>
-                    Open
-                  </Link>
-                </Stack>
+                <Link component={RouterLink} to={i.to} aria-label={`Open ${i.reference}`}>Open</Link>
               </TableCell>
             </TableRow>
           ))}
@@ -154,115 +66,108 @@ function QueueTable({ items, todoHeading }: { items: Item[]; todoHeading: string
   );
 }
 
-function QueueCards({ items }: { items: Item[] }) {
+function Group({ title, rows, heading = "What to do" }: { title: string; rows: Row[]; heading?: string }) {
+  if (!rows.length) return null;
   return (
-    <Stack component="ul" spacing={1.5} sx={{ listStyle: "none", m: 0, p: 0 }}>
-      {items.map((i) => (
-        <Paper component="li" key={i.key} sx={{ p: 2 }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
-            <Typography sx={{ fontWeight: 700 }}>{i.reference}</Typography>
-            {i.status}
-          </Stack>
-          {i.patient && <Typography>{i.patient}</Typography>}
-          <Typography variant="body2" component="div" sx={{ mt: 0.5 }}>
-            {i.todo}
-          </Typography>
-          <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1.5 }}>
-            <Link component={RouterLink} to={i.to} aria-label={`Open ${i.reference}`}>
-              Open
-            </Link>
-            {i.actions}
-          </Stack>
-        </Paper>
-      ))}
-    </Stack>
-  );
-}
-
-function Group({ title, items, todoHeading, wide }: { title: string; items: Item[]; todoHeading: string; wide: boolean }) {
-  if (items.length === 0) return null;
-  const heading = `${title} (${items.length})`;
-  if (!wide)
-    return (
-      <Box component="section" aria-label={heading}>
-        <Typography variant="h6" component="h2" sx={{ mb: 1 }}>
-          {heading}
-        </Typography>
-        <QueueCards items={items} />
-      </Box>
-    );
-  return (
-    <Section title={heading}>
-      <QueueTable items={items} todoHeading={todoHeading} />
+    <Section title={`${title} (${rows.length})`}>
+      <Rows rows={rows} heading={heading} />
     </Section>
   );
 }
 
 export function WorkQueue() {
   const { data: me } = useMe();
+  const nav = useNavigate();
   const qc = useQueryClient();
-  const theme = useTheme();
-  const wide = useMediaQuery(theme.breakpoints.up("md"), { noSsr: true });
   const q = useQuery({ queryKey: ["work-queue"], queryFn: () => api.get<Queue>("/work-queue"), refetchInterval: 15000 });
-  const [answering, setAnswering] = useState<Clarification | null>(null);
-  const answer = useMutation({
-    mutationFn: ({ id, text }: { id: number; text: string }) => api.post(`/clarifications/${id}/answer`, { response_text: text }),
-    meta: { success: "Answer sent." },
-    onSuccess: () => {
-      setAnswering(null);
-      qc.invalidateQueries({ queryKey: ["work-queue"] });
-    },
+  const readAll = useMutation({
+    mutationFn: () => api.post("/notifications/read-all"),
+    meta: { silent: true },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["work-queue"] }),
   });
-  if (q.isLoading) return <Loading />;
+  if (q.isLoading || !me) return <Loading />;
   if (q.error) return <ErrorAlert error={q.error} />;
-  const clinic = me?.institution_kind === "clinic";
-  const total = actionableCount(q.data);
-  const { now, waiting, drafts } = buildItems(q.data!, me, setAnswering);
-  const listed = now.length + waiting.length + drafts.length;
-  const where = me?.institution_name;
-  const subtitle =
-    total > 0
-      ? `${total} ${total === 1 ? "item needs" : "items need"} you, overdue first.`
-      : listed > 0
-        ? `Nothing needs action at ${where}. The items below are in progress or waiting on others.`
-        : `Nothing needs action at ${where}.`;
+  const d = q.data!;
+  const doctor = isDoctor(me);
+  const total = actionableCount(d);
+  const R = (r: { id: number; reference: string; patient: { name: string }; updated_at: string; status: string; status_label: string; urgency: string; urgency_label: string }, what: ReactNode, tab?: string): Row => ({
+    key: `${r.id}-${tab}`, reference: r.reference, patient: r.patient.name, what, when: r.updated_at,
+    status: <ReferralStatus status={r.status} label={r.status_label} />, urgency: { u: r.urgency, label: r.urgency_label },
+    to: `/referrals/${r.id}${tab ? `?tab=${tab}` : ""}`,
+  });
+
+  const info: Row[] = d.info_requests.map((c) => ({
+    key: `info-${c.id}`, reference: c.referral_reference, patient: c.patient_name, when: c.asked_at,
+    what: <><strong>{c.asked_by}</strong> asks: {c.question}</>, status: <Tag tone="warn" label="question" />,
+    to: `/referrals/${c.referral_id}?tab=response`,
+  }));
 
   return (
     <>
       <PageHeader
         title="Work queue"
-        subtitle={subtitle}
-        actions={
-          clinic && (
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <Button variant="contained" component={RouterLink} to="/referrals/new">
-                New referral
-              </Button>
-              <Button variant="outlined" component={RouterLink} to="/referrals">
-                View all referrals
-              </Button>
-            </Stack>
-          )
-        }
+        subtitle={total ? `${total} ${total === 1 ? "item needs" : "items need"} you, ${me.name}.` : `Nothing needs you right now, ${me.name}.`}
+        actions={doctor && me.institution_kind !== "laboratory" ? (
+          <>
+            <Button variant="contained" onClick={() => nav("/referrals/new")}>New referral</Button>
+            <Button variant="outlined" onClick={() => nav("/referrals")}>All referrals</Button>
+          </>
+        ) : <Button variant="outlined" onClick={() => nav("/referrals")}>All referrals</Button>}
       />
-      <ErrorAlert error={answer.error} />
       <Stack spacing={2.5}>
-        <Group title="Needs your action now" items={now} todoHeading="What to do" wide={wide} />
-        <Group title="Waiting on others" items={waiting} todoHeading="Waiting for" wide={wide} />
-        <Group title="Drafts in progress" items={drafts} todoHeading="Next" wide={wide} />
-        {listed === 0 && (
+        {doctor ? (
+          <>
+            <Group title="Medication flags to acknowledge" rows={(d.flags_to_acknowledge ?? []).map((r) => R(r, `${r.unacknowledged} flag(s) for the planned procedure`, "medicines"))} />
+            <Group title="Test results ready" heading="Result" rows={(d.results_to_see ?? []).map((x) => ({
+              key: `dx-${x.id}`, reference: x.referral_reference ?? x.reference, patient: x.patient_name ?? "", when: x.updated_at ?? x.created_at,
+              what: `${x.test} from ${x.destination_name}`, status: <OrderStatus status={x.status} />, to: `/referrals/${x.referral_id}?tab=tests`,
+            }))} />
+            <Group title="Specialist responses to review" rows={(d.responses_to_review ?? []).map((r) => R(r, `Response from ${r.specialist_name}`, "response"))} />
+            <Group title="Questions from receiving hospitals" rows={info} />
+            <Group title="Your drafts" rows={(d.drafts ?? []).map((r) => R(r, "Finish and submit the request", "request"))} />
+            <Group title="Your referrals in progress" heading="Where it is" rows={(d.in_progress ?? []).map((r) => R(r, r.status === "requested" ? "Staff are preparing it" : `With ${r.destination_name}`))} />
+          </>
+        ) : (
+          <>
+            <Group title="Referrals to prepare and send" heading="Next step" rows={(d.to_prepare ?? []).map((r) => R(r,
+              r.ready ? <strong>Ready to send</strong> : <>{r.next_step?.label}{r.next_step?.who === "doctor" ? " (doctor)" : ""} <Typography component="span" variant="caption" color="text.secondary">· {r.done} of {r.total} done</Typography></>,
+              r.ready ? "send" : (r.next_step?.tab ?? undefined)))} />
+            <Group title="Patient link requests to check" heading="From" rows={(d.link_requests ?? []).map((l) => ({
+              key: `link-${l.id}`, reference: `Link #${l.id}`, patient: l.patient_name, when: l.requested_at, what: l.purpose,
+              status: <Tag tone="wait" label="to check" />, to: "/patient-links",
+            }))} />
+            <Group title="Tests and scans to send" heading="Test" rows={(d.tests_to_send ?? []).map((x) => ({
+              key: `dx-${x.id}`, reference: x.referral_reference ?? x.reference, patient: x.patient_name ?? "", when: x.created_at,
+              what: `${x.test} to ${x.destination_name}${x.status === "rejected" ? ` (not accepted: ${x.reject_reason})` : ""}`,
+              status: <OrderStatus status={x.status} />, to: `/referrals/${x.referral_id}?tab=tests`,
+            }))} />
+            <Group title="Questions from receiving hospitals" rows={info} />
+            <Group title="Follow-up" rows={(d.follow_up ?? []).map((r) => R(r,
+              !r.patient_informed ? "Tell the patient the outcome" : r.open_tasks ? `${r.open_tasks} task(s) open` : "Close the referral", "response"))} />
+            <Group title="Delivery problems" rows={(d.delivery_problems ?? []).map((r) => R(r, "Sending failed: retry", "send"))} />
+          </>
+        )}
+        {d.notifications.length > 0 && (
+          <Section title="Updates" actions={<Button size="small" onClick={() => readAll.mutate()}>Mark all read</Button>}>
+            <Stack spacing={1}>
+              {d.notifications.map((n) => (
+                <Box key={n.id}>
+                  <Typography variant="body2">
+                    {n.link ? <Link component={RouterLink} to={n.link}>{n.title}</Link> : n.title}
+                    {n.body ? ` · ${n.body}` : ""}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">{fmtDate(n.created_at)}</Typography>
+                </Box>
+              ))}
+            </Stack>
+          </Section>
+        )}
+        {total === 0 && d.notifications.length === 0 && (
           <Section title="All clear">
-            <Typography color="text.secondary">There is nothing in your queue. New requests and tasks will appear here.</Typography>
+            <Typography color="text.secondary">There is nothing for you to do. New requests, flags and results will appear here.</Typography>
           </Section>
         )}
       </Stack>
-      {answering && (
-        <ReasonDialog open title={`Answer request on ${answering.referral_reference}`} label="Answer" confirm="Send answer" minLength={2} onClose={() => setAnswering(null)} onConfirm={(text) => answer.mutate({ id: answering.id, text })} busy={answer.isPending}>
-          <Typography variant="body2" sx={{ mb: 1 }}>
-            {answering.question}
-          </Typography>
-        </ReasonDialog>
-      )}
     </>
   );
 }

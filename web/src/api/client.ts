@@ -1,6 +1,7 @@
 import { currentToken, userManager } from "../auth/AuthProvider";
 
-export type Service = "central" | "clinic" | "lab" | "specialist";
+/** "central" is the referral platform; the others are each institution's own system. */
+export type Service = "central" | "drali" | "chughtai" | "ziauddin" | "akuh";
 
 export class ApiError extends Error {
   status: number;

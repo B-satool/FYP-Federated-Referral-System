@@ -1,5 +1,7 @@
 # Supervisor demonstration script (about 25 minutes)
 
+> **Version 1 document.** Version 2 changed the institutions, roles, linking, retrieval, medicines and sending; see [v2-changes.md](v2-changes.md) for what differs. This page has not been rewritten for v2 yet.
+
 **Preparation (5 minutes before):**
 1. `docker compose up -d` and wait until `docker compose ps` shows every service healthy.
 2. `.\scripts\reset-and-seed.ps1 -Force`.

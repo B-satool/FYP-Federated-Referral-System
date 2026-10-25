@@ -140,7 +140,7 @@ export function Section({
   );
 }
 
-type Tone = "ok" | "warn" | "bad" | "info" | "neutral" | "wait" | "off";
+export type Tone = "ok" | "warn" | "bad" | "info" | "neutral" | "wait" | "off";
 const toneStyle: Record<Tone, { text: string; bg: string; border: string; dashed?: boolean }> = {
   ok: { ...tokens.ok, border: tokens.ok.text },
   warn: { ...tokens.warn, border: tokens.warn.text },
@@ -167,9 +167,7 @@ export function Tag({ tone, label, title }: { tone: Tone; label: string; title?:
 
 const REFERRAL_TONES: Record<string, Tone> = {
   draft: "neutral",
-  awaiting_information: "warn",
-  awaiting_approval: "info",
-  approved: "ok",
+  requested: "info",
   submitted: "ok",
   acknowledged: "ok",
   accepted: "ok",
@@ -193,17 +191,19 @@ export function RetrievalStatus({ status }: { status: string }) {
     unavailable: "bad",
     invalid: "bad",
     not_retrieved: "wait",
+    skipped: "off",
   };
-  return <Tag tone={tones[status] ?? "neutral"} label={status.replace(/_/g, " ")} />;
+  const labels: Record<string, string> = { skipped: "not the most recent", successful: "retrieved" };
+  return <Tag tone={tones[status] ?? "neutral"} label={labels[status] ?? status.replace(/_/g, " ")} />;
 }
 
 export function VerificationTag({ status, reviewState }: { status: string; reviewState?: string }) {
   if (reviewState === "unresolved") return <Tag tone="warn" label="unresolved" />;
   if (reviewState === "excluded") return <Tag tone="off" label="excluded" />;
   const map: Record<string, [Tone, string]> = {
-    source_record: ["ok", "source record"],
-    verified: ["ok", "clinician-verified"],
-    unverified: ["warn", "unverified"],
+    source_record: ["ok", "from the source"],
+    verified: ["ok", "checked"],
+    unverified: ["warn", "to check"],
     invalidated: ["off", "link invalidated"],
     access_revoked: ["off", "access revoked"],
   };
@@ -282,6 +282,28 @@ export function KeyValue({ items }: { items: [string, ReactNode][] }) {
       ))}
     </Box>
   );
+}
+
+const ORDER_TONES: Record<string, Tone> = {
+  draft: "neutral",
+  requested: "wait",
+  accepted: "info",
+  scheduled: "info",
+  done: "info",
+  reported: "ok",
+  rejected: "bad",
+  cancelled: "off",
+};
+const ORDER_LABELS: Record<string, string> = { draft: "not sent yet", reported: "result ready" };
+
+/** Status of a test or scan order (draft -> requested -> accepted/rejected -> scheduled -> done -> reported). */
+export function OrderStatus({ status }: { status: string }) {
+  return <Tag tone={ORDER_TONES[status] ?? "neutral"} label={ORDER_LABELS[status] ?? status} />;
+}
+
+export function UrgencyTag({ urgency, label }: { urgency: string; label?: string }) {
+  const tone: Tone = urgency === "urgent" ? "bad" : urgency === "soon" ? "warn" : "neutral";
+  return <Tag tone={tone} label={label ?? urgency} />;
 }
 
 export function Empty({ children }: { children: ReactNode }) {

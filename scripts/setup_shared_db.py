@@ -2,7 +2,7 @@
 
 Each database gets its own login with a strong random password (same ownership model as local).
 Writes:
-  * .env                      - adds/updates CLINIC_/LAB_/SPECIALIST_/CENTRAL_DATABASE_URL
+  * .env                      - adds/updates DRALI_/CHUGHTAI_/ZIAUDDIN_/AKUH_/CENTRAL_DATABASE_URL
   * shared-db-credentials.md  - connection details to share privately with teammates (git-ignored)
 
 Run (inside the central image, which has psycopg):
@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 import psycopg
 
 REPO = Path("/repo")
-OWNERS = ["central", "clinic", "lab", "specialist"]
+OWNERS = ["central", "drali", "chughtai", "ziauddin", "akuh"]
 PREFIX = "ref_"  # avoid clashing with any existing roles on the hosted server
 
 

@@ -35,12 +35,11 @@ export function EvidenceDialog({ id, open, onClose }: { id: number; open: boolea
             </Stack>
             <KeyValue
               items={[
-                ["Source", e.source_name],
-                ["Patient record", `${e.patient_ref.institution_id} / ${e.patient_ref.local_patient_id}`],
+                ["Source", e.origin === "source" ? e.source_name : e.origin === "document" ? "Paper brought by the patient" : "Told by the patient"],
                 ["Record", e.source_record_id ? `${e.source_record_type}/${e.source_record_id} (version ${e.source_record_version})` : "Not recorded"],
                 ["Clinical date", fmtDate(e.clinical_time, false)],
                 ["Retrieved / uploaded", fmtDate(e.retrieved_at)],
-                ["Verified by", e.verified_by ? `${e.verified_by}, ${fmtDate(e.verified_at)}` : "Not yet verified"],
+                ["Checked by", e.verified_by ? `${e.verified_by}, ${fmtDate(e.verified_at)}` : e.origin === "source" ? "Source record" : "Not checked yet"],
                 ["Source text", e.source_text],
               ]}
             />

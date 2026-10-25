@@ -3,7 +3,7 @@
   Publish a copy of the local demo databases to the team's shared hosted database (Neon).
 .DESCRIPTION
   The app keeps running on the fast local PostgreSQL. This script copies the current local
-  central/clinic/lab/specialist databases to the shared server so teammates can inspect the
+  central and institution databases to the shared server so teammates can inspect the
   data from anywhere. Each run REPLACES the shared copy. Keycloak (logins) and uploaded files
   are not copied. Requires the *_SHARED_DATABASE_URL lines written by scripts/setup_shared_db.py.
 #>
@@ -12,7 +12,7 @@ $env_ = @{}
 Get-Content (Join-Path (Split-Path -Parent $PSScriptRoot) ".env") | Where-Object { $_ -match '^\s*([A-Z_]+)=(.*)$' } | ForEach-Object {
     $null = $_ -match '^\s*([A-Z_]+)=(.*)$'; $env_[$Matches[1]] = $Matches[2]
 }
-foreach ($owner in "central", "clinic", "lab", "specialist") {
+foreach ($owner in "central", "drali", "chughtai", "ziauddin", "akuh") {
     $key = "$($owner.ToUpper())_SHARED_DATABASE_URL"
     if (-not $env_[$key]) { throw "$key missing in .env; run scripts/setup_shared_db.py --copy-only first" }
     $target = $env_[$key] -replace '^postgresql\+psycopg://', 'postgresql://'

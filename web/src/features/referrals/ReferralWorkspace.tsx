@@ -5,38 +5,42 @@ import { Link as RouterLink } from "react-router-dom";
 import ArrowBack from "@mui/icons-material/ArrowBack";
 import { api } from "../../api/client";
 import type { ReferralDetail } from "../../api/types";
-import { ErrorAlert, Loading, ReferralStatus, Tag } from "../../components/common";
-import { hasRole, useMe, usePageTitle } from "../../hooks";
-import { OverviewTab } from "./OverviewTab";
-import { SourcesTab } from "./SourcesTab";
+import { ErrorAlert, Loading, ReferralStatus, Tag, UrgencyTag } from "../../components/common";
+import { isDoctor, useMe, usePageTitle } from "../../hooks";
 import { DocumentsTab } from "../documents/DocumentsTab";
-import { MedicationsTab } from "../medications/MedicationsTab";
-import { ReviewTab } from "../reviews/ReviewTab";
-import { BriefTab } from "../brief/BriefTab";
-import { FollowThroughTab } from "./FollowThroughTab";
 import { AuditTab } from "./AuditTab";
 import { JourneyNav, NextStepBanner, StepPager } from "./Journey";
-import { nextStep, STEP_ORDER, StepKey } from "./steps";
+import { LinksTab } from "./LinksTab";
+import { MedicinesTab } from "./MedicinesTab";
+import { RecordsTab } from "./RecordsTab";
+import { RequestTab } from "./RequestTab";
+import { ResponseTab } from "./ResponseTab";
+import { SendTab, SummaryTab } from "./SendTab";
+import { nextStep, Role, StepKey, stepOrder } from "./steps";
+import { TestsTab } from "./TestsTab";
 
-const AWAITING_REMOTE = ["submitted", "acknowledged", "accepted"];
+const WAITING_REMOTE = ["requested", "submitted", "acknowledged", "accepted"];
 
 export function useReferral(id: number) {
   return useQuery({
     queryKey: ["referral", id],
     queryFn: () => api.get<ReferralDetail>(`/referrals/${id}`),
-    // Poll while waiting on the delivery worker or on specialist activity.
+    // Poll while waiting on delivery, the other institution, or test results.
     refetchInterval: (q) => {
       const r = q.state.data;
       if (!r) return false;
       if (["pending", "retrying"].includes(r.delivery_status)) return 3000;
-      return AWAITING_REMOTE.includes(r.status) ? 8000 : false;
+      return WAITING_REMOTE.includes(r.status) ? 8000 : false;
     },
   });
 }
 
 export function useInvalidateReferral(id: number) {
   const qc = useQueryClient();
-  return () => qc.invalidateQueries({ queryKey: ["referral", id] });
+  return () => {
+    qc.invalidateQueries({ queryKey: ["referral", id] });
+    qc.invalidateQueries({ queryKey: ["work-queue"] });
+  };
 }
 
 export function ReferralWorkspace() {
@@ -45,18 +49,19 @@ export function ReferralWorkspace() {
   const { data: me } = useMe();
   const q = useReferral(id);
   usePageTitle(q.data ? `${q.data.reference} ${q.data.patient.name}` : "Referral");
+  const role: Role = isDoctor(me) ? "doctor" : "staff";
+  const order = stepOrder(role);
   const requested = params.get("tab") as StepKey | null;
-  const tab: StepKey = requested && STEP_ORDER.includes(requested) ? requested : "overview";
+  const tab: StepKey = requested && order.includes(requested) ? requested : "request";
   const go = (k: StepKey) => {
     setParams({ tab: k });
-    // Move to the top of the new step so the person always starts at its beginning.
     window.scrollTo({ top: 0 });
   };
 
-  if (q.isLoading) return <Loading />;
+  if (q.isLoading || !me) return <Loading />;
   if (q.error) return <ErrorAlert error={q.error} />;
   const r = q.data!;
-  const step = nextStep(r, hasRole(me, "clinician"));
+  const step = nextStep(r, role);
 
   return (
     <Box>
@@ -70,36 +75,43 @@ export function ReferralWorkspace() {
             <Typography variant="h5" component="h1" sx={{ overflowWrap: "anywhere" }}>
               {r.reference} · {r.patient.name}
             </Typography>
-            <Typography color="text.secondary" className="tabular">
-              {r.patient.institution_id} / {r.patient.local_patient_id} · born {r.patient.birth_date} · to {r.destination_name}
+            <Typography color="text.secondary">
+              To {r.destination_name}, {r.destination_department_name}
+              {r.destination_doctor ? ` (${r.destination_doctor})` : ""} · requested by {r.requesting_doctor_name}
+            </Typography>
+            <Typography color="text.secondary" variant="body2">
+              {r.procedure_label} · born {r.patient.birth_date ?? "not recorded"} · {r.patient.local_patient_id}
             </Typography>
           </Box>
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
             <ReferralStatus status={r.status} label={r.status_label} />
-            {r.current_package_version && <Tag tone="ok" label={`approved v${r.current_package_version}`} />}
-            {r.submitted_package_version && <Tag tone="info" label={`delivered v${r.submitted_package_version}`} />}
-            {r.delivery_status !== "none" && <Tag tone={r.delivery_status === "failed" ? "bad" : r.delivery_status === "delivered" ? "ok" : "wait"} label={`delivery: ${r.delivery_status}`} />}
+            <UrgencyTag urgency={r.urgency} label={`${r.urgency_label}`} />
+            {r.submitted_package_version && <Tag tone="info" label={`sent v${r.submitted_package_version}`} />}
+            {["pending", "retrying", "failed"].includes(r.delivery_status) && (
+              <Tag tone={r.delivery_status === "failed" ? "bad" : "wait"} label={`delivery ${r.delivery_status}`} />
+            )}
           </Stack>
         </Stack>
         {r.amendment_open && (
           <Alert severity="warning" sx={{ mt: 1.5 }}>
-            Clinical content changed after version {r.submitted_package_version} was submitted. A new version must be approved and sent; the
-            submitted version stays unchanged.
+            Something changed after version {r.submitted_package_version} was sent. Staff must check and send the new version; the sent version stays unchanged.
           </Alert>
         )}
       </Paper>
       <NextStepBanner step={step} onGo={go} />
-      <JourneyNav r={r} active={tab} onSelect={go} />
+      <JourneyNav r={r} role={role} active={tab} onSelect={go} />
       <Box role="tabpanel" id="journey-panel" aria-labelledby={`tab-${tab}`}>
-        {tab === "overview" && <OverviewTab r={r} />}
-        {tab === "sources" && <SourcesTab r={r} />}
-        {tab === "documents" && <DocumentsTab r={r} />}
-        {tab === "medications" && <MedicationsTab r={r} />}
-        {tab === "review" && <ReviewTab r={r} />}
-        {tab === "brief" && <BriefTab r={r} />}
-        {tab === "followthrough" && <FollowThroughTab r={r} />}
+        {tab === "request" && <RequestTab r={r} role={role} />}
+        {tab === "links" && <LinksTab r={r} />}
+        {tab === "records" && <RecordsTab r={r} />}
+        {tab === "papers" && <DocumentsTab r={r} />}
+        {tab === "medicines" && <MedicinesTab r={r} role={role} />}
+        {tab === "tests" && <TestsTab r={r} role={role} />}
+        {tab === "send" && <SendTab r={r} />}
+        {tab === "summary" && <SummaryTab r={r} />}
+        {tab === "response" && <ResponseTab r={r} role={role} />}
         {tab === "audit" && <AuditTab r={r} />}
-        <StepPager active={tab} onGo={go} />
+        <StepPager role={role} active={tab} onGo={go} />
       </Box>
     </Box>
   );

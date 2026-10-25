@@ -23,6 +23,7 @@ import type { DocumentDetail, Evidence, Job } from "../../api/types";
 import { ErrorAlert, fmtDate, KeyValue, Loading, PageHeader, ReasonDialog, Tag, VerificationTag } from "../../components/common";
 import { hasRole, useMe } from "../../hooks";
 
+
 const FIELD_SETS: Record<string, string[]> = {
   medication: ["medication", "strength", "dosage_text", "route", "frequency", "start", "end"],
   lab: ["test", "value", "unit", "collected", "reference_range"],
@@ -179,7 +180,7 @@ export function DocumentReview() {
   if (q.isLoading) return <Loading />;
   if (q.error) return <ErrorAlert error={q.error} />;
   const { document: doc, extraction, fields } = q.data!;
-  const isClinician = hasRole(me, "clinician");
+  const canCheck = hasRole(me, "clinician", "clinic_staff");
 
   return (
     <>
@@ -188,7 +189,7 @@ export function DocumentReview() {
         subtitle={`${doc.doc_type.replace("_", " ")} · ${doc.page_count} page(s) · uploaded ${fmtDate(doc.created_at)} by ${doc.uploaded_by}`}
         actions={
           <>
-            <Button component={RouterLink} to={`/referrals/${doc.referral_id}?tab=documents`} startIcon={<ArrowBack />}>
+            <Button component={RouterLink} to={`/referrals/${doc.referral_id}?tab=papers`} startIcon={<ArrowBack />}>
               Back to referral
             </Button>
             <Button variant="outlined" onClick={() => setManual(true)}>
@@ -223,7 +224,7 @@ export function DocumentReview() {
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6" gutterBottom>
-              Proposed fields
+              Read from the paper
             </Typography>
             {extraction && (
               <KeyValue
@@ -241,8 +242,9 @@ export function DocumentReview() {
               </Alert>
             ))}
             <Alert severity="warning" sx={{ my: 2 }}>
-              Extracted values are proposals. Correct, mark unresolved or exclude anything unclear; clinical fields need clinician verification.
-              OCR confidence is tool metadata, not a clinical probability.
+              What was read from the paper is only a proposal. Check each item against the paper: confirm it, correct it, or exclude it (for
+              example an old prescription that is no longer taken). Only checked medicines join the current-medicine list. OCR confidence is tool
+              metadata, not a clinical probability.
             </Alert>
             {fields.length === 0 && <Typography color="text.secondary">No fields proposed for this document.</Typography>}
             <Stack spacing={1.5}>
@@ -280,9 +282,9 @@ export function DocumentReview() {
                         Restore
                       </Button>
                     )}
-                    {isClinician && f.verification_status !== "verified" && !["excluded", "unresolved"].includes(f.review_state) && (
+                    {canCheck && f.verification_status !== "verified" && !["excluded", "unresolved"].includes(f.review_state) && (
                       <Button size="small" variant="contained" onClick={() => act.mutate({ path: `/evidence/${f.id}/verify`, body: { expected_row_version: f.row_version } })}>
-                        Verify (clinician)
+                        Matches the paper
                       </Button>
                     )}
                   </Stack>

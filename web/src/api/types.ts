@@ -4,83 +4,47 @@ export type Me = {
   name: string;
   institution_id: string | null;
   institution_name: string | null;
-  institution_kind: "clinic" | "laboratory" | "specialist" | "platform" | null;
+  institution_kind: "clinic" | "hospital" | "laboratory" | "platform" | null;
+  department: string | null;
+  department_name: string | null;
+  department_kind: "clinical" | "laboratory" | "imaging" | "cardiac" | null;
   roles: string[];
   account_status: string;
 };
 
+export type Department = { name: string; kind: "clinical" | "laboratory" | "imaging" | "cardiac" };
+export type Institution = { name: string; kind: "clinic" | "hospital" | "laboratory"; departments: string[] };
+export type Procedure = { label: string; departments: string[]; tags: string[] };
+export type Practitioner = { name: string; institution: string; department: string; username?: string };
+
 export type ReferenceData = {
-  institutions: Record<string, { name: string; kind: string }>;
-  specialties: Record<string, string>;
-  procedures: Record<string, string>;
-  priorities: string[];
+  institutions: Record<string, Institution>;
+  departments: Record<string, Department>;
+  procedures: Record<string, Procedure>;
+  procedure_tags: Record<string, string>;
+  urgencies: Record<string, { label: string; detail: string }>;
+  urgency_note: string;
   statuses: Record<string, string>;
+  practitioners: Practitioner[];
+  test_suggestions: { test: string; category: string; body_area?: string }[];
+  diagnostic_categories: Record<string, string>;
+  drug_classes: Record<string, string>;
+  referral_window_days: number;
   llm_configured: boolean;
-  llm_model: string | null;
   limits: { max_upload_mb: number; max_pages: number; formats: string[]; language: string };
 };
 
-export type PatientSummary = {
+export type PatientIndexEntry = {
   institution_id: string;
   local_patient_id: string;
   given: string;
   family: string;
+  name: string;
   birth_date: string;
   sex: string;
-  city?: string;
-  synthetic: boolean;
-};
-
-export type Retrieval = {
-  id: number;
-  source_institution: string;
-  source_name: string;
-  local_patient_id: string;
-  link_id: number | null;
-  status: "successful" | "empty" | "partial" | "denied" | "unavailable" | "invalid";
-  record_count: number;
-  new_count: number;
-  duplicate_count: number;
-  invalid_count: number;
-  withheld: string[];
-  message: string;
-  retryable: boolean;
-  attempts: number;
-  duration_ms: number;
-  requested_by: string;
-  requested_at: string;
-};
-
-export type SourceOverview = {
-  source_institution: string;
-  source_name: string;
-  linked: boolean;
-  local_patient_id: string | null;
-  link_id: number | null;
-  link_states?: string[];
-  latest: Retrieval | null;
-  message?: string;
-};
-
-export type ChecklistRow = {
-  id: string;
-  title: string;
-  state: "present" | "missing" | "unresolved" | "conflict" | "not_applicable" | "limitation_recorded";
-  blocking: boolean;
-  override_allowed: boolean;
-  open_items: number[];
-};
-
-export type Blocker = { type: string; id?: number; message: string; how: string };
-
-export type PackageSummary = {
-  version: number;
-  approved_by: string;
-  approved_at: string;
-  content_hash: string;
-  superseded: boolean;
-  delivery_key: string;
-  overrides: { message: string; rationale: string }[];
+  cnic: string | null;
+  phone: string | null;
+  city: string | null;
 };
 
 export type Referral = {
@@ -89,24 +53,37 @@ export type Referral = {
   status: string;
   status_label: string;
   row_version: number;
-  patient: { institution_id: string; local_patient_id: string; name: string; birth_date: string | null; sex: string | null };
+  patient: { institution_id: string; local_patient_id: string; name: string; birth_date: string | null; sex: string | null; cnic: string | null };
   source_institution: string;
   source_institution_name: string;
+  source_department: string | null;
+  source_department_name: string | null;
+  requesting_doctor_id: string | null;
+  requesting_doctor_name: string;
   destination_institution: string;
   destination_name: string;
-  specialty: string;
+  destination_department: string;
+  destination_department_name: string;
+  destination_doctor: string | null;
   reason: string;
-  priority: string | null;
+  urgency: string;
+  urgency_label: string;
+  urgency_detail: string | null;
+  procedure_status: "known" | "none" | "unknown" | "other";
   planned_procedure: string | null;
-  procedure_status: "not_stated" | "known" | "unknown";
+  procedure_other: string | null;
   procedure_label: string;
+  requested_at: string | null;
   created_by: string;
-  referring_clinician_id: string | null;
-  referring_clinician_name: string | null;
   amendment_open: boolean;
   current_package_version: number | null;
   submitted_package_version: number | null;
   delivery_status: string;
+  meds_checked_by: string | null;
+  meds_checked_at: string | null;
+  patient_informed_by: string | null;
+  patient_informed_at: string | null;
+  patient_informed_note: string | null;
   cancel_reason: string | null;
   decline_reason: string | null;
   acknowledged_at: string | null;
@@ -117,12 +94,121 @@ export type Referral = {
   updated_at: string;
 };
 
+export type Retrieval = {
+  id: number;
+  source_institution: string;
+  source_name: string;
+  institution_kind: string | null;
+  last_activity: string | null;
+  window_start: string | null;
+  local_patient_id: string;
+  link_id: number | null;
+  status: string;
+  record_count: number;
+  new_count: number;
+  duplicate_count: number;
+  invalid_count: number;
+  withheld: string[];
+  message: string;
+  retryable: boolean;
+  requested_by: string;
+  requested_at: string;
+};
+
+export type SourceOverview = {
+  institution_id: string;
+  name: string;
+  kind: string;
+  own: boolean;
+  destination: boolean;
+  linked: boolean;
+  local_patient_id?: string;
+  link_id?: number | null;
+  link_states?: string[];
+  pending_link_id?: number | null;
+  latest: Retrieval | null;
+};
+
+export type ReadinessItem = { key: string; label: string; ok: boolean; detail: string; who: "staff" | "doctor"; tab: string | null; blocking: boolean };
+
+export type PatientLink = {
+  id: number;
+  requester_institution: string;
+  requester_name: string;
+  requester_local_id: string;
+  target_institution: string;
+  target_name: string;
+  target_local_id: string | null;
+  patient_name: string;
+  patient_birth_date: string | null;
+  patient_sex: string | null;
+  patient_cnic: string | null;
+  referral_id: number | null;
+  purpose: string;
+  status: "requested" | "verified" | "rejected" | "invalidated";
+  requested_by: string;
+  requested_at: string;
+  decided_by: string | null;
+  decided_at: string | null;
+  decision_note: string | null;
+  registered_new: boolean;
+  invalidated_by: string | null;
+  invalidated_at: string | null;
+  invalidation_reason: string | null;
+  events?: { action: string; actor: string; institution_id: string | null; note: string; created_at: string }[];
+};
+
+export type LookupCandidate = PatientIndexEntry & { compare: { cnic: boolean; name: boolean; birth_date: boolean; sex: boolean } };
+
+export type Diagnostic = {
+  id: number;
+  reference: string;
+  referral_id: number;
+  category: string;
+  category_label: string;
+  test: string;
+  body_area: string | null;
+  clinical_question: string;
+  urgency: string;
+  urgency_label: string;
+  destination_institution: string;
+  destination_name: string;
+  destination_department: string;
+  destination_department_name: string;
+  status: string;
+  requested_by: string;
+  sent_by: string | null;
+  sent_at: string | null;
+  reject_reason: string | null;
+  scheduled_for: string | null;
+  report: { findings?: string; impression?: string; report_text?: string; values?: { test: string; value: string; unit?: string; reference?: string; flag?: string }[]; reported_by?: string; reported_at?: string } | null;
+  seen_by: string | null;
+  seen_at: string | null;
+  history: { status: string; by: string; at: string; reason?: string; scheduled_for?: string }[];
+  created_at: string;
+  updated_at?: string;
+  referral_reference?: string;
+  patient_name?: string;
+};
+
+export type Clarification = {
+  id: number;
+  question: string;
+  asked_by: string;
+  asked_at: string;
+  status: string;
+  answer: string | null;
+  answered_by: string | null;
+  answered_at: string | null;
+};
+
 export type ReferralDetail = Referral & {
   sources: SourceOverview[];
-  checklist: ChecklistRow[];
-  approval_blockers: Blocker[];
-  packages: PackageSummary[];
-  verified_links: { institution_id: string; local_patient_id: string; link_id: number }[];
+  readiness: ReadinessItem[] | null;
+  packages: { version: number; sent_by: string; sent_at: string; content_hash: string; superseded: boolean; delivery_key: string }[];
+  links: PatientLink[];
+  diagnostics: Diagnostic[];
+  clarifications: Clarification[];
 };
 
 export type Evidence = {
@@ -153,37 +239,13 @@ export type Evidence = {
   superseded_by: number | null;
   author: string | null;
   row_version: number;
-  patient_ref: { institution_id: string; local_patient_id: string };
 };
 
 export type EvidenceDetail = Evidence & {
   fhir: Record<string, unknown> | null;
-  revisions: {
-    id: number;
-    action: string;
-    prior_value: Record<string, unknown> | null;
-    new_value: Record<string, unknown> | null;
-    prior_state: string | null;
-    new_state: string | null;
-    editor: string;
-    note: string;
-    created_at: string;
-  }[];
-  versions: { id: number; version: string; superseded_by: number | null; display: string; retrieved_at: string }[];
+  revisions: { id: number; action: string; prior_value: unknown; new_value: unknown; prior_state: string | null; new_state: string | null; editor: string; note: string; created_at: string }[];
+  versions: { id: number; version: string | null; superseded_by: number | null; display: string; retrieved_at: string }[];
   document: { id: number; filename: string; doc_type: string } | null;
-};
-
-export type Job = {
-  id: string;
-  kind: string;
-  status: "queued" | "running" | "completed" | "failed";
-  referral_id: number | null;
-  document_id: number | null;
-  result: Record<string, unknown> | null;
-  error: string | null;
-  created_by: string;
-  created_at: string;
-  finished_at: string | null;
 };
 
 export type DocumentSummary = {
@@ -202,11 +264,11 @@ export type DocumentSummary = {
   deleted: boolean;
 };
 
-export type OcrLine = { i: number; page: number; text: string; bbox: { x: number; y: number; w: number; h: number } | null; ocr_confidence: number | null };
+export type Job = { id: string; kind: string; status: string; error: string | null; result: Record<string, unknown> | null };
 
 export type DocumentDetail = {
   document: DocumentSummary;
-  extraction: null | {
+  extraction: {
     id: number;
     status: string;
     error: string | null;
@@ -217,11 +279,11 @@ export type DocumentDetail = {
     extractor_version: string | null;
     notes: string[];
     duration_ms: number;
-    pages: { page: number; source: string; image_key: string; mean_ocr_confidence: number | null; lines: OcrLine[] }[];
+    pages: { page: number; source: string; image_key: string; mean_ocr_confidence: number | null; lines: { text: string; bbox: { x: number; y: number; w: number; h: number } | null }[] }[];
     raw_text: string;
-  };
+    created_at: string;
+  } | null;
   fields: Evidence[];
-  jobs: Job[];
 };
 
 export type MedicationEntry = {
@@ -229,169 +291,65 @@ export type MedicationEntry = {
   evidence_id: number;
   record_kind: string;
   original_name: string;
+  brand: string | null;
   strength: string | null;
   dose: string | null;
   route: string | null;
   frequency: string | null;
   start_date: string | null;
-  end_date: string | null;
-  source_status: string | null;
+  over_the_counter: boolean;
   source_label: string;
   ingredient: string | null;
-  ingredient_code: string | null;
   drug_class: string | null;
-  class_code: string | null;
-  mapping_source: string | null;
-  mapping_version: string | null;
+  drug_class_label: string | null;
   mapping_status: string;
   mapping_note: string | null;
-  use_status: string;
-  use_verified_by: string | null;
-  use_verified_at: string | null;
-  use_note: string | null;
+  duplicate_of: number | null;
+  dose_differs: boolean;
+  excluded: boolean;
+  excluded_by: string | null;
+  excluded_reason: string | null;
 };
 
-export type FlagReview = {
-  id: number;
-  side: "referring" | "specialist";
-  action: "reviewed" | "request_clarification";
-  reviewer: string;
-  institution_id: string;
-  flag_version: number;
-  package_version: number | null;
-  clarification_id: number | null;
-  note: string;
-  created_at: string;
-};
-
-export type MedicationFlag = {
+export type Flag = {
   id: number;
   flag_key: string;
   version: number;
-  kind: "confirmed" | "possible_use" | "procedure_context_required" | "ambiguous_mapping" | "history_incomplete";
+  kind: "confirmed" | "unrecognised_medicine" | "procedure_not_checked" | "records_incomplete";
   title: string;
   message: string;
   medication: string | null;
   drug_class: string | null;
-  current_use_status: string | null;
+  drug_class_label: string | null;
   source_label: string | null;
   rule_id: string | null;
   rule_version: number | null;
   evidence_ids: number[];
   status: string;
   created_at: string;
-  superseded_at: string | null;
-  reviews: FlagReview[];
+  acknowledgements: { id: number; side: string; by: string; institution_id: string; flag_version: number; note: string; created_at: string }[];
 };
 
-export type MedicationsResponse = {
+export type MedicationView = {
   entries: MedicationEntry[];
-  evaluation: null | {
-    id: number;
-    status: string;
-    outcome: string | null;
-    summary_message: string | null;
-    trigger: string;
-    rule_versions: Record<string, number>;
-    mapping_version: string | null;
-    context: Record<string, unknown>;
-    error: string | null;
-    changed_flags: number;
-    created_at: string;
-  };
-  flags: MedicationFlag[];
-  flag_history: MedicationFlag[];
+  excluded: MedicationEntry[];
+  meds_checked: { by: string | null; at: string | null; note: string | null };
+  evaluation: { id: number; status: string; outcome: string | null; summary_message: string | null; trigger: string; context: Record<string, unknown>; error: string | null; created_at: string } | null;
+  flags: Flag[];
+  flag_history: Flag[];
 };
 
-export type ReviewItem = {
-  id: number;
-  item_key: string;
-  kind: "missing" | "unresolved" | "discrepancy" | "link_invalidated";
-  checklist_item_id: string | null;
-  title: string;
-  detail: string;
-  evidence_ids: number[];
-  blocking: boolean;
-  override_allowed: boolean;
-  clinical: boolean;
-  status: string;
-  resolution: string | null;
-  resolved_by: string | null;
-  resolved_at: string | null;
-  created_at: string;
-};
-
-export type Clarification = {
-  id: number;
-  referral_id: number;
-  referral_reference?: string;
-  patient_name?: string | null;
-  patient_ref_at_assignee?: string | null;
-  overdue?: boolean;
-  review_item_id: number | null;
-  flag_id: number | null;
-  origin: "clinic" | "specialist";
-  question: string;
-  assignee_institution: string;
-  assignee_institution_name: string;
-  assignee_role: string | null;
-  status: string;
-  due_date: string | null;
-  created_by: string;
-  created_at: string;
-  response_text: string | null;
-  response_document_ids: number[];
-  answered_by: string | null;
-  answered_at: string | null;
-  resolved_by: string | null;
-  resolved_at: string | null;
-  resolution_note: string | null;
-  package_version: number | null;
-};
-
-export type BriefStatement = {
-  id: string;
-  text: string;
-  evidence_ids: number[];
-  author_kind: "model" | "clinician" | "template";
-  author_name: string | null;
-  edited_by: string | null;
-  verification: string;
-};
-
+export type BriefStatement = { id: string; text: string; evidence_ids: number[]; author_kind: string; author_name: string | null; verification: string };
 export type BriefSection = { key: string; title: string; statements: BriefStatement[] };
-
-export type Brief = {
-  id: number;
-  version: number;
-  kind: string;
-  sections: BriefSection[];
-  limitations: string[];
-  evidence_ids: number[];
-  model: string | null;
-  prompt_version: string | null;
-  based_on_version: number | null;
-  created_by: string;
-  created_at: string;
-};
-
-export type BriefResponse = {
-  latest: Brief | null;
-  versions: { version: number; kind: string; model: string | null; created_by: string; created_at: string }[];
-  llm_configured: boolean;
-  llm_model: string | null;
-  section_titles: Record<string, string>;
-};
+export type BriefPreview = { sections: BriefSection[]; limitations: string[]; evidence_ids: number[] };
 
 export type ConsultationResponse = {
   id: number;
   package_version: number;
-  content: Record<string, string>;
+  content: { assessment?: string; plan?: string; instructions_for_clinic?: string; appointment?: string };
   specialist_name: string;
-  approved_at: string;
+  returned_at: string;
   received_at: string;
-  receipt_recorded_by: string | null;
-  receipt_recorded_at: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;
   review_note: string | null;
@@ -400,12 +358,9 @@ export type ConsultationResponse = {
 export type FollowupTask = {
   id: number;
   referral_id: number;
-  referral_reference?: string;
-  overdue?: boolean;
   description: string;
   specified_by: string;
   assignee_name: string | null;
-  assignee_role: string | null;
   due_date: string | null;
   status: string;
   outcome: string | null;
@@ -429,6 +384,7 @@ export type ReferralEvent = {
 
 export type AuditEvent = {
   id: number;
+  actor_id: string;
   actor_name: string;
   institution_id: string | null;
   action: string;
@@ -440,21 +396,143 @@ export type AuditEvent = {
   created_at: string;
 };
 
-export type PatientLink = {
+export type Notification = { id: number; kind: string; title: string; body: string; link: string | null; referral_id: number | null; created_at: string; read_at: string | null; personal: boolean };
+
+export type WorkQueue = {
+  role: "doctor" | "staff";
+  notifications: Notification[];
+  drafts?: Referral[];
+  flags_to_acknowledge?: (Referral & { unacknowledged: number })[];
+  responses_to_review?: (Referral & { specialist_name: string; received_at: string })[];
+  results_to_see?: Diagnostic[];
+  in_progress?: Referral[];
+  to_prepare?: (Referral & { done: number; total: number; next_step: ReadinessItem | null; ready: boolean })[];
+  link_requests?: { id: number; patient_name: string; requester: string; requested_at: string; purpose: string }[];
+  tests_to_send?: Diagnostic[];
+  delivery_problems?: Referral[];
+  follow_up?: (Referral & { patient_informed: boolean; open_tasks: number })[];
+  info_requests: { id: number; referral_id: number; referral_reference: string; patient_name: string; question: string; asked_by: string; asked_at: string }[];
+};
+
+export type Rule = {
   id: number;
-  a_institution: string;
-  a_local_id: string;
-  b_institution: string;
-  b_local_id: string;
+  rule_id: string;
+  version: number;
+  title: string;
+  drug_class: string;
+  drug_class_label: string;
+  procedure_tags: string[];
+  procedure_tag_labels: string[];
+  message: string;
+  rationale: string;
+  reference: string;
+  status: "draft" | "approved" | "rejected" | "retired" | "superseded";
+  content_hash: string;
+  intact: boolean;
+  created_by: string;
+  created_at: string;
+  decided_by: string | null;
+  decided_at: string | null;
+  reference_checked: string | null;
+  decision_note: string | null;
+  matching_procedures: string[];
+};
+
+export type RulesView = {
+  rules: { rule_id: string; versions: Rule[] }[];
+  drug_classes: Record<string, string>;
+  procedure_tags: Record<string, string>;
+  can_approve: boolean;
+  can_edit: boolean;
+};
+
+export type MedicineNamesView = {
+  classes: Record<string, string>;
+  names: { id: number; display: string; ingredient: string; drug_class: string; kind: string; added_by: string }[];
+  ingredients: string[];
+  can_edit: boolean;
+};
+
+// ---- institution systems (receiving hospital and diagnostics departments)
+export type Case = {
+  id: number;
+  central_referral_id: string;
+  sender_institution: string;
+  sender_name: string;
+  department: string;
+  requested_doctor: string | null;
+  patient_name: string;
+  patient_birth_date: string | null;
+  local_patient_id: string | null;
+  urgency: string;
   status: string;
-  basis: string;
-  match_check: Record<string, unknown> | null;
-  proposed_by: string;
-  proposed_at: string;
-  verified_by: string | null;
-  verified_at: string | null;
-  invalidated_by: string | null;
-  invalidated_at: string | null;
-  invalidation_reason: string | null;
-  events?: { action: string; actor: string; note: string; detail: Record<string, unknown>; created_at: string }[];
+  latest_version: number;
+  acknowledged_by: string | null;
+  acknowledged_at: string | null;
+  decision: string | null;
+  decision_by: string | null;
+  decision_at: string | null;
+  decline_reason: string | null;
+  received_at: string;
+  updated_at: string;
+  open_info_requests: number;
+};
+
+export type PackageEnvelope = {
+  referral_id: string;
+  package_version: number;
+  sender_institution: string;
+  sender_department: string | null;
+  destination_department: string;
+  destination_doctor: string | null;
+  urgency: string;
+  reason: string;
+  procedure_status: string;
+  procedure_label: string | null;
+  patient: { name: string; birth_date: string | null; sex: string | null };
+  requesting_doctor: { name: string; institution: string; department: string | null; requested_at: string | null };
+  brief_sections: BriefSection[];
+  medication_flags: { flag_id: number; version: number; kind: string; title: string; message: string; medication: string | null; source_label: string | null; rule_id: string | null; acknowledged: { by: string; at: string } | null }[];
+  medication_evaluation: { status: string; outcome: string | null; summary: string | null };
+  limitations: string[];
+  diagnostic_requests: { reference: string; test: string; status: string; where: string; clinical_question: string }[];
+  sent_by: string;
+  sent_at: string;
+  content_hash: string;
+};
+
+export type CaseDetail = {
+  case: Case;
+  packages: { version: number; received_at: string; content_hash: string; envelope: PackageEnvelope }[];
+  info_requests: { id: number; package_version: number; question: string; status: string; created_by: string; created_at: string; answer: string | null; answered_by: string | null; answered_at: string | null }[];
+  responses: { id: number; package_version: number; content: ConsultationResponse["content"]; status: string; drafted_by: string; row_version: number; returned_by: string | null; returned_at: string | null }[];
+  results: { id: number; received_at: string; order_ref: string; test: string; performed_by_institution: string; report_text: string; values: { test: string; value: string; unit?: string; reference?: string; flag?: string }[]; reported_by: string; reported_at: string }[];
+};
+
+export type Order = {
+  id: number;
+  order_ref: string;
+  central_referral_id: string;
+  sender_institution: string;
+  sender_name: string;
+  department: string;
+  category: string;
+  test: string;
+  body_area: string | null;
+  clinical_question: string;
+  urgency: string;
+  patient_name: string;
+  patient_birth_date: string | null;
+  local_patient_id: string | null;
+  requested_by: string;
+  status: string;
+  reject_reason: string | null;
+  scheduled_for: string | null;
+  report_text: string | null;
+  values: { test: string; value: string; unit?: string; reference?: string; flag?: string }[];
+  reported_by: string | null;
+  reported_at: string | null;
+  history: { status: string; by: string; at: string; reason?: string; scheduled_for?: string }[];
+  received_at: string;
+  updated_at: string;
 };

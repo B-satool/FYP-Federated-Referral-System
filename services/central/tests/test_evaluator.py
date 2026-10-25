@@ -1,6 +1,7 @@
-"""T5 - table-driven checks for the deterministic medication evaluator (FR-61 to FR-72).
+"""Table-driven checks for the deterministic medication-against-procedure evaluator.
 
-Run: docker compose run --rm --no-deps central python -m pytest tests -q
+Uses the real seed rules (rules/medication/seed-rules.json) and procedure tags (app.config).
+Run: docker compose run --rm --no-deps -v ${PWD}/services/central/tests:/srv/tests central python -m pytest tests -q
 """
 from __future__ import annotations
 
@@ -9,108 +10,108 @@ from pathlib import Path
 
 import pytest
 
+from app.config import DRUG_CLASSES, PROCEDURES
 from app.medications.evaluator import EvalInput, MedInput, Rule, SourceState, evaluate_medications
 
-RULES_FILE = Path(__file__).resolve().parents[1] / "assets" / "rules" / "medication" / "orthodontics.v1.json"
+RULES_FILE = Path("/srv/assets/rules/medication/seed-rules.json")
 if not RULES_FILE.exists():  # running from the repository instead of the image
-    RULES_FILE = Path(__file__).resolve().parents[3] / "rules" / "medication" / "orthodontics.v1.json"
-RULES = tuple(Rule.from_dict(r) for r in json.loads(RULES_FILE.read_text())["rules"])
-CLINIC_OK = SourceState("clinic-a", "Clinic A", True, "successful")
+    RULES_FILE = Path(__file__).resolve().parents[3] / "rules" / "medication" / "seed-rules.json"
+RULES = tuple(Rule(rule_id=r["rule_id"], version=1, drug_class=r["drug_class"], procedure_tags=tuple(r["procedure_tags"]),
+                   title=r["title"], message=r["message"]) for r in json.loads(RULES_FILE.read_text())["rules"])
+OK = SourceState("drali", "Dr Ali's Clinic", "successful")
+_ids = iter(range(1, 10_000))
 
 
-def med(name="Warfarin 5 mg", ingredient="warfarin", cls="anticoagulant", mapping="mapped", use="confirmed_current", eid=1):
-    return MedInput(entry_id=eid, original_name=name, ingredient=ingredient, drug_class=cls, mapping_status=mapping,
-                    use_status=use, source_label="Clinic A prescription RX-1 v1", evidence_ids=(eid,))
+def med(ingredient: str, cls: str | None, mapping: str = "mapped", name: str | None = None) -> MedInput:
+    eid = next(_ids)
+    return MedInput(entry_id=eid, original_name=name or ingredient.title(), ingredient=ingredient if mapping in ("mapped", "staff_mapped") else None,
+                    drug_class=cls if mapping in ("mapped", "staff_mapped") else None, mapping_status=mapping,
+                    source_label="Dr Ali's Clinic record", evidence_ids=(eid,))
 
 
-def run(meds, procedure="tooth_extraction", status="known", sources=(CLINIC_OK,), rules=RULES):
-    return evaluate_medications(EvalInput("orthodontics", status, procedure if status == "known" else None,
-                                          tuple(meds), tuple(sources), tuple(rules)))
+def run(meds, procedure=None, status="known", sources=(OK,), rules=RULES):
+    tags = tuple(PROCEDURES[procedure]["tags"]) if status == "known" and procedure else ()
+    return evaluate_medications(EvalInput(status, procedure, tags, tuple(meds), tuple(sources), tuple(rules), DRUG_CLASSES))
 
 
-def kinds(out):
-    return sorted(c.kind for c in out.candidates)
+def confirmed(out) -> set[tuple[str, str]]:
+    return {(c.rule_id, c.medication.lower()) for c in out.candidates if c.kind == "confirmed"}
 
 
-CASES = [
-    # id, meds, procedure, procedure_status, sources, expected kinds, expected outcome
-    ("confirmed matching use", [med()], "tooth_extraction", "known", (CLINIC_OK,), ["confirmed"], "flags"),
-    ("stopped use", [med(use="historical_stopped")], "tooth_extraction", "known", (CLINIC_OK,), [], "no_match"),
-    ("uncertain use", [med(use="uncertain")], "tooth_extraction", "known", (CLINIC_OK,), ["possible_use"], "no_match"),
-    ("unverified use", [med(use="unverified")], "tooth_extraction", "known", (CLINIC_OK,), ["possible_use"], "no_match"),
-    ("ambiguous mapping", [med(name="Calcium D", ingredient=None, cls=None, mapping="ambiguous")], "tooth_extraction",
-     "known", (CLINIC_OK,), ["ambiguous_mapping"], "no_match"),
-    ("missing procedure", [med()], None, "unknown", (CLINIC_OK,), ["procedure_context_required"], "no_match"),
-    ("denied source", [med()], "tooth_extraction", "known",
-     (SourceState("clinic-a", "Clinic A", True, "denied"),), ["confirmed", "history_incomplete"], "flags"),
-    ("unavailable source alone", [], "tooth_extraction", "known",
-     (SourceState("clinic-a", "Clinic A", True, "unavailable"),), ["history_incomplete"], "no_match"),
-    ("no match", [med(name="Metformin", ingredient="metformin", cls="biguanide")], "tooth_extraction", "known",
-     (CLINIC_OK,), [], "no_match"),
-    ("procedure outside rule", [med()], "fixed_appliance", "known", (CLINIC_OK,), [], "no_match"),
-    ("specialty-only rule without procedure", [med("Alendronate", "alendronate", "bisphosphonate")], None, "unknown",
-     (CLINIC_OK,), ["confirmed", "procedure_context_required"], "flags"),
-    ("lab not a medication source", [med()], "tooth_extraction", "known",
-     (CLINIC_OK, SourceState("lab-b", "Lab B", False, "unavailable")), ["confirmed"], "flags"),
+# The five seed patients (seed-data/patients/*.json, scenario.should_flag)
+SCENARIOS = [
+    ("P1 alendronate before oral surgery",
+     [med("alendronic acid", "bisphosphonate"), med("metformin", "biguanide"), med("amlodipine", "calcium_channel_blocker")],
+     "surgical_tooth_extraction", {("RULE-010", "alendronic acid")}),
+    ("P2 metformin with contrast; aspirin and glimepiride not flagged for angiography",
+     [med("metformin", "biguanide"), med("glimepiride", "sulfonylurea"), med("aspirin", "antiplatelet"),
+      med("atorvastatin", "statin"), med("enalapril", "ace_inhibitor")],
+     "coronary_angiography", {("RULE-005", "metformin")}),
+    ("P3 aspirin and diclofenac before knee replacement",
+     [med("diclofenac", "nsaid"), med("aspirin", "antiplatelet"), med("losartan", "arb"), med("esomeprazole", "proton_pump_inhibitor")],
+     "total_knee_replacement", {("RULE-002", "aspirin"), ("RULE-003", "diclofenac")}),
+    ("P4 ibuprofen before GI endoscopy",
+     [med("propranolol", "beta_blocker"), med("omeprazole", "proton_pump_inhibitor"), med("paracetamol", "analgesic"),
+      med("ibuprofen", "nsaid")],
+     "upper_gi_endoscopy", {("RULE-004", "ibuprofen")}),
+    ("P5 antiplatelets, insulin and metformin before cholecystectomy",
+     [med("insulin glargine", "insulin"), med("metformin", "biguanide"), med("aspirin", "antiplatelet"),
+      med("clopidogrel", "antiplatelet"), med("atorvastatin", "statin"), med("bisoprolol", "beta_blocker")],
+     "laparoscopic_cholecystectomy",
+     {("RULE-002", "aspirin"), ("RULE-002", "clopidogrel"), ("RULE-006", "metformin"), ("RULE-007", "insulin glargine")}),
 ]
 
 
-@pytest.mark.parametrize("name,meds,proc,status,sources,expected,outcome", CASES, ids=[c[0] for c in CASES])
-def test_rule_table(name, meds, proc, status, sources, expected, outcome):
-    out = run(meds, proc, status, sources)
-    assert kinds(out) == sorted(expected)
-    assert out.outcome == outcome
+@pytest.mark.parametrize("label,meds,procedure,expected", SCENARIOS, ids=[s[0] for s in SCENARIOS])
+def test_seed_scenarios(label, meds, procedure, expected):
+    out = run(meds, procedure)
+    assert confirmed(out) == expected
+    assert out.outcome == "flags"
 
 
-def test_flag_content_is_traceable():
-    c = run([med()]).candidates[0]
-    assert (c.rule_id, c.rule_version) == ("ORTHO-ANTICOAG-SURG", 1)
-    assert c.source_label and c.evidence_ids == [1] and c.current_use_status == "confirmed_current"
-    assert c.medication == "Warfarin 5 mg" and c.drug_class == "anticoagulant"
+def test_procedure_not_known_is_never_guessed():
+    out = run([med("aspirin", "antiplatelet")], status="unknown")
+    assert [c.kind for c in out.candidates] == ["procedure_not_checked"]
+    assert out.outcome == "no_match"
 
 
-def test_same_medication_from_two_records_gives_one_flag():
-    out = run([med(eid=1), med(name="Coumadin 5 mg", eid=2)])
-    confirmed = [c for c in out.candidates if c.kind == "confirmed"]
-    assert len(confirmed) == 1 and confirmed[0].evidence_ids == [1, 2]
+def test_consultation_only_has_no_procedure_flags():
+    out = run([med("warfarin", "anticoagulant")], status="none")
+    assert out.candidates == [] and "consultation only" in out.summary_message
 
 
-def test_deterministic_repeat_evaluation():
-    a, b = run([med(), med(use="uncertain", eid=3)]), run([med(), med(use="uncertain", eid=3)])
+def test_unrecognised_medicine_is_reported_not_ignored():
+    out = run([med("x", None, mapping="unmapped", name="Mystery tonic")], "laparoscopic_cholecystectomy")
+    assert [c.kind for c in out.candidates] == ["unrecognised_medicine"]
+
+
+def test_unavailable_source_is_a_limitation_not_none():
+    out = run([med("aspirin", "antiplatelet")], "laparoscopic_cholecystectomy",
+              sources=(OK, SourceState("ziauddin", "Ziauddin Hospital", "unavailable")))
+    kinds = sorted(c.kind for c in out.candidates)
+    assert kinds == ["confirmed", "records_incomplete"]
+    assert "does not mean the absence" in next(c for c in out.candidates if c.kind == "records_incomplete").message
+
+
+def test_no_rules_is_not_a_negative_result():
+    out = run([med("aspirin", "antiplatelet")], "laparoscopic_cholecystectomy", rules=())
+    assert out.outcome == "no_rules" and "not a negative result" in out.summary_message
+
+
+def test_one_flag_per_medicine_and_rule_however_many_sources():
+    out = run([med("aspirin", "antiplatelet"), med("aspirin", "antiplatelet", name="Disprin Cardio 75 mg")],
+              "laparoscopic_cholecystectomy")
+    flags = [c for c in out.candidates if c.kind == "confirmed"]
+    assert len(flags) == 1 and len(flags[0].evidence_ids) == 2
+
+
+def test_deterministic():
+    meds = SCENARIOS[4][1]
+    a, b = run(meds, "laparoscopic_cholecystectomy"), run(meds, "laparoscopic_cholecystectomy")
     assert [c.content() for c in a.candidates] == [c.content() for c in b.candidates]
 
 
-def test_changed_procedure_context_changes_result():
-    assert kinds(run([med()], "tooth_extraction")) == ["confirmed"]
-    assert kinds(run([med()], "orthodontic_assessment")) == []
-
-
-def test_changed_rule_version_changes_flag_identity():
-    v2 = tuple(Rule(**{**r.__dict__, "version": 2}) if r.rule_id == "ORTHO-ANTICOAG-SURG" else r for r in RULES)
-    a, b = run([med()]).candidates[0], run([med()], rules=v2).candidates[0]
-    assert a.flag_key == b.flag_key and a.content() != b.content()
-
-
-def test_no_approved_rules_is_unsupported_coverage_not_negative():
-    out = run([med()], rules=())
-    assert out.outcome == "unsupported_coverage" and "not a negative result" in out.summary_message
-
-
-def test_no_match_message_states_coverage_limits():
-    out = run([med("Metformin", "metformin", "biguanide")])
-    assert "not treatment clearance" in out.summary_message and "available verified records" in out.summary_message
-
-
-def test_evaluation_failure_raises_distinctly():
-    broken = (Rule("BROKEN", 1, "anticoagulant", "orthodontics", True, (), "t", "m"),)
-    with pytest.raises(ValueError):
-        run([med()], rules=broken)
-
-
-@pytest.mark.parametrize("word", ["stop", "discontinue", "withhold", "start taking", "switch", "urgent"])
-def test_flags_never_advise_medication_change_or_urgency(word):
-    out = run([med(), med("Alendronate", "alendronate", "bisphosphonate", eid=2), med(use="uncertain", eid=3)], None, "unknown")
-    texts = " ".join(f"{c.title} {c.message}" for c in out.candidates).lower()
-    assert word not in texts
+def test_messages_never_advise_changing_a_medicine():
     for r in RULES:
-        assert word not in f"{r.title} {r.message}".lower()
+        low = r.message.lower()
+        assert not any(w in low for w in ("stop", "discontinue", "withhold", "do not take", "increase", "reduce the dose")), r.rule_id

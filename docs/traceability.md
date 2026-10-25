@@ -1,5 +1,7 @@
 # Requirement traceability (SRS → implementation → verification)
 
+> **Version 1 document.** Version 2 changed the institutions, roles, linking, retrieval, medicines and sending; see [v2-changes.md](v2-changes.md) for what differs. This page has not been rewritten for v2 yet.
+
 Paths are relative to `services/central/app` unless stated otherwise. Test IDs: `T1…T6` are `tests/test_t*_*.py`, `U` is `services/central/tests`, `E2E-n` is `web/e2e/smoke.spec.ts` journey *n*.
 
 ## 5.1 Authentication and authorization

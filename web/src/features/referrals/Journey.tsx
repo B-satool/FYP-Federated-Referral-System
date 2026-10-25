@@ -4,7 +4,7 @@ import ArrowBack from "@mui/icons-material/ArrowBack";
 import ArrowForward from "@mui/icons-material/ArrowForward";
 import type { ReferralDetail } from "../../api/types";
 import { tokens } from "../../theme";
-import { AUDIT_STEP, computeSteps, NextStep, PHASES, STATE_LABEL, StepKey, StepState, STEP_LABEL, STEP_ORDER } from "./steps";
+import { computeSteps, layout, NextStep, Role, STATE_LABEL, StepKey, StepState, STEP_LABEL, stepOrder } from "./steps";
 
 const STATE_TEXT: Record<StepState, string> = {
   done: tokens.ok.text,
@@ -49,9 +49,12 @@ function Marker({ n, state }: { n: number; state: StepState }) {
  * with a state for each so the user sees where they are and what is left.
  * It is a tab list, so the keyboard works as expected (arrow keys, Home, End).
  */
-export function JourneyNav({ r, active, onSelect }: { r: ReferralDetail; active: StepKey; onSelect: (k: StepKey) => void }) {
-  const steps = computeSteps(r);
+export function JourneyNav({ r, role, active, onSelect }: { r: ReferralDetail; role: Role; active: StepKey; onSelect: (k: StepKey) => void }) {
+  const steps = computeSteps(r, role);
   const refs = useRef<Partial<Record<StepKey, HTMLButtonElement | null>>>({});
+  const PHASES = layout(role).map((p) => ({ title: p.title, steps: p.steps.map((k) => [k, STEP_LABEL[k]] as [StepKey, string]) }));
+  const STEP_ORDER = stepOrder(role);
+  const AUDIT_STEP: [StepKey, string] = ["audit", STEP_LABEL.audit];
   let counter = 0;
 
   const onKey = (e: KeyboardEvent<HTMLElement>, key: StepKey) => {
@@ -174,7 +177,8 @@ export function NextStepBanner({ step, onGo }: { step: NextStep; onGo: (k: StepK
 }
 
 /** Previous and next buttons at the end of each step keep the journey linear. */
-export function StepPager({ active, onGo }: { active: StepKey; onGo: (k: StepKey) => void }) {
+export function StepPager({ role, active, onGo }: { role: Role; active: StepKey; onGo: (k: StepKey) => void }) {
+  const STEP_ORDER = stepOrder(role);
   const i = STEP_ORDER.indexOf(active);
   const prev = i > 0 ? STEP_ORDER[i - 1] : null;
   const next = i < STEP_ORDER.length - 1 ? STEP_ORDER[i + 1] : null;

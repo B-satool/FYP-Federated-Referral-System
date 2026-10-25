@@ -16,12 +16,11 @@ type NavItem = { to: string; label: string; show: boolean; badge?: number };
 type NavGroup = { title: string; items: NavItem[] };
 
 const ROLE_LABELS: Record<string, string> = {
-  clinic_staff: "Clinic staff",
-  clinician: "Clinician",
-  lab_staff: "Laboratory staff",
-  specialist: "Specialist",
+  clinician: "Doctor",
+  clinic_staff: "Staff",
+  diagnostics_staff: "Laboratory / imaging staff",
   institution_admin: "Administrator",
-  rule_reviewer: "Rule reviewer",
+  rule_reviewer: "Clinical rule reviewer",
 };
 
 function roleText(roles: string[]): string {
@@ -35,8 +34,10 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { logout } = useAuth();
   const { data: me } = useMe();
   const kind = me?.institution_kind;
-  const clinicUser = kind === "clinic" && hasRole(me, "clinic_staff", "clinician");
-  const hasQueue = hasRole(me, "clinic_staff", "clinician", "lab_staff");
+  const doctor = hasRole(me, "clinician");
+  const staff = hasRole(me, "clinic_staff");
+  const refers = (doctor || staff) && kind !== "laboratory";
+  const hasQueue = doctor || staff;
   const queue = useQuery({ queryKey: ["work-queue"], queryFn: () => api.get<Queue>("/work-queue"), enabled: hasQueue, refetchInterval: 30000, staleTime: 15000 });
   const open = actionableCount(queue.data);
 
@@ -45,16 +46,18 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       title: "Work",
       items: [
         { to: "/work-queue", label: "Work queue", show: hasQueue, badge: open },
-        { to: "/referrals", label: "Referrals", show: clinicUser },
-        { to: "/specialist", label: "Specialist inbox", show: hasRole(me, "specialist") },
-        { to: "/lab", label: "Laboratory records", show: hasRole(me, "lab_staff") },
+        { to: "/referrals/new", label: "New referral", show: doctor && kind !== "laboratory" },
+        { to: "/referrals", label: "Referrals", show: refers },
+        { to: "/incoming", label: "Incoming referrals", show: doctor && kind === "hospital" },
+        { to: "/patient-links", label: "Patient link requests", show: hasRole(me, "clinic_staff", "institution_admin") },
+        { to: "/orders", label: "Test and scan orders", show: hasRole(me, "diagnostics_staff") },
       ],
     },
     {
-      title: "Records and rules",
+      title: "Rules",
       items: [
-        { to: "/patient-links", label: "Patient links", show: kind === "clinic" && hasRole(me, "clinic_staff", "clinician", "institution_admin") },
-        { to: "/rules", label: "Medication rules", show: clinicUser || hasRole(me, "rule_reviewer") },
+        { to: "/rules", label: "Medication rules", show: doctor || hasRole(me, "rule_reviewer") },
+        { to: "/medicine-names", label: "Medicine names", show: doctor || staff || hasRole(me, "rule_reviewer") },
       ],
     },
     {
@@ -125,6 +128,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             <Typography sx={{ fontWeight: 600, color: "inherit", overflowWrap: "anywhere" }}>{me.name}</Typography>
             <Typography variant="body2" sx={{ color: tokens.navMuted }}>
               {me.institution_name}
+              {me.department_name ? `, ${me.department_name}` : ""}
             </Typography>
             <Typography variant="body2" sx={{ color: tokens.navMuted }}>
               {roleText(me.roles)}

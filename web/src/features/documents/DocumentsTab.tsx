@@ -67,11 +67,11 @@ export function DocumentsTab({ r }: { r: ReferralDetail }) {
     <Stack spacing={2}>
       <Paper sx={{ p: 2 }}>
         <Typography variant="h6" gutterBottom>
-          Upload a paper record
+          Papers the patient brought
         </Typography>
         <Typography variant="body2" color="text.secondary" gutterBottom>
           Supported: {limits?.formats.join(", ")} up to {limits?.max_upload_mb} MB and {limits?.max_pages} pages, {limits?.language} records. Text is
-          extracted asynchronously; proposed fields start unverified and you review them beside the original page.
+          read automatically (OCR); then open each paper and check what was read against the original. If the same medicine is already in the records, it is shown once.
         </Typography>
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "center" }}>
           <Button variant="outlined" component="label" startIcon={<UploadFile />} disabled={locked}>
@@ -92,7 +92,7 @@ export function DocumentsTab({ r }: { r: ReferralDetail }) {
       </Paper>
       <Paper sx={{ p: 2 }}>
         <Typography variant="h6" gutterBottom>
-          Documents
+          Uploaded papers
         </Typography>
         <ErrorAlert error={docs.error} />
         {docs.data?.length === 0 && <Empty>No documents uploaded.</Empty>}

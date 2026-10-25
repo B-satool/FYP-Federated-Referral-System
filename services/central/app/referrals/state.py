@@ -1,34 +1,29 @@
-"""Referral status model (SRS section 6) with server-side transition validation."""
+"""Referral status model with server-side transition validation."""
 from __future__ import annotations
 
 from refcommon.auth import Principal
 from refcommon.db import utcnow
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import Referral, ReferralEvent, ReferralPackage
+from ..models import Referral, ReferralEvent
 from ..security import audit, bump, error
 
 STATUS_LABELS = {
-    "draft": "Draft",
-    "awaiting_information": "Awaiting information",
-    "awaiting_approval": "Awaiting approval",
-    "approved": "Approved",
-    "submitted": "Submitted",
+    "draft": "Draft (doctor)",
+    "requested": "Preparing",
+    "submitted": "Sent",
     "acknowledged": "Acknowledged",
     "accepted": "Accepted",
-    "response_returned": "Response returned",
-    "followup_pending": "Follow-up pending",
+    "response_returned": "Response received",
+    "followup_pending": "Follow-up",
     "closed": "Closed",
     "declined": "Declined",
     "cancelled": "Cancelled",
 }
 
 TRANSITIONS: dict[str, set[str]] = {
-    "draft": {"awaiting_information", "awaiting_approval", "cancelled"},
-    "awaiting_information": {"draft", "awaiting_approval", "cancelled"},
-    "awaiting_approval": {"draft", "awaiting_information", "approved", "cancelled"},
-    "approved": {"submitted", "draft", "cancelled"},
+    "draft": {"requested", "cancelled"},
+    "requested": {"submitted", "draft", "cancelled"},
     "submitted": {"acknowledged", "declined", "cancelled"},
     "acknowledged": {"accepted", "declined", "cancelled"},
     "accepted": {"response_returned", "cancelled"},
@@ -39,7 +34,7 @@ TRANSITIONS: dict[str, set[str]] = {
     "cancelled": set(),
 }
 
-PRE_SUBMISSION = {"draft", "awaiting_information", "awaiting_approval", "approved"}
+PRE_SUBMISSION = {"draft", "requested"}
 IN_FLIGHT = {"submitted", "acknowledged", "accepted"}
 CLINICAL_LOCKED = {"response_returned", "followup_pending", "closed", "declined", "cancelled"}
 TERMINAL = {"closed", "declined", "cancelled"}
@@ -75,21 +70,18 @@ def ensure_clinical_edit_allowed(referral: Referral) -> None:
 
 
 def mark_clinical_change(db: Session, referral: Referral, actor: str, what: str, principal: Principal | None = None) -> None:
-    """Any change to approved clinical content requires a new version and renewed approval (FR-15)."""
+    """A clinical change after a version was sent means a new version must be sent (an amendment)."""
+    from ..notifications import notify_staff
+
     ensure_clinical_edit_allowed(referral)
     bump(referral)
-    if referral.status == "approved":
-        pkg = db.scalars(select(ReferralPackage).where(ReferralPackage.referral_id == referral.id,
-                                                       ReferralPackage.version == referral.current_package_version)).first()
-        if pkg and referral.submitted_package_version != pkg.version:
-            pkg.superseded = True
-        transition(db, referral, "draft", actor, principal,
-                   {"reason": f"Approved content changed ({what}); renewed approval required"})
-    elif referral.status in IN_FLIGHT and not referral.amendment_open:
+    if referral.status in IN_FLIGHT and not referral.amendment_open:
         referral.amendment_open = True
         event(db, referral, "amendment_started", actor, principal.institution_id if principal else None,
-              {"reason": f"Clinical content changed after submission ({what}); a new approved version is required",
-               "submitted_version": referral.submitted_package_version})
+              {"reason": f"Clinical content changed after sending ({what}); a new version must be sent",
+               "sent_version": referral.submitted_package_version})
+        notify_staff(db, referral, "amendment_open", f"{referral.reference}: changed after sending",
+                     f"{what.capitalize()}. Check the referral and send the new version.", tab="send")
 
 
 def touch(referral: Referral) -> None:

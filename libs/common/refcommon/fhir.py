@@ -25,6 +25,10 @@ SUPPORTED_RESOURCES: dict[str, dict[str, Any]] = {
         "status": {"planned", "arrived", "triaged", "in-progress", "onleave", "finished", "cancelled", "entered-in-error", "unknown"},
     },
     "Condition": {"required": ["code", "subject"]},
+    "Procedure": {
+        "required": ["status", "code", "subject"],
+        "status": {"preparation", "in-progress", "not-done", "on-hold", "stopped", "completed", "entered-in-error", "unknown"},
+    },
     "Observation": {
         "required": ["status", "code", "subject"],
         "status": {"registered", "preliminary", "final", "amended", "corrected", "cancelled", "entered-in-error", "unknown"},
@@ -57,14 +61,13 @@ SUPPORTED_RESOURCES: dict[str, dict[str, Any]] = {
     },
 }
 
-CLINICAL_RESOURCES = {"Encounter", "Condition", "Observation", "DiagnosticReport", "MedicationRequest", "MedicationStatement", "DocumentReference"}
+CLINICAL_RESOURCES = {"Encounter", "Condition", "Procedure", "Observation", "DiagnosticReport", "MedicationRequest",
+                      "MedicationStatement", "DocumentReference"}
 
 # Explicit application-status -> FHIR mapping (never implicit).
 REFERRAL_STATUS_TO_SERVICE_REQUEST = {
     "draft": "draft",
-    "awaiting_information": "draft",
-    "awaiting_approval": "draft",
-    "approved": "active",
+    "requested": "draft",
     "submitted": "active",
     "acknowledged": "active",
     "accepted": "active",
@@ -75,7 +78,6 @@ REFERRAL_STATUS_TO_SERVICE_REQUEST = {
     "cancelled": "revoked",
 }
 REFERRAL_STATUS_TO_TASK = {
-    "approved": "requested",
     "submitted": "requested",
     "acknowledged": "received",
     "accepted": "accepted",

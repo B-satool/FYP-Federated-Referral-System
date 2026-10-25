@@ -1,0 +1,413 @@
+{
+  "key": "P1",
+  "department": "Dentistry (Oral and Maxillofacial Surgery)",
+  "demographics": {
+    "name": "Rubina Akhtar",
+    "sex": "F",
+    "dob": "1974-02-09",
+    "age": 52,
+    "cnic": "35202-0000011-4",
+    "phone": "0300-0000011",
+    "city": "Karachi",
+    "language": "Punjabi, Urdu",
+    "blood_group": "B+",
+    "marital_status": "Married",
+    "occupation": "Homemaker",
+    "allergies": []
+  },
+  "local_ids": {
+    "clinic-ali": "DA-20411",
+    "lab-b": "MD-771203",
+    "rad-zia": "MI-55120",
+    "aku": null
+  },
+  "referral": {
+    "from_institution": "clinic-ali",
+    "from_department": "General practice",
+    "requested_by_doctor": "Dr Ali",
+    "referred_doctor_requested": "Dr Faisal Haider",
+    "to_institution": "aku",
+    "to_department": "Dentistry (Oral and Maxillofacial Surgery)",
+    "date": "2026-10-20",
+    "urgency": "Routine (within 2 weeks)",
+    "reason": "Recurrent pain and swelling, lower left wisdom tooth (38), three episodes of pericoronitis since July. OPG shows 38 mesio-angular impaction close to the inferior alveolar canal. Surgical extraction advised.",
+    "planned_procedure": "Surgical extraction of impacted tooth 38 under local anaesthesia",
+    "diagnostic_requests": [
+      {
+        "type": "Imaging",
+        "test": "CBCT, lower left jaw",
+        "reason": "Relation of 38 roots to the inferior alveolar canal; clinic has no CBCT",
+        "send_to": "zia",
+        "urgency": "Routine",
+        "status": "requested"
+      }
+    ]
+  },
+  "brought_by_patient": [
+    {
+      "file": "P1_prescription_dentist_2026-10-05.jpg",
+      "kind": "Handwritten-style prescription from a local dentist",
+      "date": "2026-10-05"
+    }
+  ],
+  "sources": {
+    "clinic-ali": {
+      "conditions": [
+        {
+          "display": "Type 2 diabetes mellitus",
+          "snomed": "44054006",
+          "onset": "2016-04",
+          "status": "active"
+        },
+        {
+          "display": "Essential hypertension",
+          "snomed": "59621000",
+          "onset": "2019-08",
+          "status": "active"
+        },
+        {
+          "display": "Osteoporosis",
+          "snomed": "64859006",
+          "onset": "2022-02",
+          "status": "active"
+        }
+      ],
+      "surgeries": [
+        {
+          "procedure": "Caesarean section",
+          "date": "2003-05",
+          "where": "Private hospital, Karachi"
+        },
+        {
+          "procedure": "Caesarean section",
+          "date": "2006-09",
+          "where": "Private hospital, Karachi"
+        }
+      ],
+      "visits": [
+        {
+          "date": "2026-10-14",
+          "setting": "Clinic visit",
+          "doctor": "Dr Ali",
+          "reason": "Review of tooth pain after dentist visit",
+          "summary": "Third pericoronitis episode since July. Referred for surgical opinion. BP 132/84."
+        },
+        {
+          "date": "2026-09-12",
+          "setting": "Clinic visit",
+          "doctor": "Dr Ali",
+          "reason": "Toothache and facial swelling",
+          "summary": "Pericoronitis, lower left. Augmentin 5 days. Advised dental review."
+        },
+        {
+          "date": "2026-07-18",
+          "setting": "Clinic visit",
+          "doctor": "Dr Ali",
+          "reason": "Diabetes and blood pressure review",
+          "summary": "Stable. Continue medicines."
+        },
+        {
+          "date": "2026-02-10",
+          "setting": "Clinic visit",
+          "doctor": "Dr Ali",
+          "reason": "Routine review",
+          "summary": "Older than 6 months, should not appear in the automatic selection."
+        }
+      ],
+      "medications": [
+        {
+          "name": "Alendronate 70 mg tablet",
+          "generic": "alendronic acid",
+          "brand_as_written": "Fosamax",
+          "dose": "70 mg",
+          "route": "oral",
+          "frequency": "once weekly",
+          "start": "2022-03-01",
+          "status": "active",
+          "prescriber": "Dr Ali",
+          "note": "Taken on an empty stomach on Sundays"
+        },
+        {
+          "name": "Metformin 500 mg tablet",
+          "generic": "metformin",
+          "brand_as_written": "Glucophage",
+          "dose": "500 mg",
+          "route": "oral",
+          "frequency": "twice daily with meals",
+          "start": "2016-06-01",
+          "status": "active",
+          "prescriber": "Dr Ali",
+          "note": null
+        },
+        {
+          "name": "Amlodipine 5 mg tablet",
+          "generic": "amlodipine",
+          "brand_as_written": "Norvasc",
+          "dose": "5 mg",
+          "route": "oral",
+          "frequency": "once daily",
+          "start": "2019-09-01",
+          "status": "active",
+          "prescriber": "Dr Ali",
+          "note": null
+        },
+        {
+          "name": "Calcium with vitamin D3 tablet",
+          "generic": "calcium carbonate / colecalciferol",
+          "brand_as_written": null,
+          "dose": "1 tablet",
+          "route": "oral",
+          "frequency": "once daily",
+          "start": "2022-03-01",
+          "status": "active",
+          "prescriber": "Dr Ali",
+          "note": null
+        },
+        {
+          "name": "Amoxicillin + clavulanic acid 625 mg tablet",
+          "generic": "co-amoxiclav",
+          "brand_as_written": "Augmentin",
+          "dose": "625 mg",
+          "route": "oral",
+          "frequency": "twice daily for 5 days",
+          "start": "2026-09-12",
+          "status": "completed",
+          "prescriber": "Dr Ali",
+          "note": "Course finished 2026-09-17"
+        }
+      ]
+    },
+    "lab-b": {
+      "labs": [
+        {
+          "date": "2026-10-12",
+          "panel": "HbA1c and renal function",
+          "note": null,
+          "results": [
+            {
+              "test": "HbA1c",
+              "loinc": "4548-4",
+              "value": 7.6,
+              "unit": "%",
+              "reference": "4.0-5.6",
+              "flag": "high"
+            },
+            {
+              "test": "Creatinine",
+              "loinc": "2160-0",
+              "value": 0.8,
+              "unit": "mg/dL",
+              "reference": "0.5-1.1",
+              "flag": ""
+            },
+            {
+              "test": "eGFR",
+              "loinc": "62238-1",
+              "value": 88,
+              "unit": "mL/min/1.73m2",
+              "reference": ">=60",
+              "flag": ""
+            }
+          ]
+        },
+        {
+          "date": "2026-10-12",
+          "panel": "Complete blood count",
+          "note": null,
+          "results": [
+            {
+              "test": "Haemoglobin",
+              "loinc": "718-7",
+              "value": 12.4,
+              "unit": "g/dL",
+              "reference": "12.0-15.5",
+              "flag": ""
+            },
+            {
+              "test": "Platelets",
+              "loinc": "777-3",
+              "value": 268,
+              "unit": "10*9/L",
+              "reference": "150-400",
+              "flag": ""
+            },
+            {
+              "test": "WBC",
+              "loinc": "6690-2",
+              "value": 10.9,
+              "unit": "10*9/L",
+              "reference": "4.0-11.0",
+              "flag": ""
+            }
+          ]
+        },
+        {
+          "date": "2026-10-12",
+          "panel": "Vitamin D (25-OH)",
+          "note": null,
+          "results": [
+            {
+              "test": "25-OH vitamin D",
+              "loinc": "1989-3",
+              "value": 24,
+              "unit": "ng/mL",
+              "reference": "30-100",
+              "flag": "low"
+            }
+          ]
+        }
+      ]
+    },
+    "rad-zia": {
+      "imaging": [
+        {
+          "date": "2026-10-08",
+          "study": "Orthopantomogram (OPG)",
+          "body_part": "Jaws and teeth",
+          "findings": "Mesio-angular impaction of 38 with a pericoronal radiolucency. Root apices lie close to the superior margin of the inferior alveolar canal. Caries in 36 (occlusal). Generalised mild horizontal bone loss. Right side: 48 erupted, no abnormality.",
+          "impression": "Impacted 38, close relation to the inferior alveolar canal. Suggest CBCT before surgery.",
+          "radiologist": "Dr Hira Anwar, Consultant Radiologist"
+        }
+      ]
+    }
+  },
+  "scenario": {
+    "tests": "Drug against procedure: alendronate (a bisphosphonate, 4.5 years) with a tooth extraction, which carries a jaw-osteonecrosis risk, so the flag should fire. Metformin and amlodipine need no flag for this procedure. Brought-by-patient prescription lists Brufen and Panadol, which should be read by OCR.",
+    "should_flag": [
+      "Alendronate with planned oral surgery (bisphosphonate and jaw osteonecrosis)"
+    ],
+    "records_outside_6_months": [
+      "Clinic visit 2026-02-10"
+    ]
+  },
+  "_meta": {
+    "synthetic": true,
+    "reference_date": "2026-10-26",
+    "recent_window_start": "2026-04-26",
+    "institutions": {
+      "clinic-ali": "Dr Ali's Clinic, Clifton, Karachi",
+      "lab-b": "Chughtai Lab",
+      "aku": "Aga Khan University Hospital",
+      "rad-zia": "Ziauddin Hospital, Radiology"
+    }
+  },
+  "expected_retrieval_view": {
+    "conditions": [
+      {
+        "display": "Type 2 diabetes mellitus",
+        "snomed": "44054006",
+        "onset": "2016-04",
+        "status": "active",
+        "source": "clinic-ali"
+      },
+      {
+        "display": "Essential hypertension",
+        "snomed": "59621000",
+        "onset": "2019-08",
+        "status": "active",
+        "source": "clinic-ali"
+      },
+      {
+        "display": "Osteoporosis",
+        "snomed": "64859006",
+        "onset": "2022-02",
+        "status": "active",
+        "source": "clinic-ali"
+      }
+    ],
+    "surgeries": [
+      {
+        "procedure": "Caesarean section",
+        "date": "2003-05",
+        "where": "Private hospital, Karachi",
+        "source": "clinic-ali"
+      },
+      {
+        "procedure": "Caesarean section",
+        "date": "2006-09",
+        "where": "Private hospital, Karachi",
+        "source": "clinic-ali"
+      }
+    ],
+    "visits_last_6_months": [
+      {
+        "date": "2026-10-14",
+        "setting": "Clinic visit",
+        "doctor": "Dr Ali",
+        "reason": "Review of tooth pain after dentist visit",
+        "summary": "Third pericoronitis episode since July. Referred for surgical opinion. BP 132/84.",
+        "source": "clinic-ali"
+      },
+      {
+        "date": "2026-09-12",
+        "setting": "Clinic visit",
+        "doctor": "Dr Ali",
+        "reason": "Toothache and facial swelling",
+        "summary": "Pericoronitis, lower left. Augmentin 5 days. Advised dental review.",
+        "source": "clinic-ali"
+      },
+      {
+        "date": "2026-07-18",
+        "setting": "Clinic visit",
+        "doctor": "Dr Ali",
+        "reason": "Diabetes and blood pressure review",
+        "summary": "Stable. Continue medicines.",
+        "source": "clinic-ali"
+      }
+    ],
+    "current_medications": [
+      {
+        "name": "Alendronate 70 mg tablet",
+        "generic": "alendronic acid",
+        "brand_as_written": "Fosamax",
+        "dose": "70 mg",
+        "route": "oral",
+        "frequency": "once weekly",
+        "start": "2022-03-01",
+        "status": "active",
+        "prescriber": "Dr Ali",
+        "note": "Taken on an empty stomach on Sundays",
+        "source": "clinic-ali"
+      },
+      {
+        "name": "Metformin 500 mg tablet",
+        "generic": "metformin",
+        "brand_as_written": "Glucophage",
+        "dose": "500 mg",
+        "route": "oral",
+        "frequency": "twice daily with meals",
+        "start": "2016-06-01",
+        "status": "active",
+        "prescriber": "Dr Ali",
+        "note": null,
+        "source": "clinic-ali"
+      },
+      {
+        "name": "Amlodipine 5 mg tablet",
+        "generic": "amlodipine",
+        "brand_as_written": "Norvasc",
+        "dose": "5 mg",
+        "route": "oral",
+        "frequency": "once daily",
+        "start": "2019-09-01",
+        "status": "active",
+        "prescriber": "Dr Ali",
+        "note": null,
+        "source": "clinic-ali"
+      },
+      {
+        "name": "Calcium with vitamin D3 tablet",
+        "generic": "calcium carbonate / colecalciferol",
+        "brand_as_written": null,
+        "dose": "1 tablet",
+        "route": "oral",
+        "frequency": "once daily",
+        "start": "2022-03-01",
+        "status": "active",
+        "prescriber": "Dr Ali",
+        "note": null,
+        "source": "clinic-ali"
+      }
+    ]
+  }
+}

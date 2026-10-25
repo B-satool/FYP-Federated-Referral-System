@@ -22,7 +22,10 @@ class SourceRetrieval(Base):
     source_institution: Mapped[str] = mapped_column(String(50))
     local_patient_id: Mapped[str] = mapped_column(String(50))
     link_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    # successful | empty | partial | denied | unavailable | invalid
+    institution_kind: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    last_activity: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    window_start: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # successful | empty | partial | denied | unavailable | invalid | skipped (not the most recent of its kind)
     status: Mapped[str] = mapped_column(String(20))
     record_count: Mapped[int] = mapped_column(Integer, default=0)
     new_count: Mapped[int] = mapped_column(Integer, default=0)

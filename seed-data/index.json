@@ -1,0 +1,70 @@
+[
+  {
+    "key": "P1",
+    "name": "Rubina Akhtar",
+    "age": 52,
+    "sex": "F",
+    "city": "Karachi",
+    "referral_from": "Dr Ali's Clinic, Clifton, Karachi",
+    "referral_to": "Aga Khan University Hospital / Dentistry (Oral and Maxillofacial Surgery)",
+    "planned_procedure": "Surgical extraction of impacted tooth 38 under local anaesthesia",
+    "should_flag": [
+      "Alendronate with planned oral surgery (bisphosphonate and jaw osteonecrosis)"
+    ]
+  },
+  {
+    "key": "P2",
+    "name": "Muhammad Tariq Mahmood",
+    "age": 58,
+    "sex": "M",
+    "city": "Karachi",
+    "referral_from": "Dr Ali's Clinic, Clifton, Karachi",
+    "referral_to": "Ziauddin Hospital / Cardiology",
+    "planned_procedure": "Coronary angiography",
+    "should_flag": [
+      "Metformin with contrast media, reduced eGFR"
+    ]
+  },
+  {
+    "key": "P3",
+    "name": "Abdul Rehman Gondal",
+    "age": 66,
+    "sex": "M",
+    "city": "Karachi",
+    "referral_from": "Dr Ali's Clinic, Clifton, Karachi",
+    "referral_to": "Aga Khan University Hospital / Orthopaedics",
+    "planned_procedure": "Right total knee replacement (to be decided by orthopaedic surgeon)",
+    "should_flag": [
+      "Aspirin before major orthopaedic surgery",
+      "NSAID (diclofenac) before major orthopaedic surgery"
+    ]
+  },
+  {
+    "key": "P4",
+    "name": "Shazia Parveen",
+    "age": 44,
+    "sex": "F",
+    "city": "Karachi",
+    "referral_from": "Dr Ali's Clinic, Clifton, Karachi",
+    "referral_to": "Ziauddin Hospital / Gastroenterology and Hepatology",
+    "planned_procedure": "Upper gastrointestinal endoscopy (variceal screening)",
+    "should_flag": [
+      "NSAID (ibuprofen) with portal hypertension before endoscopy"
+    ]
+  },
+  {
+    "key": "P5",
+    "name": "Imtiaz Ali Soomro",
+    "age": 45,
+    "sex": "M",
+    "city": "Karachi",
+    "referral_from": "Dr Ali's Clinic, Clifton, Karachi",
+    "referral_to": "Aga Khan University Hospital / General Surgery",
+    "planned_procedure": "Laparoscopic cholecystectomy",
+    "should_flag": [
+      "Clopidogrel before elective surgery",
+      "Aspirin before elective surgery",
+      "Insulin and metformin around fasting for surgery"
+    ]
+  }
+]

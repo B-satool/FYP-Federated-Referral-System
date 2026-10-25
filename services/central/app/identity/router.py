@@ -1,4 +1,11 @@
-"""Patient-link verification/correction (FR-06 to FR-10) and account administration (FR-05)."""
+"""Patient links confirmed by the other institution, and account administration.
+
+Flow: staff at the requesting institution send a link request (name, date of birth,
+sex and CNIC from their own record). Staff at the target institution look the
+patient up in their own index, then approve with the matching record (or register
+the patient as new) or reject it. Approval also creates the target institution's
+access grant, so records open only after that institution's staff have checked.
+"""
 from __future__ import annotations
 
 import httpx
@@ -9,183 +16,257 @@ from refcommon.db import utcnow
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..config import INSTITUTIONS, SOURCES
+from ..config import INSTITUTIONS, SOURCES, institution_name
 from ..db import get_db
 from ..integration import sources
-from ..models import EvidenceItem, PatientLink, PatientLinkEvent, Referral, ReferralPackage, ReviewItem, User
-from ..referrals.state import CLINICAL_LOCKED, TERMINAL, mark_clinical_change
+from ..models import EvidenceItem, PatientLink, PatientLinkEvent, Referral, ReferralEvent, ReferralPackage, User
+from ..notifications import notify
 from ..security import audit, error, get_principal, kc_config, require_roles, service_tokens, verifier
-from ..workflow import after_change
-from .links import link_out, links_for
+from .links import link_out, links_for, open_request
 
-router = APIRouter(tags=["identity"])
+router = APIRouter(tags=["patient links"])
 LINK_ROLES = ("clinic_staff", "clinician", "institution_admin")
+DECIDE_ROLES = ("clinic_staff", "institution_admin")
 
 
 def _event(db: Session, link: PatientLink, action: str, principal: Principal, note: str = "", detail: dict | None = None):
     db.add(PatientLinkEvent(link_id=link.id, action=action, actor=principal.display_name, actor_id=principal.subject,
-                            note=note, detail=detail or {}))
-    audit(db, principal, f"patient_link.{action}", "patient_link", link.id, "success",
-          detail={"a": f"{link.a_institution}/{link.a_local_id}", "b": f"{link.b_institution}/{link.b_local_id}",
-                  "note": note, **(detail or {})})
+                            institution_id=principal.institution_id, note=note, detail=detail or {}))
+
+
+def create_request(db: Session, principal: Principal, *, local_id: str, target: str, name: str, birth_date: str | None,
+                   sex: str | None, cnic: str | None, referral: Referral | None, purpose: str) -> PatientLink:
+    """Shared by the referral and diagnostic-request flows."""
+    if target not in SOURCES or target == principal.institution_id:
+        raise error(422, "invalid_institution", "Choose another participating institution")
+    existing = open_request(db, principal.institution_id, local_id, target)
+    if existing:
+        return existing
+    link = PatientLink(requester_institution=principal.institution_id, requester_local_id=local_id,
+                       target_institution=target, patient_name=name, patient_birth_date=birth_date, patient_sex=sex,
+                       patient_cnic=cnic, referral_id=referral.id if referral else None, purpose=purpose,
+                       requested_by=principal.display_name, requested_by_id=principal.subject)
+    db.add(link)
+    db.flush()
+    _event(db, link, "requested", principal, purpose)
+    audit(db, principal, "patient_link.request", "patient_link", link.id, "success", referral.id if referral else None,
+          {"target": target, "local_id": local_id})
+    notify(db, "link_request", f"Patient link request from {institution_name(principal.institution_id)}",
+           institution=target, role="clinic_staff",
+           body=f"Confirm which of your patient records is {name} (born {birth_date or 'not recorded'}).",
+           link="/patient-links")
+    return link
 
 
 def _load_link(db: Session, link_id: int, principal: Principal) -> PatientLink:
     link = db.get(PatientLink, link_id)
     if link is None:
         raise error(404, "not_found", "Link not found")
-    if principal.institution_id not in (link.a_institution, link.b_institution):
+    if principal.institution_id not in (link.requester_institution, link.target_institution):
         raise error(403, "forbidden", "Link does not involve your institution")
     return link
 
 
 @router.get("/patient-links")
-def list_links(institution: str, local_id: str, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+def list_links(institution: str | None = None, local_id: str | None = None, db: Session = Depends(get_db),
+               principal: Principal = Depends(get_principal)):
+    """Links of one of your own patient records (all states, with history)."""
     require_roles(principal, *LINK_ROLES, action="patient_link.view")
-    if principal.institution_id != institution:
-        raise error(403, "forbidden", "You can only view links for your institution's patient records")
+    institution = institution or principal.institution_id
+    if institution != principal.institution_id:
+        raise error(403, "forbidden", "You can only view links for your own institution's patient records")
+    if not local_id:
+        raise error(422, "local_id_required", "Choose a patient")
     out = []
     for link in links_for(db, institution, local_id):
         item = link_out(link)
-        item["events"] = [{"action": e.action, "actor": e.actor, "note": e.note, "detail": e.detail, "created_at": e.created_at}
+        item["events"] = [{"action": e.action, "actor": e.actor, "institution_id": e.institution_id, "note": e.note,
+                           "created_at": e.created_at}
                           for e in db.scalars(select(PatientLinkEvent).where(PatientLinkEvent.link_id == link.id)
                                               .order_by(PatientLinkEvent.id))]
         out.append(item)
     return out
 
 
-class Demographics(BaseModel):
-    family: str
-    given: str
-    birth_date: str
+@router.get("/patient-links/incoming")
+def incoming(status: str = "requested", db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Requests from other institutions for your staff to check."""
+    require_roles(principal, *LINK_ROLES, action="patient_link.incoming")
+    stmt = select(PatientLink).where(PatientLink.target_institution == principal.institution_id)
+    if status != "all":
+        stmt = stmt.where(PatientLink.status.in_(status.split(",")))
+    return [link_out(x) for x in db.scalars(stmt.order_by(PatientLink.requested_at.desc()).limit(200))]
+
+
+@router.get("/patient-links/outgoing")
+def outgoing(status: str = "requested", db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    require_roles(principal, *LINK_ROLES, action="patient_link.outgoing")
+    stmt = select(PatientLink).where(PatientLink.requester_institution == principal.institution_id)
+    if status != "all":
+        stmt = stmt.where(PatientLink.status.in_(status.split(",")))
+    return [link_out(x) for x in db.scalars(stmt.order_by(PatientLink.requested_at.desc()).limit(200))]
 
 
 class LinkIn(BaseModel):
-    a_local_id: str
-    b_institution: str
-    b_local_id: str
-    basis: str = Field(min_length=5)
-    check_demographics: Demographics | None = None
-    referral_reference: str | None = None
+    local_id: str
+    target_institution: str
+    purpose: str = Field(min_length=5)
 
 
 @router.post("/patient-links", status_code=201)
-def propose_link(body: LinkIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    require_roles(principal, "clinic_staff", "clinician", action="patient_link.propose")
-    if body.b_institution not in SOURCES or body.b_institution == principal.institution_id:
-        raise error(422, "invalid_institution", "Choose another participating institution")
-    current = [x for x in links_for(db, principal.institution_id, body.a_local_id, ("pending", "verified"))
-               if body.b_institution in (x.a_institution, x.b_institution)]
-    if current:
-        raise error(409, "link_exists", f"A {current[0].status} link to {sources.source_name(body.b_institution)} already "
-                                        "exists for this patient; invalidate it first")
-    link = PatientLink(a_institution=principal.institution_id, a_local_id=body.a_local_id, b_institution=body.b_institution,
-                       b_local_id=body.b_local_id.strip(), basis=body.basis.strip(), proposed_by=principal.display_name,
-                       proposed_by_id=principal.subject)
-    if body.check_demographics:
-        link.match_check = {**sources.identity_match(body.b_institution, {"local_patient_id": link.b_local_id,
-                                                                          **body.check_demographics.model_dump()},
-                                                     principal, body.referral_reference), "checked_at": utcnow().isoformat()}
-    db.add(link)
-    db.flush()
-    _event(db, link, "proposed", principal, body.basis, {"match_check": link.match_check})
+def request_link(body: LinkIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Ask another institution to confirm their record of one of your patients."""
+    require_roles(principal, "clinic_staff", "clinician", action="patient_link.request")
+    p = sources.call(principal.institution_id, "GET", f"/patients/{body.local_id}", principal)
+    link = create_request(db, principal, local_id=body.local_id, target=body.target_institution, name=p["name"],
+                          birth_date=p["birth_date"], sex=p["sex"], cnic=p.get("cnic"), referral=None, purpose=body.purpose)
     db.commit()
     return link_out(link)
 
 
-class CheckIn(Demographics):
-    referral_reference: str | None = None
-
-
-@router.post("/patient-links/{link_id}/check")
-def check_link(link_id: int, body: CheckIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    require_roles(principal, *LINK_ROLES, action="patient_link.check")
+@router.post("/patient-links/{link_id}/lookup")
+def lookup(link_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Target staff search their own patient index for the person in the request."""
     link = _load_link(db, link_id, principal)
-    other_inst, other_id = (link.b_institution, link.b_local_id) if link.a_institution == principal.institution_id \
-        else (link.a_institution, link.a_local_id)
-    result = sources.identity_match(other_inst, {"local_patient_id": other_id, **body.model_dump(exclude={"referral_reference"})},
-                                    principal, body.referral_reference)
-    link.match_check = {**result, "checked_at": utcnow().isoformat()}
-    _event(db, link, "checked", principal, detail={"match_check": link.match_check})
+    if principal.institution_id != link.target_institution:
+        raise error(403, "forbidden", "Only the institution asked to confirm the link can look the patient up")
+    require_roles(principal, *DECIDE_ROLES, action="patient_link.lookup")
+    candidates = sources.call(link.target_institution, "POST", "/identity/lookup", principal,
+                              json={"cnic": link.patient_cnic, "name": link.patient_name,
+                                    "birth_date": link.patient_birth_date, "sex": link.patient_sex})
+    link.match_check = {"candidates": len(candidates), "checked_by": principal.display_name,
+                        "checked_at": utcnow().isoformat()}
+    _event(db, link, "looked_up", principal, detail={"candidates": len(candidates)})
+    db.commit()
+    return {"link": link_out(link), "candidates": candidates}
+
+
+class ApproveIn(BaseModel):
+    local_patient_id: str | None = None
+    register_new: bool = False
+    note: str = Field(min_length=3)
+
+
+@router.post("/patient-links/{link_id}/approve")
+def approve_link(link_id: int, body: ApproveIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Only staff at the target institution approve. Approval records the basis and shares
+    the patient's referral-relevant records with the requesting institution."""
+    link = _load_link(db, link_id, principal)
+    if principal.institution_id != link.target_institution:
+        raise error(403, "forbidden", "Only the institution asked to confirm the link can approve it")
+    require_roles(principal, *DECIDE_ROLES, action="patient_link.approve",
+                  message="Only staff or an administrator at this institution can approve a patient link")
+    if link.status != "requested":
+        raise error(409, "not_pending", f"This link is already {link.status}")
+    if body.register_new == bool(body.local_patient_id):
+        raise error(422, "choose_one", "Choose the matching record, or register the patient as new")
+    local_id = body.local_patient_id
+    if body.register_new:
+        *given, family = link.patient_name.split()
+        created = sources.call(link.target_institution, "POST", "/identity/register", principal, json={
+            "cnic": link.patient_cnic or "", "given": " ".join(given) or family, "family": family,
+            "birth_date": link.patient_birth_date, "sex": link.patient_sex or "U"})
+        local_id = created["local_patient_id"]
+        link.registered_new = True
+    taken = db.scalars(select(PatientLink).where(
+        PatientLink.target_institution == link.target_institution, PatientLink.target_local_id == local_id,
+        PatientLink.requester_institution == link.requester_institution, PatientLink.status == "verified",
+        PatientLink.requester_local_id != link.requester_local_id)).first()
+    if taken:
+        raise error(409, "record_linked_elsewhere",
+                    "That record is already linked to a different patient at the requesting institution")
+    sources.call(link.target_institution, "POST", "/sharing/grants", principal, json={
+        "grantee_institution": link.requester_institution, "local_patient_id": local_id,
+        "basis": f"Patient link #{link.id} approved by {principal.display_name}: {body.note.strip()}"})
+    link.target_local_id = local_id
+    link.status = "verified"
+    link.decided_by, link.decided_by_id, link.decided_at = principal.display_name, principal.subject, utcnow()
+    link.decision_note = body.note.strip()
+    _event(db, link, "verified", principal, body.note, {"local_id": local_id, "registered_new": link.registered_new})
+    audit(db, principal, "patient_link.approve", "patient_link", link.id, "success", link.referral_id,
+          {"target_local_id": local_id, "registered_new": link.registered_new})
+    notify(db, "link_verified", f"{institution_name(link.target_institution)} confirmed {link.patient_name}",
+           institution=link.requester_institution, role="clinic_staff",
+           body="Records from there can now be retrieved.",
+           link=f"/referrals/{link.referral_id}?tab=links" if link.referral_id else "/patient-links")
+    if link.referral_id:
+        db.add(ReferralEvent(referral_id=link.referral_id, event_type="patient_link_verified", actor=principal.display_name,
+                             institution_id=principal.institution_id,
+                             detail={"institution": link.target_institution, "local_id": local_id}))
     db.commit()
     return link_out(link)
 
 
 class DecisionIn(BaseModel):
-    note: str = Field(min_length=5)
-
-
-@router.post("/patient-links/{link_id}/verify")
-def verify_link(link_id: int, body: DecisionIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    """Records verifier, timestamp and basis (FR-08). Only clinicians or administrators verify."""
-    require_roles(principal, "clinician", "institution_admin", action="patient_link.verify",
-                  message="Only a clinician or institution administrator can verify a patient link")
-    link = _load_link(db, link_id, principal)
-    if link.status != "pending":
-        raise error(409, "not_pending", f"Link is {link.status}")
-    mc = link.match_check or {}
-    if mc and not mc.get("record_exists", True):
-        raise error(409, "record_missing", "The identity check found no such record at the other institution")
-    link.status, link.verified_by, link.verified_by_id, link.verified_at = "verified", principal.display_name, principal.subject, utcnow()
-    link.basis = f"{link.basis}\nVerification: {body.note.strip()}"
-    _event(db, link, "verified", principal, body.note)
-    db.commit()
-    return link_out(link)
+    note: str = Field(min_length=3)
 
 
 @router.post("/patient-links/{link_id}/reject")
 def reject_link(link_id: int, body: DecisionIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    require_roles(principal, *LINK_ROLES, action="patient_link.reject")
     link = _load_link(db, link_id, principal)
-    if link.status != "pending":
-        raise error(409, "not_pending", f"Link is {link.status}")
+    if principal.institution_id != link.target_institution:
+        raise error(403, "forbidden", "Only the institution asked to confirm the link can reject it")
+    require_roles(principal, *DECIDE_ROLES, action="patient_link.reject")
+    if link.status != "requested":
+        raise error(409, "not_pending", f"This link is already {link.status}")
     link.status, link.status_key = "rejected", f"rejected-{link.id}"
-    link.invalidated_by, link.invalidated_at, link.invalidation_reason = principal.display_name, utcnow(), body.note
+    link.decided_by, link.decided_by_id, link.decided_at = principal.display_name, principal.subject, utcnow()
+    link.decision_note = body.note.strip()
     _event(db, link, "rejected", principal, body.note)
+    audit(db, principal, "patient_link.reject", "patient_link", link.id, "success", link.referral_id)
+    notify(db, "link_rejected", f"{institution_name(link.target_institution)} could not confirm {link.patient_name}",
+           institution=link.requester_institution, role="clinic_staff", body=f"Reason: {body.note.strip()}",
+           link=f"/referrals/{link.referral_id}?tab=links" if link.referral_id else "/patient-links")
     db.commit()
     return link_out(link)
 
 
 @router.post("/patient-links/{link_id}/invalidate")
 def invalidate_link(link_id: int, body: DecisionIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    """Prevents future use and identifies affected drafts/packages; history is kept, not rewritten (FR-10)."""
-    require_roles(principal, "clinician", "institution_admin", action="patient_link.invalidate",
-                  message="Only a clinician or institution administrator can invalidate a patient link")
+    """Stops future use. History is kept, and referrals that used it are flagged for review."""
+    from ..referrals.state import CLINICAL_LOCKED, TERMINAL, event, mark_clinical_change
+    from ..workflow import after_change
+
+    require_roles(principal, "clinician", "institution_admin", "clinic_staff", action="patient_link.invalidate")
     link = _load_link(db, link_id, principal)
     if link.status != "verified":
         raise error(409, "not_verified", "Only a verified link can be invalidated")
     link.status, link.status_key = "invalidated", f"invalidated-{link.id}"
     link.invalidated_by, link.invalidated_at, link.invalidation_reason = principal.display_name, utcnow(), body.note
     affected = []
-    items = db.scalars(select(EvidenceItem).where(EvidenceItem.link_id == link.id)).all()
     by_referral: dict[int, list[EvidenceItem]] = {}
-    for ev in items:
+    for ev in db.scalars(select(EvidenceItem).where(EvidenceItem.link_id == link.id)):
         by_referral.setdefault(ev.referral_id, []).append(ev)
     for ref_id, evs in by_referral.items():
         r = db.get(Referral, ref_id)
         ids = {e.id for e in evs}
         packages = [p.version for p in db.scalars(select(ReferralPackage).where(ReferralPackage.referral_id == r.id))
                     if ids & {x["evidence_id"] for x in p.envelope.get("evidence", [])}]
-        if r.status not in TERMINAL and r.status not in CLINICAL_LOCKED:
+        open_referral = r.status not in TERMINAL and r.status not in CLINICAL_LOCKED
+        if open_referral:
             for e in evs:
                 e.verification_status, e.selected = "invalidated", False
-        key = f"link_invalidated:{link.id}"
-        if not db.scalars(select(ReviewItem).where(ReviewItem.referral_id == r.id, ReviewItem.item_key == key)).first():
-            db.add(ReviewItem(referral_id=r.id, item_key=key, kind="link_invalidated", title=
-                              f"Patient link to {sources.source_name(link.b_institution if link.a_institution == r.patient_institution else link.a_institution)} was invalidated",
-                              detail=(f"Reason: {body.note}. {len(evs)} evidence item(s) from that link can no longer be used."
-                                      + (f" Approved package version(s) {packages} contained this evidence and are kept for history; review required."
-                                         if packages else "")),
-                              evidence_ids=sorted(ids), blocking=True, override_allowed=True, clinical=True))
-        if packages and r.status not in TERMINAL and r.status not in CLINICAL_LOCKED:
-            mark_clinical_change(db, r, principal.display_name, "patient link invalidated", principal)
-        if r.status not in TERMINAL and r.status not in CLINICAL_LOCKED:
+        event(db, r, "patient_link_invalidated", principal.display_name, principal.institution_id,
+              {"link_id": link.id, "reason": body.note, "evidence_items": len(evs), "sent_versions_affected": packages})
+        if open_referral:
+            if packages:
+                mark_clinical_change(db, r, principal.display_name, "patient link invalidated", principal)
             after_change(db, r, "patient_link_invalidated", principal)
-        affected.append({"referral_id": r.id, "reference": r.reference, "status": r.status,
-                         "evidence_items": len(evs), "packages_containing_evidence": packages})
+        affected.append({"referral_id": r.id, "reference": r.reference, "evidence_items": len(evs),
+                         "sent_versions_affected": packages})
     _event(db, link, "invalidated", principal, body.note, {"affected": affected})
+    audit(db, principal, "patient_link.invalidate", "patient_link", link.id, "success", detail={"affected": affected})
     db.commit()
     return {**link_out(link), "affected": affected}
+
+
+@router.get("/patients/search")
+def search_patients(q: str = "", principal: Principal = Depends(get_principal)):
+    """Search your own institution's patient index (name, local ID or CNIC)."""
+    require_roles(principal, *LINK_ROLES, action="patients.search")
+    if principal.institution_id not in SOURCES:
+        raise error(404, "no_patient_index", "Your institution has no connected patient index")
+    return sources.call(principal.institution_id, "GET", "/patients", principal, params={"q": q})
 
 
 # ------------------------------------------------------------------ account administration
@@ -200,7 +281,8 @@ def _kc_user(user_id: str) -> tuple[dict, list[str]]:
         raise error(404, "not_found", "User not found")
     u.raise_for_status()
     groups = httpx.get(f"{base}/users/{user_id}/groups", headers=_kc_headers(), timeout=10).json()
-    return u.json(), [g["name"] for g in groups]
+    # group paths look like "/ziauddin/cardiology"; the first segment is the institution
+    return u.json(), [g.get("path", "/" + g["name"]).strip("/").split("/")[0] for g in groups]
 
 
 @router.get("/admin/users")
@@ -211,12 +293,18 @@ def list_users(db: Session = Depends(get_db), principal: Principal = Depends(get
     group = next((g for g in groups if g["name"] == principal.institution_id), None)
     if group is None:
         return []
-    members = httpx.get(f"{base}/groups/{group['id']}/members", params={"max": 200}, headers=_kc_headers(), timeout=10).json()
+    children = httpx.get(f"{base}/groups/{group['id']}/children", params={"max": 100}, headers=_kc_headers(),
+                         timeout=10).json()
+    members: list[tuple[dict, str | None]] = []
+    for g, dept in [(group, None)] + [(c, c["name"]) for c in children]:
+        for m in httpx.get(f"{base}/groups/{g['id']}/members", params={"max": 200}, headers=_kc_headers(), timeout=10).json():
+            members.append((m, dept))
     out = []
-    for m in members:
+    for m, dept in members:
         local = db.get(User, m["id"])
         roles = httpx.get(f"{base}/users/{m['id']}/role-mappings/realm", headers=_kc_headers(), timeout=10).json()
         out.append({"id": m["id"], "username": m["username"], "name": f"{m.get('firstName', '')} {m.get('lastName', '')}".strip(),
+                    "department": dept,
                     "enabled": m.get("enabled", True), "central_status": local.account_status if local else "never_signed_in",
                     "roles": sorted(r["name"] for r in roles if not r["name"].startswith("default-roles")),
                     "last_seen_at": local.last_seen_at if local else None})
@@ -264,4 +352,5 @@ def enable_user(user_id: str, body: StatusIn, db: Session = Depends(get_db), pri
 
 @router.get("/institutions")
 def institutions(principal: Principal = Depends(get_principal)):
-    return [{"id": k, **v} for k, v in INSTITUTIONS.items() if k != "central-platform"]
+    return [{"id": k, **{x: y for x, y in v.items() if x != "url_env"}} for k, v in INSTITUTIONS.items()
+            if k != "central-platform"]

@@ -46,13 +46,16 @@ services:
   postgres:
     ports: !reset []
 
-  clinic:
+  drali:
     ports: !reset []
     environment: *public-keycloak
-  lab:
+  chughtai:
     ports: !reset []
     environment: *public-keycloak
-  specialist:
+  ziauddin:
+    ports: !reset []
+    environment: *public-keycloak
+  akuh:
     ports: !reset []
     environment: *public-keycloak
   central:

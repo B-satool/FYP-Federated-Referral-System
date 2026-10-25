@@ -1,61 +1,34 @@
-"""Versioned medication rule files + in-app clinical approval (FR-61)."""
-from __future__ import annotations
+"""Medication rules stored in the database and edited in the app.
 
-import json
-from functools import lru_cache
+Each change creates a new version as a draft. A rule raises flags only once a
+clinical reviewer approves that exact version; approving a newer version
+supersedes the older one.
+"""
+from __future__ import annotations
 
 from refcommon.exchange import content_hash
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..config import settings
-from ..models import RuleApproval
+from ..models import MedicationRule
 from .evaluator import Rule
 
-
-@lru_cache
-def ruleset(specialty: str = "orthodontics") -> dict:
-    path = settings.repo_root / "rules" / "medication" / f"{specialty}.v1.json"
-    return json.loads(path.read_text(encoding="utf-8"))
+HASHED = ("rule_id", "version", "title", "drug_class", "procedure_tags", "message", "rationale", "reference")
 
 
-def rule_hash(rule: dict) -> str:
-    return content_hash(rule)
+def rule_hash(r: MedicationRule | dict) -> str:
+    get = (lambda k: r[k]) if isinstance(r, dict) else (lambda k: getattr(r, k))
+    return content_hash({k: get(k) for k in HASHED})
 
 
-def all_rules(db: Session, specialty: str = "orthodontics") -> list[dict]:
-    """Every rule in the file with its approval state from the database."""
-    approvals = {(a.rule_id, a.rule_version): a for a in db.scalars(select(RuleApproval))}
-    out = []
-    for rule in ruleset(specialty)["rules"]:
-        a = approvals.get((rule["rule_id"], rule["version"]))
-        h = rule_hash(rule)
-        state = "draft"
-        if a is not None:
-            if a.content_hash != h:
-                state = "approval_invalid_content_changed"
-            else:
-                state = a.status
-        out.append({
-            **rule,
-            "content_hash": h,
-            "approval_state": state,
-            "active": state == "approved",
-            "reviewer": a.reviewer if a else None,
-            "reference_checked": a.reference_checked if a else None,
-            "decided_at": a.decided_at if a else None,
-            "approval_note": a.note if a else None,
-        })
-    return out
-
-
-def active_rules(db: Session, specialty: str) -> list[Rule]:
-    try:
-        rules = all_rules(db, specialty)
-    except FileNotFoundError:
-        return []
-    return [Rule.from_dict(r) for r in rules if r["active"]]
-
-
-def active_rule_versions(db: Session, specialty: str) -> dict[str, int]:
-    return {r.rule_id: r.version for r in active_rules(db, specialty)}
+def active_rules(db: Session) -> list[Rule]:
+    rows = db.scalars(select(MedicationRule).where(MedicationRule.status == "approved")
+                      .order_by(MedicationRule.rule_id, MedicationRule.version.desc())).all()
+    latest: dict[str, MedicationRule] = {}
+    for r in rows:
+        if r.content_hash != rule_hash(r):
+            continue  # content changed outside the app: the approval no longer applies
+        latest.setdefault(r.rule_id, r)
+    return [Rule(rule_id=r.rule_id, version=r.version, drug_class=r.drug_class, procedure_tags=tuple(r.procedure_tags),
+                 title=r.title, message=r.message, rationale=r.rationale, reference=r.reference)
+            for r in latest.values()]

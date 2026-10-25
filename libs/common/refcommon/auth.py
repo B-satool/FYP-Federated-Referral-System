@@ -23,7 +23,7 @@ from jwt import PyJWKClient
 
 log = logging.getLogger("refcommon.auth")
 
-SERVICE_ROLES = frozenset({"svc_central", "svc_specialist"})
+SERVICE_ROLES = frozenset({"svc_central", "svc_provider"})
 INTROSPECTION_CACHE_SECONDS = 10
 
 
@@ -43,6 +43,8 @@ class Principal:
     roles: frozenset[str]
     client_id: str | None
     token: str = field(repr=False)
+    # Department code within the institution (e.g. "cardiology"); scopes department inboxes.
+    department: str | None = None
 
     @property
     def is_service(self) -> bool:
@@ -145,10 +147,11 @@ class TokenVerifier:
             raise AuthError("session is no longer active (account disabled or access revoked)")
 
         roles = frozenset(claims.get("realm_access", {}).get("roles", []))
-        institution = claims.get("institution_id")
-        if not institution:
-            groups = claims.get("groups") or []
-            institution = groups[0].strip("/").split("/")[-1] if groups else None
+        # Group path "/<institution>/<department>" (department optional), e.g. "/ziauddin/cardiology".
+        groups = claims.get("groups") or []
+        path = groups[0].strip("/").split("/") if groups else []
+        institution = claims.get("institution_id") or (path[0] if path else None)
+        department = claims.get("department") or (path[1] if len(path) > 1 else None)
         username = claims.get("preferred_username") or claims.get("azp") or claims["sub"]
         return Principal(
             subject=claims["sub"],
@@ -158,6 +161,7 @@ class TokenVerifier:
             roles=roles,
             client_id=claims.get("azp"),
             token=token,
+            department=department,
         )
 
 

@@ -23,7 +23,9 @@ verifier = TokenVerifier(kc_config, audience="central-api")
 service_tokens = ServiceTokenProvider(kc_config)
 _verified_principal = make_principal_dependency(verifier)
 
-CLINIC_ROLES = ("clinic_staff", "clinician")
+CLINIC_ROLES = ("clinic_staff", "clinician")  # anyone who prepares or requests referrals
+DOCTOR = "clinician"
+STAFF = "clinic_staff"
 
 
 def error(status: int, code: str, message: str, **extra: Any) -> HTTPException:
@@ -65,12 +67,14 @@ def get_principal(request: Request, principal: Principal = Depends(_verified_pri
     user = db.get(User, principal.subject)
     if user is None:
         user = User(id=principal.subject, username=principal.username, display_name=principal.display_name,
-                    institution_id=principal.institution_id, roles=sorted(principal.roles), account_status="active")
+                    institution_id=principal.institution_id, department=principal.department,
+                    roles=sorted(principal.roles), account_status="active")
         db.add(user)
     else:
         user.username = principal.username
         user.display_name = principal.display_name
         user.institution_id = principal.institution_id
+        user.department = principal.department
         user.roles = sorted(principal.roles)
         user.last_seen_at = utcnow()
     if user.account_status != "active":

@@ -9,6 +9,7 @@ COPY services/central/requirements.txt /tmp/requirements.txt
 COPY libs/common /libs/common
 RUN pip install --no-cache-dir -r /tmp/requirements.txt /libs/common
 COPY rules /srv/assets/rules
+COPY seed-data/patients /srv/assets/seed-data/patients
 COPY services/central /srv
 ENV REPO_ASSETS=/srv/assets
 EXPOSE 8000

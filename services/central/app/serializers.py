@@ -1,27 +1,22 @@
-"""Response shapes shared by the routers (published as examples in contracts/)."""
+"""Response shapes shared by the routers."""
 from __future__ import annotations
 
-from .config import INSTITUTIONS, PROCEDURES
+from .config import DIAGNOSTIC_CATEGORIES, DRUG_CLASSES, URGENCIES, department_name, institution_name, procedure_label
 from .integration.sources import source_name
 from .models import (
-    Brief,
-    Clarification,
     ConsultationResponse,
+    DiagnosticRequest,
     Document,
     EvidenceItem,
     FollowupTask,
     Job,
     MedicationEntry,
     MedicationFlag,
+    PatientLink,
     Referral,
-    ReviewItem,
     SourceRetrieval,
 )
 from .referrals.state import STATUS_LABELS
-
-
-def inst_name(i: str | None) -> str | None:
-    return INSTITUTIONS.get(i or "", {}).get("name", i)
 
 
 def referral_out(r: Referral) -> dict:
@@ -29,17 +24,24 @@ def referral_out(r: Referral) -> dict:
         "id": r.id, "reference": r.reference, "status": r.status, "status_label": STATUS_LABELS.get(r.status, r.status),
         "row_version": r.row_version,
         "patient": {"institution_id": r.patient_institution, "local_patient_id": r.patient_local_id,
-                    "name": r.patient_name, "birth_date": r.patient_birth_date, "sex": r.patient_sex},
-        "source_institution": r.source_institution, "source_institution_name": inst_name(r.source_institution),
-        "destination_institution": r.destination_institution, "destination_name": inst_name(r.destination_institution),
-        "specialty": r.specialty, "reason": r.reason, "priority": r.priority,
-        "planned_procedure": r.planned_procedure, "procedure_status": r.procedure_status,
-        "procedure_label": PROCEDURES.get(r.planned_procedure or "", None) if r.procedure_status == "known"
-        else ("Unknown (explicitly recorded)" if r.procedure_status == "unknown" else "Not stated"),
-        "created_by": r.created_by_name, "referring_clinician_id": r.referring_clinician_id,
-        "referring_clinician_name": r.referring_clinician_name,
+                    "name": r.patient_name, "birth_date": r.patient_birth_date, "sex": r.patient_sex, "cnic": r.patient_cnic},
+        "source_institution": r.source_institution, "source_institution_name": institution_name(r.source_institution),
+        "source_department": r.source_department, "source_department_name": department_name(r.source_department),
+        "requesting_doctor_id": r.requesting_doctor_id, "requesting_doctor_name": r.requesting_doctor_name,
+        "destination_institution": r.destination_institution, "destination_name": institution_name(r.destination_institution),
+        "destination_department": r.destination_department,
+        "destination_department_name": department_name(r.destination_department),
+        "destination_doctor": r.destination_doctor, "reason": r.reason, "urgency": r.urgency,
+        "urgency_label": URGENCIES.get(r.urgency, {}).get("label", r.urgency),
+        "urgency_detail": URGENCIES.get(r.urgency, {}).get("detail"),
+        "procedure_status": r.procedure_status, "planned_procedure": r.planned_procedure, "procedure_other": r.procedure_other,
+        "procedure_label": procedure_label(r.procedure_status, r.planned_procedure, r.procedure_other),
+        "requested_at": r.requested_at, "created_by": r.created_by_name,
         "amendment_open": r.amendment_open, "current_package_version": r.current_package_version,
         "submitted_package_version": r.submitted_package_version, "delivery_status": r.delivery_status,
+        "meds_checked_by": r.meds_checked_by, "meds_checked_at": r.meds_checked_at,
+        "patient_informed_by": r.patient_informed_by, "patient_informed_at": r.patient_informed_at,
+        "patient_informed_note": r.patient_informed_note,
         "cancel_reason": r.cancel_reason, "decline_reason": r.decline_reason,
         "acknowledged_at": r.acknowledged_at, "accepted_at": r.accepted_at,
         "closed_at": r.closed_at, "closed_by": r.closed_by, "created_at": r.created_at, "updated_at": r.updated_at,
@@ -60,13 +62,13 @@ def evidence_out(e: EvidenceItem) -> dict:
         "confidence": e.confidence, "review_state": e.review_state, "verification_status": e.verification_status,
         "verified_by": e.verified_by, "verified_at": e.verified_at, "selected": e.selected,
         "superseded_by": e.superseded_by, "author": e.author, "row_version": e.row_version,
-        "patient_ref": {"institution_id": e.patient_institution, "local_patient_id": e.patient_local_id},
     }
 
 
 def retrieval_out(s: SourceRetrieval) -> dict:
     return {
         "id": s.id, "source_institution": s.source_institution, "source_name": source_name(s.source_institution),
+        "institution_kind": s.institution_kind, "last_activity": s.last_activity, "window_start": s.window_start,
         "local_patient_id": s.local_patient_id, "link_id": s.link_id, "status": s.status,
         "record_count": s.record_count, "new_count": s.new_count, "duplicate_count": s.duplicate_count,
         "invalid_count": s.invalid_count, "withheld": s.withheld, "message": s.message, "retryable": s.retryable,
@@ -93,74 +95,57 @@ def job_out(j: Job) -> dict:
 def medication_out(m: MedicationEntry) -> dict:
     return {
         "id": m.id, "evidence_id": m.evidence_id, "record_kind": m.record_kind, "original_name": m.original_name,
-        "strength": m.strength, "dose": m.dose, "route": m.route, "frequency": m.frequency,
-        "start_date": m.start_date, "end_date": m.end_date, "source_status": m.source_status,
-        "source_label": m.source_label, "ingredient": m.ingredient, "ingredient_code": m.ingredient_code,
-        "drug_class": m.drug_class, "class_code": m.class_code, "mapping_source": m.mapping_source,
-        "mapping_version": m.mapping_version, "mapping_status": m.mapping_status, "mapping_note": m.mapping_note,
-        "use_status": m.use_status, "use_verified_by": m.use_verified_by, "use_verified_at": m.use_verified_at,
-        "use_note": m.use_note,
+        "brand": m.brand, "strength": m.strength, "dose": m.dose, "route": m.route, "frequency": m.frequency,
+        "start_date": m.start_date, "over_the_counter": m.over_the_counter, "source_label": m.source_label,
+        "ingredient": m.ingredient, "drug_class": m.drug_class,
+        "drug_class_label": DRUG_CLASSES.get(m.drug_class or "", m.drug_class),
+        "mapping_status": m.mapping_status, "mapping_note": m.mapping_note, "duplicate_of": m.duplicate_of,
+        "dose_differs": m.dose_differs, "excluded": m.excluded, "excluded_by": m.excluded_by,
+        "excluded_reason": m.excluded_reason,
     }
 
 
-def flag_out(f: MedicationFlag, reviews: list | None = None) -> dict:
+def flag_out(f: MedicationFlag, acks: list | None = None) -> dict:
     return {
         "id": f.id, "flag_key": f.flag_key, "version": f.version, "kind": f.kind, "title": f.title,
         "message": f.message, "medication": f.medication, "drug_class": f.drug_class,
-        "current_use_status": f.current_use_status, "source_label": f.source_label, "rule_id": f.rule_id,
-        "rule_version": f.rule_version, "evidence_ids": f.evidence_ids, "status": f.status, "created_at": f.created_at,
-        "superseded_at": f.superseded_at,
-        "reviews": [{"id": r.id, "side": r.side, "action": r.action, "reviewer": r.reviewer,
-                     "institution_id": r.institution_id, "flag_version": r.flag_version,
-                     "package_version": r.package_version, "clarification_id": r.clarification_id,
-                     "note": r.note, "created_at": r.created_at} for r in (reviews or [])],
+        "drug_class_label": DRUG_CLASSES.get(f.drug_class or "", f.drug_class), "source_label": f.source_label,
+        "rule_id": f.rule_id, "rule_version": f.rule_version, "evidence_ids": f.evidence_ids, "status": f.status,
+        "created_at": f.created_at, "superseded_at": f.superseded_at,
+        "acknowledgements": [{"id": a.id, "side": a.side, "by": a.reviewer, "institution_id": a.institution_id,
+                              "flag_version": a.flag_version, "note": a.note, "created_at": a.created_at}
+                             for a in (acks or [])],
     }
-
-
-def review_item_out(r: ReviewItem) -> dict:
-    return {
-        "id": r.id, "item_key": r.item_key, "kind": r.kind, "checklist_item_id": r.checklist_item_id,
-        "checklist_version": r.checklist_version, "title": r.title, "detail": r.detail, "evidence_ids": r.evidence_ids,
-        "blocking": r.blocking, "override_allowed": r.override_allowed, "clinical": r.clinical, "status": r.status,
-        "resolution": r.resolution, "resolved_by": r.resolved_by, "resolved_at": r.resolved_at,
-        "created_at": r.created_at,
-    }
-
-
-def clarification_out(c: Clarification, referral: Referral | None = None) -> dict:
-    out = {
-        "id": c.id, "referral_id": c.referral_id, "review_item_id": c.review_item_id, "flag_id": c.flag_id,
-        "origin": c.origin, "question": c.question, "assignee_institution": c.assignee_institution,
-        "assignee_institution_name": inst_name(c.assignee_institution), "assignee_role": c.assignee_role,
-        "status": c.status, "due_date": c.due_date, "created_by": c.created_by, "created_at": c.created_at,
-        "response_text": c.response_text, "response_document_ids": c.response_document_ids,
-        "answered_by": c.answered_by, "answered_at": c.answered_at, "resolved_by": c.resolved_by,
-        "resolved_at": c.resolved_at, "resolution_note": c.resolution_note, "package_version": c.package_version,
-    }
-    if referral is not None:
-        out["referral_reference"] = referral.reference
-        out["patient_name"] = referral.patient_name if c.assignee_institution == referral.source_institution else None
-    return out
-
-
-def brief_out(b: Brief | None) -> dict | None:
-    if b is None:
-        return None
-    return {"id": b.id, "version": b.version, "kind": b.kind, "sections": b.sections, "limitations": b.limitations,
-            "evidence_ids": b.evidence_ids, "model": b.model, "prompt_version": b.prompt_version,
-            "generation_meta": b.generation_meta, "based_on_version": b.based_on_version, "created_by": b.created_by,
-            "created_at": b.created_at}
 
 
 def response_out(r: ConsultationResponse) -> dict:
     return {"id": r.id, "package_version": r.package_version, "content": r.content, "specialist_name": r.specialist_name,
-            "approved_at": r.approved_at, "received_at": r.received_at, "receipt_recorded_by": r.receipt_recorded_by,
-            "receipt_recorded_at": r.receipt_recorded_at, "reviewed_by": r.reviewed_by, "reviewed_at": r.reviewed_at,
-            "review_note": r.review_note}
+            "returned_at": r.returned_at, "received_at": r.received_at, "reviewed_by": r.reviewed_by,
+            "reviewed_at": r.reviewed_at, "review_note": r.review_note}
 
 
 def task_out(t: FollowupTask) -> dict:
     return {"id": t.id, "referral_id": t.referral_id, "description": t.description, "specified_by": t.specified_by,
-            "assignee_name": t.assignee_name, "assignee_role": t.assignee_role, "due_date": t.due_date,
-            "status": t.status, "outcome": t.outcome, "completed_by": t.completed_by, "completed_at": t.completed_at,
-            "created_by": t.created_by, "created_at": t.created_at}
+            "assignee_name": t.assignee_name, "due_date": t.due_date, "status": t.status, "outcome": t.outcome,
+            "completed_by": t.completed_by, "completed_at": t.completed_at, "created_by": t.created_by,
+            "created_at": t.created_at}
+
+
+def diagnostic_out(d: DiagnosticRequest) -> dict:
+    return {"id": d.id, "reference": d.reference, "referral_id": d.referral_id, "category": d.category,
+            "category_label": DIAGNOSTIC_CATEGORIES.get(d.category, d.category), "test": d.test, "body_area": d.body_area,
+            "clinical_question": d.clinical_question, "urgency": d.urgency,
+            "urgency_label": URGENCIES.get(d.urgency, {}).get("label", d.urgency),
+            "destination_institution": d.destination_institution,
+            "destination_name": institution_name(d.destination_institution),
+            "destination_department": d.destination_department,
+            "destination_department_name": department_name(d.destination_department), "status": d.status,
+            "requested_by": d.requested_by, "sent_by": d.sent_by, "sent_at": d.sent_at, "reject_reason": d.reject_reason,
+            "scheduled_for": d.scheduled_for, "report": d.report, "seen_by": d.seen_by, "seen_at": d.seen_at,
+            "history": d.history, "created_at": d.created_at, "updated_at": d.updated_at}
+
+
+def link_summary(link: PatientLink) -> dict:
+    from .identity.links import link_out
+
+    return link_out(link)

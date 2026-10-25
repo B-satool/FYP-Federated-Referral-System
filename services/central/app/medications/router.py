@@ -1,4 +1,4 @@
-"""Medication list, current-use verification, flags and flag review; rule governance."""
+"""Current medicines, flags and acknowledgments; medication rules and medicine names (edited in the app)."""
 from __future__ import annotations
 
 from typing import Literal
@@ -7,23 +7,22 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from refcommon.auth import Principal
 from refcommon.db import utcnow
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ..config import DRUG_CLASSES, PROCEDURE_TAGS, PROCEDURES
 from ..db import get_db
-from ..models import Clarification, FlagReview, MedicationEntry, MedicationFlag, Referral, RuleApproval
-from ..referrals.state import CLINICAL_LOCKED, TERMINAL, ensure_clinical_edit_allowed
-from ..reviews.checklist import refresh
+from ..models import EvidenceItem, EvidenceRevision, FlagReview, MedicationEntry, MedicationFlag, MedicationRule, MedicineName, Referral
+from ..referrals.state import CLINICAL_LOCKED, TERMINAL, ensure_clinical_edit_allowed, mark_clinical_change
 from ..security import audit, error, get_principal, load_referral, require_roles
 from ..serializers import flag_out, medication_out
 from ..workflow import after_change
 from . import mapping, rules, service
 
 router = APIRouter(tags=["medications"])
-USE_STATUSES = ("confirmed_current", "historical_stopped", "uncertain", "conflicting", "unverified")
 
 
-def _reviews(db: Session, flag_id: int) -> list[FlagReview]:
+def _acks(db: Session, flag_id: int) -> list[FlagReview]:
     return list(db.scalars(select(FlagReview).where(FlagReview.flag_id == flag_id).order_by(FlagReview.id)))
 
 
@@ -33,141 +32,314 @@ def medications(referral_id: int, db: Session = Depends(get_db), principal: Prin
     run = service.latest_run(db, r.id)
     flags = db.scalars(select(MedicationFlag).where(MedicationFlag.referral_id == r.id)
                        .order_by(MedicationFlag.flag_key, MedicationFlag.version.desc())).all()
+    entries = service.all_entries(db, r.id)
+    excluded = [e for e in db.scalars(select(MedicationEntry).where(MedicationEntry.referral_id == r.id,
+                                                                    MedicationEntry.excluded.is_(True)))]
     return {
-        "entries": [medication_out(m) for m in service.current_entries(db, r.id)],
+        "entries": [medication_out(m) for m in entries if not m.excluded],
+        "excluded": [medication_out(m) for m in excluded],
+        "meds_checked": {"by": r.meds_checked_by, "at": r.meds_checked_at, "note": r.meds_checked_note},
         "evaluation": None if run is None else {
             "id": run.id, "status": run.status, "outcome": run.outcome, "summary_message": run.summary_message,
-            "trigger": run.trigger, "rule_versions": run.rule_versions, "mapping_version": run.mapping_version,
-            "context": run.context, "error": run.error, "changed_flags": run.changed_flags, "created_at": run.created_at,
+            "trigger": run.trigger, "rule_versions": run.rule_versions, "context": run.context, "error": run.error,
+            "changed_flags": run.changed_flags, "created_at": run.created_at,
         },
-        "flags": [flag_out(f, _reviews(db, f.id)) for f in flags if f.status == "active"],
-        "flag_history": [flag_out(f, _reviews(db, f.id)) for f in flags if f.status != "active"],
+        "flags": [flag_out(f, _acks(db, f.id)) for f in flags if f.status == "active"],
+        "flag_history": [flag_out(f, _acks(db, f.id)) for f in flags if f.status != "active"],
     }
 
 
-class UseIn(BaseModel):
-    use_status: Literal["confirmed_current", "historical_stopped", "uncertain", "conflicting", "unverified"]
+class ManualMedIn(BaseModel):
+    name: str = Field(min_length=2)
+    strength: str | None = None
+    dose: str | None = None
+    frequency: str | None = None
+    route: str | None = None
+    over_the_counter: bool = False
     note: str = ""
 
 
-@router.post("/referrals/{referral_id}/medications/{entry_id}/use")
-def set_use(referral_id: int, entry_id: int, body: UseIn, db: Session = Depends(get_db),
-            principal: Principal = Depends(get_principal)):
-    """Clinician confirms current use separately from prescriptions (FR-30, FR-63)."""
-    r = load_referral(db, referral_id, principal, "verify_medication", roles=("clinician",))
+@router.post("/referrals/{referral_id}/medications/manual", status_code=201)
+def add_medicine(referral_id: int, body: ManualMedIn, db: Session = Depends(get_db),
+                 principal: Principal = Depends(get_principal)):
+    """Staff add a medicine the patient says they take, e.g. an over-the-counter painkiller."""
+    r = load_referral(db, referral_id, principal, "edit")
     ensure_clinical_edit_allowed(r)
+    fields = {"medication": body.name.strip(), "strength": body.strength, "dosage_text": " ".join(
+        x for x in [body.dose, body.frequency] if x) or None, "frequency": body.frequency, "route": body.route,
+        "over_the_counter": body.over_the_counter, "record_kind": "manual", "note": body.note or None}
+    otc = " (over the counter)" if body.over_the_counter else ""
+    ev = EvidenceItem(referral_id=r.id, patient_institution=r.patient_institution, patient_local_id=r.patient_local_id,
+                      origin="manual", source_institution=r.source_institution, category="medication",
+                      display=f"{body.name.strip()} - {fields['dosage_text'] or 'dose not recorded'}{otc} (told by the patient)",
+                      original=fields, current=dict(fields), review_state="manual", verification_status="verified",
+                      verified_by=principal.display_name, verified_at=utcnow(), selected=True,
+                      author=principal.display_name,
+                      source_text=f"Asked the patient; recorded by {principal.display_name}")
+    db.add(ev)
+    db.flush()
+    db.add(EvidenceRevision(evidence_id=ev.id, action="manual_entry", new_value=fields, new_state="manual",
+                            editor=principal.display_name, editor_id=principal.subject, note=body.note))
+    audit(db, principal, "medication.add_manual", "evidence", ev.id, "success", r.id,
+          {"name": body.name, "over_the_counter": body.over_the_counter})
+    if r.current_package_version:
+        mark_clinical_change(db, r, principal.display_name, "medicine added", principal)
+    after_change(db, r, "medicine_added", principal)
+    db.commit()
+    return {"evidence_id": ev.id}
+
+
+class ReasonIn(BaseModel):
+    reason: str = Field(min_length=3)
+
+
+def _entry(db: Session, r: Referral, entry_id: int) -> MedicationEntry:
     m = db.get(MedicationEntry, entry_id)
     if m is None or m.referral_id != r.id:
-        raise error(404, "not_found", "Medication entry not found")
-    prior = m.use_status
-    m.use_status, m.use_note = body.use_status, body.note or None
-    m.use_verified_by, m.use_verified_at = principal.display_name, utcnow()
-    audit(db, principal, "medication.use_status", "medication_entry", m.id, "success", r.id,
-          {"from": prior, "to": body.use_status, "medication": m.original_name, "note": body.note})
-    after_change(db, r, "medication_use_changed", principal)
+        raise error(404, "not_found", "Medicine not found")
+    return m
+
+
+@router.post("/referrals/{referral_id}/medications/{entry_id}/exclude")
+def exclude_medicine(referral_id: int, entry_id: int, body: ReasonIn, db: Session = Depends(get_db),
+                     principal: Principal = Depends(get_principal)):
+    """Staff mark a recorded medicine as not current (e.g. an old prescription, or the
+    other side of a dose difference). The record is kept, with who and why."""
+    r = load_referral(db, referral_id, principal, "edit")
+    ensure_clinical_edit_allowed(r)
+    m = _entry(db, r, entry_id)
+    m.excluded, m.excluded_by, m.excluded_reason = True, principal.display_name, body.reason.strip()
+    audit(db, principal, "medication.exclude", "medication_entry", m.id, "success", r.id,
+          {"medicine": m.original_name, "reason": body.reason})
+    if r.current_package_version:
+        mark_clinical_change(db, r, principal.display_name, "medicine excluded", principal)
+    after_change(db, r, "medicine_excluded", principal)
+    db.commit()
+    return medication_out(m)
+
+
+@router.post("/referrals/{referral_id}/medications/{entry_id}/restore")
+def restore_medicine(referral_id: int, entry_id: int, db: Session = Depends(get_db),
+                     principal: Principal = Depends(get_principal)):
+    r = load_referral(db, referral_id, principal, "edit")
+    ensure_clinical_edit_allowed(r)
+    m = _entry(db, r, entry_id)
+    m.excluded, m.excluded_by, m.excluded_reason = False, None, None
+    audit(db, principal, "medication.restore", "medication_entry", m.id, "success", r.id)
+    if r.current_package_version:
+        mark_clinical_change(db, r, principal.display_name, "medicine restored", principal)
+    after_change(db, r, "medicine_restored", principal)
     db.commit()
     return medication_out(m)
 
 
 class MapIn(BaseModel):
     ingredient: str
-    note: str = Field(min_length=3)
 
 
 @router.post("/referrals/{referral_id}/medications/{entry_id}/mapping")
 def set_mapping(referral_id: int, entry_id: int, body: MapIn, db: Session = Depends(get_db),
                 principal: Principal = Depends(get_principal)):
-    """Clinician resolves an ambiguous/unmapped entry by choosing a REVIEWED dictionary entry."""
-    r = load_referral(db, referral_id, principal, "map_medication", roles=("clinician",))
+    """Staff resolve an unrecognised name by choosing a medicine from the reviewed name list."""
+    r = load_referral(db, referral_id, principal, "map_medication")
     ensure_clinical_edit_allowed(r)
-    m = db.get(MedicationEntry, entry_id)
-    if m is None or m.referral_id != r.id:
-        raise error(404, "not_found", "Medication entry not found")
-    entry = next((e for e in mapping.reviewed_entries() if e["ingredient"] == body.ingredient), None)
-    if entry is None:
-        raise error(422, "unknown_ingredient", "Choose an ingredient from the reviewed mapping list")
-    prior = {"status": m.mapping_status, "ingredient": m.ingredient, "class": m.drug_class}
-    src, ver = mapping.source_label()
-    m.mapping_status = "clinician_mapped"
-    m.ingredient, m.ingredient_code = entry["ingredient"], entry.get("rxcui")
-    m.drug_class, m.class_code = entry["class"], entry.get("class_code")
-    m.mapping_source, m.mapping_version = f"{src} (clinician selection)", ver
-    m.mapping_note = f"{principal.display_name}: {body.note}"
+    m = _entry(db, r, entry_id)
+    known = db.scalars(select(MedicineName).where(MedicineName.ingredient == body.ingredient,
+                                                  MedicineName.status == "active")).first()
+    if known is None:
+        raise error(422, "unknown_ingredient", "Choose a medicine from the medicine name list")
+    prior = {"status": m.mapping_status, "ingredient": m.ingredient}
+    m.mapping_status, m.ingredient, m.drug_class = "staff_mapped", known.ingredient, known.drug_class
+    m.mapping_note = f"Matched by {principal.display_name}"
     audit(db, principal, "medication.mapping", "medication_entry", m.id, "success", r.id,
-          {"from": prior, "to": entry["ingredient"], "original_name": m.original_name, "note": body.note})
-    after_change(db, r, "medication_mapping_changed", principal)
+          {"from": prior, "to": known.ingredient, "original_name": m.original_name})
+    after_change(db, r, "medicine_mapping_changed", principal)
     db.commit()
     return medication_out(m)
 
 
-@router.post("/referrals/{referral_id}/medications/evaluate")
-def evaluate(referral_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    r = load_referral(db, referral_id, principal, "evaluate")
-    if r.status in CLINICAL_LOCKED:
-        raise error(409, "clinical_content_locked", "Referral is past the point where flags can change")
-    run = service.reevaluate(db, r, "manual_rerun", principal.display_name, principal)
-    refresh(db, r)
+class CheckedIn(BaseModel):
+    note: str = ""
+
+
+@router.post("/referrals/{referral_id}/medications/checked")
+def medicines_checked(referral_id: int, body: CheckedIn, db: Session = Depends(get_db),
+                      principal: Principal = Depends(get_principal)):
+    """Staff confirm they asked the patient about every medicine, including over-the-counter ones."""
+    r = load_referral(db, referral_id, principal, "edit")
+    ensure_clinical_edit_allowed(r)
+    r.meds_checked_by, r.meds_checked_at, r.meds_checked_note = principal.display_name, utcnow(), body.note or None
+    audit(db, principal, "medication.checked_with_patient", "referral", r.reference, "success", r.id)
     db.commit()
-    return {"run_id": run.id, "status": run.status, "outcome": run.outcome, "summary_message": run.summary_message}
+    return {"by": r.meds_checked_by, "at": r.meds_checked_at, "note": r.meds_checked_note}
 
 
-class FlagReviewIn(BaseModel):
-    action: Literal["reviewed", "request_clarification"]
+class AckIn(BaseModel):
     flag_version: int
     note: str = ""
-    question: str | None = None
-    assignee_institution: str | None = None
 
 
-@router.post("/referrals/{referral_id}/flags/{flag_id}/review")
-def review_flag(referral_id: int, flag_id: int, body: FlagReviewIn, db: Session = Depends(get_db),
-                principal: Principal = Depends(get_principal)):
-    """Referring clinician's review. 'Reviewed' is acknowledgment only, not treatment clearance (FR-69)."""
-    r = load_referral(db, referral_id, principal, "review_flag", roles=("clinician",))
+@router.post("/referrals/{referral_id}/flags/{flag_id}/acknowledge")
+def acknowledge_flag(referral_id: int, flag_id: int, body: AckIn, db: Session = Depends(get_db),
+                     principal: Principal = Depends(get_principal)):
+    """The doctor acknowledges the flag for this patient. Acknowledgment means 'seen';
+    it is never treatment clearance."""
+    r = load_referral(db, referral_id, principal, "acknowledge_flag", roles=("clinician",))
     f = db.get(MedicationFlag, flag_id)
     if f is None or f.referral_id != r.id:
         raise error(404, "not_found", "Flag not found")
     if f.status != "active" or f.version != body.flag_version:
-        raise error(409, "flag_version_changed", "This flag has changed; review the current version")
-    clar = None
-    if body.action == "request_clarification":
-        if not (body.question or "").strip():
-            raise error(422, "question_required", "Enter the clarification question")
-        clar = Clarification(referral_id=r.id, flag_id=f.id, origin="clinic", question=body.question.strip(),
-                             assignee_institution=body.assignee_institution or r.source_institution,
-                             assignee_role="clinician", created_by=principal.display_name)
-        db.add(clar)
-        db.flush()
-    review = FlagReview(referral_id=r.id, flag_id=f.id, flag_version=f.version, side="referring", action=body.action,
-                        reviewer=principal.display_name, reviewer_id=principal.subject,
-                        institution_id=principal.institution_id, clarification_id=clar.id if clar else None,
-                        note=body.note)
-    db.add(review)
-    audit(db, principal, "flag.review", "medication_flag", f"{f.id}v{f.version}", "success", r.id,
-          {"action": body.action, "clarification_id": clar.id if clar else None})
+        raise error(409, "flag_version_changed", "This flag has changed; acknowledge the current version")
+    if service.acknowledgement(db, f) is None:
+        db.add(FlagReview(referral_id=r.id, flag_id=f.id, flag_version=f.version, side="referring",
+                          reviewer=principal.display_name, reviewer_id=principal.subject,
+                          institution_id=principal.institution_id, note=body.note))
+        audit(db, principal, "flag.acknowledge", "medication_flag", f"{f.id}v{f.version}", "success", r.id)
+        db.commit()
+    return flag_out(f, _acks(db, f.id))
+
+
+# ---------------------------------------------------------------- medicine names
+@router.get("/medicine-names")
+def medicine_names(q: str = "", db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    stmt = select(MedicineName).where(MedicineName.status == "active")
+    if q.strip():
+        like = f"%{q.strip().lower()}%"
+        stmt = stmt.where((MedicineName.name.ilike(like)) | (MedicineName.ingredient.ilike(like)))
+    rows = db.scalars(stmt.order_by(MedicineName.ingredient, MedicineName.display).limit(500)).all()
+    return {"classes": DRUG_CLASSES,
+            "names": [{"id": n.id, "display": n.display, "ingredient": n.ingredient, "drug_class": n.drug_class,
+                       "kind": n.kind, "added_by": n.added_by} for n in rows],
+            "ingredients": sorted({n.ingredient for n in rows}),
+            "can_edit": "rule_reviewer" in principal.roles}
+
+
+class NameIn(BaseModel):
+    display: str = Field(min_length=2)
+    ingredient: str = Field(min_length=2)
+    drug_class: str = Field(min_length=2)
+    kind: Literal["generic", "brand"] = "brand"
+
+
+@router.post("/medicine-names", status_code=201)
+def add_name(body: NameIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    require_roles(principal, "rule_reviewer", action="medicine_name.add",
+                  message="Only a clinical reviewer can add medicine names")
+    key = mapping.normalize(body.display)
+    if not key:
+        raise error(422, "invalid_name", "Enter a medicine name")
+    if db.scalars(select(MedicineName).where(MedicineName.name == key)).first():
+        raise error(409, "exists", "This name is already in the list")
+    n = MedicineName(name=key, display=body.display.strip(), ingredient=body.ingredient.strip().lower(),
+                     drug_class=body.drug_class.strip(), kind=body.kind, added_by=principal.display_name)
+    db.add(n)
+    audit(db, principal, "medicine_name.add", "medicine_name", body.display, "success",
+          detail={"ingredient": n.ingredient, "drug_class": n.drug_class})
+    db.flush()
+    _reevaluate_open(db, principal, f"medicine_name_added:{n.display}")
     db.commit()
-    return flag_out(f, _reviews(db, f.id))
+    return {"id": n.id, "display": n.display, "ingredient": n.ingredient, "drug_class": n.drug_class}
 
 
-@router.get("/medication-dictionary")
-def dictionary_entries(principal: Principal = Depends(get_principal)):
-    d = mapping.dictionary()
-    return {"dictionary_id": d["dictionary_id"], "version": d["version"], "classes": d["classes"],
-            "reviewed_entries": mapping.reviewed_entries()}
+@router.post("/medicine-names/{name_id}/retire")
+def retire_name(name_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    require_roles(principal, "rule_reviewer", action="medicine_name.retire")
+    n = db.get(MedicineName, name_id)
+    if n is None:
+        raise error(404, "not_found", "Name not found")
+    n.status = "retired"
+    audit(db, principal, "medicine_name.retire", "medicine_name", n.display, "success")
+    _reevaluate_open(db, principal, f"medicine_name_retired:{n.display}")
+    db.commit()
+    return {"id": n.id, "status": n.status}
 
 
-# ---------------------------------------------------------------- rule governance
+# ---------------------------------------------------------------- rules (edited in the app)
+def _rule_out(r: MedicationRule) -> dict:
+    return {"id": r.id, "rule_id": r.rule_id, "version": r.version, "title": r.title, "drug_class": r.drug_class,
+            "drug_class_label": DRUG_CLASSES.get(r.drug_class, r.drug_class), "procedure_tags": r.procedure_tags,
+            "procedure_tag_labels": [PROCEDURE_TAGS.get(t, t) for t in r.procedure_tags], "message": r.message,
+            "rationale": r.rationale, "reference": r.reference, "status": r.status, "content_hash": r.content_hash,
+            "intact": r.content_hash == rules.rule_hash(r), "created_by": r.created_by, "created_at": r.created_at,
+            "decided_by": r.decided_by, "decided_at": r.decided_at, "reference_checked": r.reference_checked,
+            "decision_note": r.decision_note,
+            "matching_procedures": [p["label"] for p in PROCEDURES.values() if set(p["tags"]) & set(r.procedure_tags)]}
+
+
 @router.get("/rules")
 def list_rules(db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    rs = rules.ruleset("orthodontics")
-    return {"ruleset_id": rs["ruleset_id"], "version": rs["version"], "specialty": rs["specialty"],
-            "governance": rs["governance"], "supported_classes": rs["supported_classes"],
-            "supported_procedures": rs["supported_procedures"], "rules": rules.all_rules(db, "orthodontics"),
-            "can_approve": "rule_reviewer" in principal.roles}
+    rows = db.scalars(select(MedicationRule).order_by(MedicationRule.rule_id, MedicationRule.version.desc())).all()
+    grouped: dict[str, list[dict]] = {}
+    for r in rows:
+        grouped.setdefault(r.rule_id, []).append(_rule_out(r))
+    return {"rules": [{"rule_id": k, "versions": v} for k, v in grouped.items()], "drug_classes": DRUG_CLASSES,
+            "procedure_tags": PROCEDURE_TAGS, "can_approve": "rule_reviewer" in principal.roles,
+            "can_edit": principal.has_any("rule_reviewer", "clinician")}
+
+
+class RuleIn(BaseModel):
+    title: str = Field(min_length=5)
+    drug_class: str
+    procedure_tags: list[str] = Field(min_length=1)
+    message: str = Field(min_length=10)
+    rationale: str = ""
+    reference: str = ""
+
+
+def _validate_rule(body: RuleIn) -> None:
+    if body.drug_class not in DRUG_CLASSES:
+        raise error(422, "invalid_class", "Choose a drug class from the list")
+    bad = set(body.procedure_tags) - set(PROCEDURE_TAGS)
+    if bad:
+        raise error(422, "invalid_tags", f"Unknown procedure tags: {sorted(bad)}")
+    lowered = body.message.lower()
+    if any(w in lowered for w in ("stop taking", "stop the", "discontinue", "do not take", "withhold", "increase the dose")):
+        raise error(422, "advice_not_allowed",
+                    "A flag message must not advise starting, stopping or changing a medicine. Ask for review instead.")
+
+
+def _new_version(db: Session, principal: Principal, rule_id: str, body: RuleIn) -> MedicationRule:
+    version = (db.scalar(select(func.max(MedicationRule.version)).where(MedicationRule.rule_id == rule_id)) or 0) + 1
+    r = MedicationRule(rule_id=rule_id, version=version, title=body.title.strip(), drug_class=body.drug_class,
+                       procedure_tags=sorted(set(body.procedure_tags)), message=body.message.strip(),
+                       rationale=body.rationale.strip(), reference=body.reference.strip(), status="draft",
+                       content_hash="", created_by=principal.display_name, created_by_id=principal.subject)
+    r.content_hash = rules.rule_hash(r)
+    db.add(r)
+    db.flush()
+    audit(db, principal, "rule.draft", "medication_rule", f"{rule_id}v{version}", "success")
+    return r
+
+
+@router.post("/rules", status_code=201)
+def create_rule(body: RuleIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Doctors and reviewers can propose a rule. It does nothing until a reviewer approves it."""
+    require_roles(principal, "rule_reviewer", "clinician", action="rule.create")
+    _validate_rule(body)
+    n = (db.scalar(select(func.count(func.distinct(MedicationRule.rule_id)))) or 0) + 1
+    rule_id = f"RULE-{n:03d}"
+    while db.scalars(select(MedicationRule).where(MedicationRule.rule_id == rule_id)).first():
+        n += 1
+        rule_id = f"RULE-{n:03d}"
+    r = _new_version(db, principal, rule_id, body)
+    db.commit()
+    return _rule_out(r)
+
+
+@router.put("/rules/{rule_id}")
+def edit_rule(rule_id: str, body: RuleIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """An edit is a new draft version; the approved version keeps working until the new one is approved."""
+    require_roles(principal, "rule_reviewer", "clinician", action="rule.edit")
+    if not db.scalars(select(MedicationRule).where(MedicationRule.rule_id == rule_id)).first():
+        raise error(404, "not_found", "Rule not found")
+    _validate_rule(body)
+    r = _new_version(db, principal, rule_id, body)
+    db.commit()
+    return _rule_out(r)
 
 
 class RuleDecisionIn(BaseModel):
-    decision: Literal["approve", "retire", "reject"]
+    decision: Literal["approve", "reject", "retire"]
     reference_checked: str = Field(min_length=5)
     note: str = ""
 
@@ -175,30 +347,47 @@ class RuleDecisionIn(BaseModel):
 @router.post("/rules/{rule_id}/versions/{version}/decision")
 def decide_rule(rule_id: str, version: int, body: RuleDecisionIn, db: Session = Depends(get_db),
                 principal: Principal = Depends(get_principal)):
-    """Only a clinical rule reviewer may activate a rule. Administrators cannot (NFR 10.6)."""
+    """Only a clinical rule reviewer may approve, reject or retire a rule version."""
     require_roles(principal, "rule_reviewer", action="rule.decision",
-                  message="Only a clinical rule reviewer can approve or retire medication rules")
-    rule = next((x for x in rules.ruleset("orthodontics")["rules"] if x["rule_id"] == rule_id and x["version"] == version), None)
-    if rule is None:
+                  message="Only a clinical rule reviewer can approve, reject or retire medication rules")
+    r = db.scalars(select(MedicationRule).where(MedicationRule.rule_id == rule_id, MedicationRule.version == version)).first()
+    if r is None:
         raise error(404, "not_found", "Rule version not found")
-    status = {"approve": "approved", "retire": "retired", "reject": "rejected"}[body.decision]
-    approval = db.scalars(select(RuleApproval).where(RuleApproval.rule_id == rule_id, RuleApproval.rule_version == version)).first()
-    if approval is None:
-        approval = RuleApproval(rule_id=rule_id, rule_version=version, content_hash=rules.rule_hash(rule), status=status,
-                                reviewer=principal.display_name, reviewer_id=principal.subject,
-                                reference_checked=body.reference_checked, note=body.note)
-        db.add(approval)
+    if body.decision == "approve":
+        if r.status != "draft":
+            raise error(409, "not_draft", f"Only a draft can be approved; this version is {r.status}")
+        if r.content_hash != rules.rule_hash(r):
+            raise error(409, "content_changed", "The rule content changed after it was drafted; draft it again")
+        for old in db.scalars(select(MedicationRule).where(MedicationRule.rule_id == rule_id,
+                                                           MedicationRule.status == "approved")):
+            old.status = "superseded"
+        r.status = "approved"
+    elif body.decision == "reject":
+        if r.status != "draft":
+            raise error(409, "not_draft", "Only a draft can be rejected")
+        r.status = "rejected"
     else:
-        approval.status, approval.content_hash = status, rules.rule_hash(rule)
-        approval.reviewer, approval.reviewer_id = principal.display_name, principal.subject
-        approval.reference_checked, approval.note, approval.decided_at = body.reference_checked, body.note, utcnow()
+        if r.status != "approved":
+            raise error(409, "not_active", "Only the approved version can be retired")
+        r.status = "retired"
+    r.decided_by, r.decided_by_id, r.decided_at = principal.display_name, principal.subject, utcnow()
+    r.reference_checked, r.decision_note = body.reference_checked, body.note or None
     audit(db, principal, f"rule.{body.decision}", "medication_rule", f"{rule_id}v{version}", "success",
-          detail={"reference_checked": body.reference_checked, "content_hash": approval.content_hash})
+          detail={"reference_checked": body.reference_checked, "content_hash": r.content_hash})
     db.flush()
-    # Rule-version change triggers re-evaluation of open referrals (FR-70)
-    open_refs = db.scalars(select(Referral).where(Referral.specialty == rule["specialty"],
-                                                  Referral.status.notin_(list(CLINICAL_LOCKED | TERMINAL)))).all()
-    for ref in open_refs:
-        after_change(db, ref, f"rule_{body.decision}:{rule_id}v{version}", actor=principal.display_name)
+    count = _reevaluate_open(db, principal, f"rule_{body.decision}:{rule_id}v{version}")
     db.commit()
-    return {"rule_id": rule_id, "version": version, "status": status, "reevaluated_referrals": len(open_refs)}
+    return {**_rule_out(r), "reevaluated_referrals": count}
+
+
+def _reevaluate_open(db: Session, principal: Principal, trigger: str) -> int:
+    """A rule or name change re-checks every open referral."""
+    open_refs = db.scalars(select(Referral).where(Referral.status.notin_(list(CLINICAL_LOCKED | TERMINAL)))).all()
+    for ref in open_refs:
+        after_change(db, ref, trigger, actor=principal.display_name)
+    return len(open_refs)
+
+
+@router.get("/drug-classes")
+def drug_classes(principal: Principal = Depends(get_principal)):
+    return DRUG_CLASSES

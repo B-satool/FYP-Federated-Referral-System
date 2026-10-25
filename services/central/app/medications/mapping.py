@@ -1,92 +1,80 @@
-"""Bounded medication terminology mapping (FR-33, FR-34, FR-62).
+"""Medicine-name mapping (brand or generic name as written -> ingredient and drug class).
 
-The original documented name is always preserved by the caller; this module
-only proposes an ingredient/class. Unknown names stay unmapped and usable in
-their original form; ambiguous or merely 'suggested' names are never treated
-as verified mappings.
+Names live in the database (medicine_names) and are maintained in the app by clinical
+reviewers. The original name is always kept by the caller; unknown names stay
+unmapped and are reported, never guessed. A name that matches more than one
+ingredient is ambiguous and is never treated as a match.
 """
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import dataclass
-from functools import lru_cache
 
-from ..config import settings
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from ..models import MedicineName
 
 FORM_WORDS = {
-    "tablet", "tablets", "tab", "tabs", "capsule", "capsules", "cap", "caps", "sachet", "sachets", "syrup",
-    "suspension", "injection", "inj", "mg", "mcg", "g", "ml", "oral", "po", "od", "bd", "tds", "daily",
-    "once", "twice", "weekly", "film", "coated", "ec", "sr", "xr", "er", "sodium",
+    "tablet", "tablets", "tab", "tabs", "capsule", "capsules", "cap", "caps", "sachet", "sachets", "syrup", "susp",
+    "suspension", "injection", "inj", "mg", "mcg", "g", "ml", "units", "unit", "iu", "oral", "po", "od", "bd", "tds",
+    "daily", "once", "twice", "weekly", "film", "coated", "ec", "sr", "xr", "er", "sodium", "potassium", "with",
+    "and", "per", "x", "months", "month", "days", "day", "at", "night",
 }
+STRENGTH = re.compile(r"(\d+(?:\.\d+)?)\s?(mg|mcg|g|ml|units?|iu)\b", re.I)
 
 
 @dataclass(frozen=True)
 class MappingResult:
     status: str  # mapped | ambiguous | unmapped
     ingredient: str | None = None
-    ingredient_code: str | None = None
     drug_class: str | None = None
-    class_code: str | None = None
-    source: str = ""
-    version: str = ""
     note: str | None = None
 
 
-@lru_cache
-def dictionary() -> dict:
-    path = settings.repo_root / "rules" / "terminology" / "medication-dictionary.v1.json"
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def source_label() -> tuple[str, str]:
-    d = dictionary()
-    return d["dictionary_id"], d["version"]
-
-
 def normalize(name: str) -> str:
-    text = name.lower()
-    text = re.sub(r"[\d.,/%()+\-]+", " ", text)
-    tokens = [t for t in text.split() if t and t not in FORM_WORDS]
-    return " ".join(tokens)
+    text = name.lower().replace("+", " ")
+    text = re.sub(r"[\d.,/%()\-:]+", " ", text)
+    return " ".join(t for t in text.split() if t and t not in FORM_WORDS)
 
 
-def class_label(drug_class: str | None) -> str:
-    if not drug_class:
-        return "unknown class"
-    return dictionary()["classes"].get(drug_class, {}).get("label", drug_class)
+def strength_of(*texts: str | None) -> str | None:
+    """'75 mg' style strength from the first text that has one (for grouping duplicates)."""
+    for t in texts:
+        if t:
+            m = STRENGTH.search(t)
+            if m:
+                unit = m.group(2).lower().rstrip("s") if m.group(2).lower().startswith("unit") else m.group(2).lower()
+                value = float(m.group(1))
+                return f"{value:g} {unit}"
+    return None
 
 
-def map_name(name: str) -> MappingResult:
-    d = dictionary()
-    src, ver = d["dictionary_id"], d["version"]
-    norm = normalize(name)
-    if not norm:
-        return MappingResult("unmapped", source=src, version=ver, note="No recognisable medication name")
+class NameIndex:
+    def __init__(self, rows: list[MedicineName]):
+        self.rows = [r for r in rows if r.status == "active"]
 
-    for amb in d.get("ambiguous", []):
-        if any(norm == n or norm.startswith(n + " ") for n in amb["names"]):
-            return MappingResult("ambiguous", source=src, version=ver, note=amb["reason"])
-
-    hits = []
-    for entry in d["entries"]:
-        for n in entry["names"]:
-            if norm == n or norm.startswith(n + " ") or (" " not in n and n in norm.split()):
-                hits.append(entry)
-                break
-    ingredients = {h["ingredient"] for h in hits}
-    if not hits:
-        return MappingResult("unmapped", source=src, version=ver,
-                             note="Not in the bounded mapping list; kept in original form")
-    if len(ingredients) > 1:
-        return MappingResult("ambiguous", source=src, version=ver,
-                             note=f"Name matches several ingredients: {', '.join(sorted(ingredients))}")
-    entry = hits[0]
-    if entry.get("review_status") != "reviewed":
-        return MappingResult("ambiguous", entry["ingredient"], entry.get("rxcui"), entry["class"], entry.get("class_code"),
-                             src, ver, note="Suggested mapping not yet reviewed: " + entry.get("note", "requires review"))
-    return MappingResult("mapped", entry["ingredient"], entry.get("rxcui"), entry["class"], entry.get("class_code"), src, ver)
+    def map(self, *names: str | None) -> MappingResult:
+        """Try each name (e.g. the recorded name, then the brand as written)."""
+        notes = []
+        for raw in names:
+            if not raw:
+                continue
+            norm = normalize(raw)
+            if not norm:
+                continue
+            padded = f" {norm} "
+            hits = {(r.ingredient, r.drug_class) for r in self.rows
+                    if norm == r.name or norm.startswith(r.name + " ") or f" {r.name} " in padded}
+            if len(hits) == 1:
+                ingredient, drug_class = hits.pop()
+                return MappingResult("mapped", ingredient, drug_class)
+            if len(hits) > 1:
+                return MappingResult("ambiguous", note="Name matches several medicines: "
+                                     + ", ".join(sorted(i for i, _ in hits)))
+            notes.append(raw)
+        return MappingResult("unmapped", note="Not in the medicine name list; kept as written")
 
 
-def reviewed_entries() -> list[dict]:
-    return [e for e in dictionary()["entries"] if e.get("review_status") == "reviewed"]
+def name_index(db: Session) -> NameIndex:
+    return NameIndex(list(db.scalars(select(MedicineName))))

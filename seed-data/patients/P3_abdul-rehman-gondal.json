@@ -1,0 +1,476 @@
+{
+  "key": "P3",
+  "department": "Orthopaedics",
+  "demographics": {
+    "name": "Abdul Rehman Gondal",
+    "sex": "M",
+    "dob": "1959-11-30",
+    "age": 66,
+    "cnic": "36302-0000033-5",
+    "phone": "0300-0000033",
+    "city": "Karachi",
+    "language": "Saraiki, Urdu",
+    "blood_group": "A+",
+    "marital_status": "Married",
+    "occupation": "Retired schoolteacher",
+    "allergies": []
+  },
+  "local_ids": {
+    "clinic-ali": "DA-3306",
+    "lab-b": "MD-772455",
+    "rad-zia": "MI-55611",
+    "aku": null
+  },
+  "referral": {
+    "from_institution": "clinic-ali",
+    "from_department": "General practice",
+    "requested_by_doctor": "Dr Ali",
+    "referred_doctor_requested": null,
+    "to_institution": "aku",
+    "to_department": "Orthopaedics",
+    "date": "2026-10-19",
+    "urgency": "Routine (within 4 weeks)",
+    "reason": "Progressive right knee pain for 4 years, now worse on walking 100 metres and at night. Painkillers no longer help. Standing X-ray shows advanced osteoarthritis. Please assess for knee replacement.",
+    "planned_procedure": "Right total knee replacement (to be decided by orthopaedic surgeon)",
+    "diagnostic_requests": [
+      {
+        "type": "Imaging",
+        "test": "MRI right knee",
+        "reason": "Rule out other internal derangement; clinic has no MRI",
+        "send_to": "zia",
+        "urgency": "Routine",
+        "status": "requested"
+      },
+      {
+        "type": "Cardiac",
+        "test": "Resting ECG",
+        "reason": "Pre-operative fitness, age 66",
+        "send_to": "clinic-ali",
+        "urgency": "Routine",
+        "status": "requested"
+      }
+    ]
+  },
+  "brought_by_patient": [
+    {
+      "file": "P3_prescription_orthopaedic_2026-07-22.jpg",
+      "kind": "Handwritten-style prescription from a private orthopaedic clinic",
+      "date": "2026-07-22"
+    }
+  ],
+  "sources": {
+    "clinic-ali": {
+      "conditions": [
+        {
+          "display": "Osteoarthritis of knee, bilateral, right worse",
+          "snomed": "239873007",
+          "onset": "2022-05",
+          "status": "active"
+        },
+        {
+          "display": "Essential hypertension",
+          "snomed": "59621000",
+          "onset": "2010-03",
+          "status": "active"
+        },
+        {
+          "display": "Gastro-oesophageal reflux disease",
+          "snomed": "235595009",
+          "onset": "2020-02",
+          "status": "active"
+        },
+        {
+          "display": "Mild anaemia",
+          "snomed": "271737000",
+          "onset": "2026-07",
+          "status": "active"
+        }
+      ],
+      "surgeries": [
+        {
+          "procedure": "Appendicectomy",
+          "date": "1982-08",
+          "where": "Private hospital, Karachi"
+        },
+        {
+          "procedure": "Left eye cataract surgery with lens implant",
+          "date": "2023-02",
+          "where": "Eye hospital, Karachi"
+        }
+      ],
+      "visits": [
+        {
+          "date": "2026-10-15",
+          "setting": "Clinic visit",
+          "doctor": "Dr Ali",
+          "reason": "Knee pain review",
+          "summary": "Pain 8 out of 10 on walking. Painkillers not controlling. Referral to orthopaedics."
+        },
+        {
+          "date": "2026-07-22",
+          "setting": "Private orthopaedic clinic, Karachi (outside)",
+          "doctor": "Dr Naveed Qureshi",
+          "reason": "Right knee pain",
+          "summary": "Advised diclofenac, physiotherapy, weight loss. Prescription brought by patient."
+        },
+        {
+          "date": "2026-07-02",
+          "setting": "Clinic visit",
+          "doctor": "Dr Ali",
+          "reason": "Tiredness and joint pain",
+          "summary": "Mild anaemia on blood test. Advised iron."
+        },
+        {
+          "date": "2026-01-20",
+          "setting": "Clinic visit",
+          "doctor": "Dr Ali",
+          "reason": "Blood pressure review",
+          "summary": "Older than 6 months, should not appear in the automatic selection."
+        }
+      ],
+      "medications": [
+        {
+          "name": "Diclofenac sodium 50 mg tablet",
+          "generic": "diclofenac",
+          "brand_as_written": "Voltral",
+          "dose": "50 mg",
+          "route": "oral",
+          "frequency": "twice daily after food",
+          "start": "2026-07-22",
+          "status": "active",
+          "prescriber": "Dr Naveed Qureshi",
+          "note": "From the outside orthopaedic prescription"
+        },
+        {
+          "name": "Aspirin 75 mg tablet",
+          "generic": "aspirin",
+          "brand_as_written": "Loprin",
+          "dose": "75 mg",
+          "route": "oral",
+          "frequency": "once daily",
+          "start": "2018-05-01",
+          "status": "active",
+          "prescriber": "Dr Ali",
+          "note": "Primary prevention"
+        },
+        {
+          "name": "Losartan 50 mg tablet",
+          "generic": "losartan",
+          "brand_as_written": "Cozaar",
+          "dose": "50 mg",
+          "route": "oral",
+          "frequency": "once daily",
+          "start": "2016-04-01",
+          "status": "active",
+          "prescriber": "Dr Ali",
+          "note": null
+        },
+        {
+          "name": "Esomeprazole 20 mg capsule",
+          "generic": "esomeprazole",
+          "brand_as_written": "Nexum",
+          "dose": "20 mg",
+          "route": "oral",
+          "frequency": "once daily before breakfast",
+          "start": "2020-03-01",
+          "status": "active",
+          "prescriber": "Dr Ali",
+          "note": null
+        },
+        {
+          "name": "Ferrous sulfate 200 mg tablet",
+          "generic": "ferrous sulfate",
+          "brand_as_written": null,
+          "dose": "200 mg",
+          "route": "oral",
+          "frequency": "once daily",
+          "start": "2026-07-02",
+          "status": "active",
+          "prescriber": "Dr Ali",
+          "note": null
+        },
+        {
+          "name": "Tramadol 50 mg capsule",
+          "generic": "tramadol",
+          "brand_as_written": null,
+          "dose": "50 mg",
+          "route": "oral",
+          "frequency": "as needed, up to twice daily",
+          "start": "2025-11-01",
+          "status": "stopped",
+          "prescriber": "Dr Naveed Qureshi",
+          "note": "Stopped 2026-03 for dizziness"
+        }
+      ]
+    },
+    "lab-b": {
+      "labs": [
+        {
+          "date": "2026-10-16",
+          "panel": "Complete blood count",
+          "note": null,
+          "results": [
+            {
+              "test": "Haemoglobin",
+              "loinc": "718-7",
+              "value": 11.4,
+              "unit": "g/dL",
+              "reference": "13.5-17.5",
+              "flag": "low"
+            },
+            {
+              "test": "MCV",
+              "loinc": "787-2",
+              "value": 76,
+              "unit": "fL",
+              "reference": "80-100",
+              "flag": "low"
+            },
+            {
+              "test": "Platelets",
+              "loinc": "777-3",
+              "value": 302,
+              "unit": "10*9/L",
+              "reference": "150-400",
+              "flag": ""
+            },
+            {
+              "test": "WBC",
+              "loinc": "6690-2",
+              "value": 7.2,
+              "unit": "10*9/L",
+              "reference": "4.0-11.0",
+              "flag": ""
+            }
+          ]
+        },
+        {
+          "date": "2026-10-16",
+          "panel": "Renal function and inflammation",
+          "note": null,
+          "results": [
+            {
+              "test": "Creatinine",
+              "loinc": "2160-0",
+              "value": 1.2,
+              "unit": "mg/dL",
+              "reference": "0.7-1.3",
+              "flag": ""
+            },
+            {
+              "test": "eGFR",
+              "loinc": "62238-1",
+              "value": 66,
+              "unit": "mL/min/1.73m2",
+              "reference": ">=60",
+              "flag": ""
+            },
+            {
+              "test": "ESR",
+              "loinc": "4537-7",
+              "value": 34,
+              "unit": "mm/hr",
+              "reference": "0-20",
+              "flag": "high"
+            },
+            {
+              "test": "CRP",
+              "loinc": "1988-5",
+              "value": 6,
+              "unit": "mg/L",
+              "reference": "<5",
+              "flag": "high"
+            }
+          ]
+        },
+        {
+          "date": "2026-10-16",
+          "panel": "HbA1c",
+          "note": null,
+          "results": [
+            {
+              "test": "HbA1c",
+              "loinc": "4548-4",
+              "value": 5.8,
+              "unit": "%",
+              "reference": "4.0-5.6",
+              "flag": "high"
+            }
+          ]
+        }
+      ]
+    },
+    "rad-zia": {
+      "imaging": [
+        {
+          "date": "2026-09-30",
+          "study": "X-ray both knees, standing AP and lateral",
+          "body_part": "Knees",
+          "findings": "Right: marked medial joint space narrowing with bone-on-bone contact, large marginal osteophytes, subchondral sclerosis and cysts, varus alignment. Left: moderate medial narrowing and osteophytes. No fracture. No effusion calcification.",
+          "impression": "Right knee Kellgren-Lawrence grade 4. Left knee grade 2 to 3.",
+          "radiologist": "Dr Hira Anwar, Consultant Radiologist"
+        }
+      ]
+    }
+  },
+  "scenario": {
+    "tests": "Drug against procedure: aspirin and diclofenac (NSAID) before major joint replacement (bleeding risk), flag should fire for both. Losartan and an NSAID with eGFR 66 is a drug-against-drug topic and is out of scope for the procedure rules. Anaemia and raised inflammatory markers appear as results. Stopped tramadol must not appear as a current medicine.",
+    "should_flag": [
+      "Aspirin before major orthopaedic surgery",
+      "NSAID (diclofenac) before major orthopaedic surgery"
+    ],
+    "records_outside_6_months": [
+      "Clinic visit 2026-01-20"
+    ]
+  },
+  "_meta": {
+    "synthetic": true,
+    "reference_date": "2026-10-26",
+    "recent_window_start": "2026-04-26",
+    "institutions": {
+      "clinic-ali": "Dr Ali's Clinic, Clifton, Karachi",
+      "lab-b": "Chughtai Lab",
+      "aku": "Aga Khan University Hospital",
+      "rad-zia": "Ziauddin Hospital, Radiology"
+    }
+  },
+  "expected_retrieval_view": {
+    "conditions": [
+      {
+        "display": "Osteoarthritis of knee, bilateral, right worse",
+        "snomed": "239873007",
+        "onset": "2022-05",
+        "status": "active",
+        "source": "clinic-ali"
+      },
+      {
+        "display": "Essential hypertension",
+        "snomed": "59621000",
+        "onset": "2010-03",
+        "status": "active",
+        "source": "clinic-ali"
+      },
+      {
+        "display": "Gastro-oesophageal reflux disease",
+        "snomed": "235595009",
+        "onset": "2020-02",
+        "status": "active",
+        "source": "clinic-ali"
+      },
+      {
+        "display": "Mild anaemia",
+        "snomed": "271737000",
+        "onset": "2026-07",
+        "status": "active",
+        "source": "clinic-ali"
+      }
+    ],
+    "surgeries": [
+      {
+        "procedure": "Appendicectomy",
+        "date": "1982-08",
+        "where": "Private hospital, Karachi",
+        "source": "clinic-ali"
+      },
+      {
+        "procedure": "Left eye cataract surgery with lens implant",
+        "date": "2023-02",
+        "where": "Eye hospital, Karachi",
+        "source": "clinic-ali"
+      }
+    ],
+    "visits_last_6_months": [
+      {
+        "date": "2026-10-15",
+        "setting": "Clinic visit",
+        "doctor": "Dr Ali",
+        "reason": "Knee pain review",
+        "summary": "Pain 8 out of 10 on walking. Painkillers not controlling. Referral to orthopaedics.",
+        "source": "clinic-ali"
+      },
+      {
+        "date": "2026-07-22",
+        "setting": "Private orthopaedic clinic, Karachi (outside)",
+        "doctor": "Dr Naveed Qureshi",
+        "reason": "Right knee pain",
+        "summary": "Advised diclofenac, physiotherapy, weight loss. Prescription brought by patient.",
+        "source": "clinic-ali"
+      },
+      {
+        "date": "2026-07-02",
+        "setting": "Clinic visit",
+        "doctor": "Dr Ali",
+        "reason": "Tiredness and joint pain",
+        "summary": "Mild anaemia on blood test. Advised iron.",
+        "source": "clinic-ali"
+      }
+    ],
+    "current_medications": [
+      {
+        "name": "Diclofenac sodium 50 mg tablet",
+        "generic": "diclofenac",
+        "brand_as_written": "Voltral",
+        "dose": "50 mg",
+        "route": "oral",
+        "frequency": "twice daily after food",
+        "start": "2026-07-22",
+        "status": "active",
+        "prescriber": "Dr Naveed Qureshi",
+        "note": "From the outside orthopaedic prescription",
+        "source": "clinic-ali"
+      },
+      {
+        "name": "Aspirin 75 mg tablet",
+        "generic": "aspirin",
+        "brand_as_written": "Loprin",
+        "dose": "75 mg",
+        "route": "oral",
+        "frequency": "once daily",
+        "start": "2018-05-01",
+        "status": "active",
+        "prescriber": "Dr Ali",
+        "note": "Primary prevention",
+        "source": "clinic-ali"
+      },
+      {
+        "name": "Losartan 50 mg tablet",
+        "generic": "losartan",
+        "brand_as_written": "Cozaar",
+        "dose": "50 mg",
+        "route": "oral",
+        "frequency": "once daily",
+        "start": "2016-04-01",
+        "status": "active",
+        "prescriber": "Dr Ali",
+        "note": null,
+        "source": "clinic-ali"
+      },
+      {
+        "name": "Esomeprazole 20 mg capsule",
+        "generic": "esomeprazole",
+        "brand_as_written": "Nexum",
+        "dose": "20 mg",
+        "route": "oral",
+        "frequency": "once daily before breakfast",
+        "start": "2020-03-01",
+        "status": "active",
+        "prescriber": "Dr Ali",
+        "note": null,
+        "source": "clinic-ali"
+      },
+      {
+        "name": "Ferrous sulfate 200 mg tablet",
+        "generic": "ferrous sulfate",
+        "brand_as_written": null,
+        "dose": "200 mg",
+        "route": "oral",
+        "frequency": "once daily",
+        "start": "2026-07-02",
+        "status": "active",
+        "prescriber": "Dr Ali",
+        "note": null,
+        "source": "clinic-ali"
+      }
+    ]
+  }
+}

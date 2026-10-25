@@ -1,4 +1,4 @@
-"""Audit trail views (FR-59, FR-60) and session/reference metadata."""
+"""Audit trail views, the signed-in user, and reference data for the forms."""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
@@ -6,13 +6,26 @@ from refcommon.auth import Principal
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from .config import INSTITUTIONS, PRIORITIES, PROCEDURES, SPECIALTIES, settings
+from .config import (
+    DEPARTMENTS,
+    DIAGNOSTIC_CATEGORIES,
+    DRUG_CLASSES,
+    INSTITUTIONS,
+    PRACTITIONERS,
+    PROCEDURE_TAGS,
+    PROCEDURES,
+    TEST_SUGGESTIONS,
+    URGENCIES,
+    URGENCY_NOTE,
+    department_name,
+    settings,
+)
 from .db import get_db
 from .models import AuditEvent, Referral, User
 from .referrals.state import STATUS_LABELS
 from .security import get_principal, load_referral, require_roles
 
-router = APIRouter(tags=["audit and metadata"])
+router = APIRouter(tags=["audit and reference data"])
 
 
 def _out(a: AuditEvent) -> dict:
@@ -52,17 +65,26 @@ def institution_audit(action: str | None = None, outcome: str | None = None, lim
 @router.get("/me")
 def me(db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     u = db.get(User, principal.subject)
+    inst = INSTITUTIONS.get(principal.institution_id or "", {})
     return {"id": principal.subject, "username": principal.username, "name": principal.display_name,
-            "institution_id": principal.institution_id,
-            "institution_name": INSTITUTIONS.get(principal.institution_id or "", {}).get("name"),
-            "institution_kind": INSTITUTIONS.get(principal.institution_id or "", {}).get("kind"),
+            "institution_id": principal.institution_id, "institution_name": inst.get("name"),
+            "institution_kind": inst.get("kind"), "department": principal.department,
+            "department_name": department_name(principal.department),
+            "department_kind": DEPARTMENTS.get(principal.department or "", {}).get("kind"),
             "roles": sorted(principal.roles), "account_status": u.account_status if u else "active"}
 
 
 @router.get("/reference-data")
 def reference_data(principal: Principal = Depends(get_principal)):
-    return {"institutions": INSTITUTIONS, "specialties": SPECIALTIES, "procedures": PROCEDURES, "priorities": PRIORITIES,
-            "statuses": STATUS_LABELS, "llm_configured": settings.llm_configured,
-            "llm_model": settings.llm_model if settings.llm_configured else None,
-            "limits": {"max_upload_mb": settings.max_upload_bytes // (1024 * 1024), "max_pages": settings.max_pages,
-                       "formats": ["PDF", "PNG", "JPEG"], "language": "English"}}
+    institutions = {k: {x: y for x, y in v.items() if x != "url_env"} for k, v in INSTITUTIONS.items()
+                    if k != "central-platform"}
+    return {
+        "institutions": institutions, "departments": DEPARTMENTS, "procedures": PROCEDURES,
+        "procedure_tags": PROCEDURE_TAGS, "urgencies": URGENCIES, "urgency_note": URGENCY_NOTE,
+        "statuses": STATUS_LABELS, "practitioners": PRACTITIONERS, "test_suggestions": TEST_SUGGESTIONS,
+        "diagnostic_categories": DIAGNOSTIC_CATEGORIES, "drug_classes": DRUG_CLASSES,
+        "referral_window_days": settings.referral_window_days,
+        "llm_configured": settings.llm_configured,
+        "limits": {"max_upload_mb": settings.max_upload_bytes // (1024 * 1024), "max_pages": settings.max_pages,
+                   "formats": ["PDF", "PNG", "JPEG"], "language": "English"},
+    }

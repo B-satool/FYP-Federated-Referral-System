@@ -1,0 +1,596 @@
+{
+  "key": "P2",
+  "department": "Cardiology",
+  "demographics": {
+    "name": "Muhammad Tariq Mahmood",
+    "sex": "M",
+    "dob": "1968-07-21",
+    "age": 58,
+    "cnic": "37405-0000022-7",
+    "phone": "0300-0000022",
+    "city": "Karachi",
+    "language": "Urdu, Pothwari",
+    "blood_group": "O+",
+    "marital_status": "Married",
+    "occupation": "Retired government clerk",
+    "allergies": []
+  },
+  "local_ids": {
+    "clinic-ali": "DA-8842",
+    "aku": "AK-319077",
+    "lab-b": "MD-771874",
+    "rad-zia": "MI-55307",
+    "zia": null
+  },
+  "referral": {
+    "from_institution": "clinic-ali",
+    "from_department": "General practice",
+    "requested_by_doctor": "Dr Ali",
+    "referred_doctor_requested": "Dr Asma Rauf",
+    "to_institution": "zia",
+    "to_department": "Cardiology",
+    "date": "2026-10-21",
+    "urgency": "Urgent (within 1 week)",
+    "reason": "Exertional chest tightness for 6 weeks, relieved by rest, now on walking one flight of stairs. ECG at the clinic shows non-specific T-wave flattening in V4 to V6. Diabetic and hypertensive. Needs cardiology assessment for suspected stable angina.",
+    "planned_procedure": "Coronary angiography",
+    "diagnostic_requests": [
+      {
+        "type": "Imaging",
+        "test": "Transthoracic echocardiogram",
+        "reason": "Left ventricular function; clinic has no echo machine",
+        "send_to": "zia",
+        "urgency": "Urgent",
+        "status": "requested"
+      },
+      {
+        "type": "Laboratory",
+        "test": "Lipid profile and HbA1c (repeat)",
+        "reason": "Last lipid profile over a year old",
+        "send_to": "lab-b",
+        "urgency": "Routine",
+        "status": "requested"
+      }
+    ]
+  },
+  "brought_by_patient": [
+    {
+      "file": "P2_prescription_clinic_2026-10-08.jpg",
+      "kind": "Printed clinic prescription (patient's copy)",
+      "date": "2026-10-08"
+    },
+    {
+      "file": "P2_discharge_summary_AKUH_2026-08-31.pdf",
+      "kind": "Discharge summary from Aga Khan University Hospital emergency visit",
+      "date": "2026-08-31"
+    }
+  ],
+  "sources": {
+    "clinic-ali": {
+      "conditions": [
+        {
+          "display": "Type 2 diabetes mellitus",
+          "snomed": "44054006",
+          "onset": "2012-03",
+          "status": "active"
+        },
+        {
+          "display": "Essential hypertension",
+          "snomed": "59621000",
+          "onset": "2015-06",
+          "status": "active"
+        },
+        {
+          "display": "Dyslipidaemia",
+          "snomed": "55822004",
+          "onset": "2019-01",
+          "status": "active"
+        },
+        {
+          "display": "Exertional chest pain, under investigation",
+          "snomed": "29857009",
+          "onset": "2026-09",
+          "status": "active"
+        }
+      ],
+      "surgeries": [
+        {
+          "procedure": "Right inguinal hernia repair",
+          "date": "2009-11",
+          "where": "Private hospital, Karachi"
+        }
+      ],
+      "visits": [
+        {
+          "date": "2026-10-20",
+          "setting": "Clinic visit",
+          "doctor": "Dr Ali",
+          "reason": "Chest tightness, follow-up",
+          "summary": "Symptoms worsening with stairs. ECG repeated, T-wave flattening V4 to V6. Referral to cardiology."
+        },
+        {
+          "date": "2026-10-08",
+          "setting": "Clinic visit",
+          "doctor": "Dr Ali",
+          "reason": "Chest tightness on walking",
+          "summary": "First visit for this complaint. Aspirin continued. Chest X-ray requested."
+        },
+        {
+          "date": "2026-06-15",
+          "setting": "Clinic visit",
+          "doctor": "Dr Ali",
+          "reason": "Diabetes review",
+          "summary": "HbA1c above target. Glimepiride added."
+        }
+      ],
+      "medications": [
+        {
+          "name": "Metformin 850 mg tablet",
+          "generic": "metformin",
+          "brand_as_written": "Glucophage",
+          "dose": "850 mg",
+          "route": "oral",
+          "frequency": "twice daily with meals",
+          "start": "2014-01-01",
+          "status": "active",
+          "prescriber": "Dr Ali",
+          "note": "Clinic record says 850 mg. The hospital discharge summary says 500 mg (discrepancy to resolve)."
+        },
+        {
+          "name": "Glimepiride 2 mg tablet",
+          "generic": "glimepiride",
+          "brand_as_written": "Amaryl",
+          "dose": "2 mg",
+          "route": "oral",
+          "frequency": "once daily before breakfast",
+          "start": "2026-06-15",
+          "status": "active",
+          "prescriber": "Dr Ali",
+          "note": null
+        },
+        {
+          "name": "Aspirin 75 mg tablet",
+          "generic": "aspirin",
+          "brand_as_written": "Cardiprin",
+          "dose": "75 mg",
+          "route": "oral",
+          "frequency": "once daily after lunch",
+          "start": "2019-01-10",
+          "status": "active",
+          "prescriber": "Dr Ali",
+          "note": null
+        },
+        {
+          "name": "Atorvastatin 40 mg tablet",
+          "generic": "atorvastatin",
+          "brand_as_written": "Lipitor",
+          "dose": "40 mg",
+          "route": "oral",
+          "frequency": "once daily at night",
+          "start": "2019-01-10",
+          "status": "active",
+          "prescriber": "Dr Ali",
+          "note": null
+        },
+        {
+          "name": "Enalapril 10 mg tablet",
+          "generic": "enalapril",
+          "brand_as_written": "Renitec",
+          "dose": "10 mg",
+          "route": "oral",
+          "frequency": "once daily",
+          "start": "2015-07-01",
+          "status": "active",
+          "prescriber": "Dr Ali",
+          "note": null
+        },
+        {
+          "name": "Diclofenac sodium 50 mg tablet",
+          "generic": "diclofenac",
+          "brand_as_written": "Voltral",
+          "dose": "50 mg",
+          "route": "oral",
+          "frequency": "twice daily as needed",
+          "start": "2025-03-01",
+          "status": "stopped",
+          "prescriber": "Dr Ali",
+          "note": "Stopped 2026-08 after the emergency visit"
+        }
+      ]
+    },
+    "aku": {
+      "conditions": [
+        {
+          "display": "Chest pain, non-cardiac cause not excluded",
+          "snomed": "29857009",
+          "onset": "2026-08",
+          "status": "active"
+        }
+      ],
+      "surgeries": [],
+      "visits": [
+        {
+          "date": "2026-08-30",
+          "setting": "Emergency department, Aga Khan University Hospital",
+          "doctor": "Dr Nida Iqbal (medical officer)",
+          "reason": "Chest pain at rest, 40 minutes",
+          "summary": "ECG normal sinus rhythm. Troponin negative at 0 and 3 hours. Treated as musculoskeletal. Discharged with advice to see a physician."
+        }
+      ],
+      "medications": [
+        {
+          "name": "Metformin 500 mg tablet",
+          "generic": "metformin",
+          "brand_as_written": null,
+          "dose": "500 mg",
+          "route": "oral",
+          "frequency": "twice daily",
+          "start": "2014-01-01",
+          "status": "active",
+          "prescriber": null,
+          "note": "As written in the discharge summary"
+        },
+        {
+          "name": "Aspirin 75 mg tablet",
+          "generic": "aspirin",
+          "brand_as_written": null,
+          "dose": "75 mg",
+          "route": "oral",
+          "frequency": "once daily",
+          "start": "2019-01-10",
+          "status": "active",
+          "prescriber": null,
+          "note": null
+        },
+        {
+          "name": "Atorvastatin 20 mg tablet",
+          "generic": "atorvastatin",
+          "brand_as_written": null,
+          "dose": "20 mg",
+          "route": "oral",
+          "frequency": "once daily",
+          "start": "2019-01-10",
+          "status": "active",
+          "prescriber": null,
+          "note": "Discharge summary lists 20 mg, the clinic lists 40 mg (discrepancy)"
+        }
+      ]
+    },
+    "lab-b": {
+      "labs": [
+        {
+          "date": "2026-10-10",
+          "panel": "Renal function",
+          "note": null,
+          "results": [
+            {
+              "test": "Creatinine",
+              "loinc": "2160-0",
+              "value": 1.4,
+              "unit": "mg/dL",
+              "reference": "0.7-1.3",
+              "flag": "high"
+            },
+            {
+              "test": "eGFR",
+              "loinc": "62238-1",
+              "value": 56,
+              "unit": "mL/min/1.73m2",
+              "reference": ">=60",
+              "flag": "low"
+            },
+            {
+              "test": "Urea",
+              "loinc": "3091-6",
+              "value": 38,
+              "unit": "mg/dL",
+              "reference": "15-45",
+              "flag": ""
+            }
+          ]
+        },
+        {
+          "date": "2026-10-10",
+          "panel": "HbA1c",
+          "note": null,
+          "results": [
+            {
+              "test": "HbA1c",
+              "loinc": "4548-4",
+              "value": 8.2,
+              "unit": "%",
+              "reference": "4.0-5.6",
+              "flag": "high"
+            }
+          ]
+        },
+        {
+          "date": "2026-10-10",
+          "panel": "Cardiac markers",
+          "note": null,
+          "results": [
+            {
+              "test": "Troponin I (high sensitivity)",
+              "loinc": "89579-7",
+              "value": 8,
+              "unit": "ng/L",
+              "reference": "<34",
+              "flag": ""
+            },
+            {
+              "test": "CK-MB",
+              "loinc": "13969-1",
+              "value": 14,
+              "unit": "U/L",
+              "reference": "<25",
+              "flag": ""
+            }
+          ]
+        },
+        {
+          "date": "2025-09-02",
+          "panel": "Lipid profile",
+          "note": "Older than 6 months",
+          "results": [
+            {
+              "test": "Total cholesterol",
+              "loinc": "2093-3",
+              "value": 214,
+              "unit": "mg/dL",
+              "reference": "<200",
+              "flag": "high"
+            },
+            {
+              "test": "LDL cholesterol",
+              "loinc": "13457-7",
+              "value": 138,
+              "unit": "mg/dL",
+              "reference": "<100",
+              "flag": "high"
+            },
+            {
+              "test": "HDL cholesterol",
+              "loinc": "2085-9",
+              "value": 38,
+              "unit": "mg/dL",
+              "reference": ">40",
+              "flag": "low"
+            },
+            {
+              "test": "Triglycerides",
+              "loinc": "2571-8",
+              "value": 192,
+              "unit": "mg/dL",
+              "reference": "<150",
+              "flag": "high"
+            }
+          ]
+        }
+      ]
+    },
+    "rad-zia": {
+      "imaging": [
+        {
+          "date": "2026-10-10",
+          "study": "Chest X-ray, PA view",
+          "body_part": "Chest",
+          "findings": "Lung fields clear. Cardiothoracic ratio about 0.52, upper limit of normal. No effusion. Aortic knuckle prominent.",
+          "impression": "No acute chest disease. Borderline cardiac size.",
+          "radiologist": "Dr Hira Anwar, Consultant Radiologist"
+        }
+      ]
+    }
+  },
+  "scenario": {
+    "tests": "Drug against procedure: metformin with iodinated contrast at angiography and eGFR 56 (flag). Aspirin continues for angiography (informational). Source conflict: metformin 850 mg (clinic) vs 500 mg (hospital) and atorvastatin 40 mg vs 20 mg, to be resolved by a person. Stopped diclofenac must not appear as a current medicine.",
+    "should_flag": [
+      "Metformin with contrast media, reduced eGFR"
+    ],
+    "conflicts": [
+      "Metformin dose clinic vs hospital",
+      "Atorvastatin dose clinic vs hospital"
+    ],
+    "records_outside_6_months": [
+      "Clinic visit 2026-06-15 is inside 6 months",
+      "Lipid profile 2025-09-02 is outside 6 months"
+    ]
+  },
+  "_meta": {
+    "synthetic": true,
+    "reference_date": "2026-10-26",
+    "recent_window_start": "2026-04-26",
+    "institutions": {
+      "clinic-ali": "Dr Ali's Clinic, Clifton, Karachi",
+      "lab-b": "Chughtai Lab",
+      "zia": "Ziauddin Hospital",
+      "aku": "Aga Khan University Hospital",
+      "rad-zia": "Ziauddin Hospital, Radiology"
+    }
+  },
+  "expected_retrieval_view": {
+    "conditions": [
+      {
+        "display": "Type 2 diabetes mellitus",
+        "snomed": "44054006",
+        "onset": "2012-03",
+        "status": "active",
+        "source": "clinic-ali"
+      },
+      {
+        "display": "Essential hypertension",
+        "snomed": "59621000",
+        "onset": "2015-06",
+        "status": "active",
+        "source": "clinic-ali"
+      },
+      {
+        "display": "Dyslipidaemia",
+        "snomed": "55822004",
+        "onset": "2019-01",
+        "status": "active",
+        "source": "clinic-ali"
+      },
+      {
+        "display": "Exertional chest pain, under investigation",
+        "snomed": "29857009",
+        "onset": "2026-09",
+        "status": "active",
+        "source": "clinic-ali"
+      },
+      {
+        "display": "Chest pain, non-cardiac cause not excluded",
+        "snomed": "29857009",
+        "onset": "2026-08",
+        "status": "active",
+        "source": "aku"
+      }
+    ],
+    "surgeries": [
+      {
+        "procedure": "Right inguinal hernia repair",
+        "date": "2009-11",
+        "where": "Private hospital, Karachi",
+        "source": "clinic-ali"
+      }
+    ],
+    "visits_last_6_months": [
+      {
+        "date": "2026-10-20",
+        "setting": "Clinic visit",
+        "doctor": "Dr Ali",
+        "reason": "Chest tightness, follow-up",
+        "summary": "Symptoms worsening with stairs. ECG repeated, T-wave flattening V4 to V6. Referral to cardiology.",
+        "source": "clinic-ali"
+      },
+      {
+        "date": "2026-10-08",
+        "setting": "Clinic visit",
+        "doctor": "Dr Ali",
+        "reason": "Chest tightness on walking",
+        "summary": "First visit for this complaint. Aspirin continued. Chest X-ray requested.",
+        "source": "clinic-ali"
+      },
+      {
+        "date": "2026-08-30",
+        "setting": "Emergency department, Aga Khan University Hospital",
+        "doctor": "Dr Nida Iqbal (medical officer)",
+        "reason": "Chest pain at rest, 40 minutes",
+        "summary": "ECG normal sinus rhythm. Troponin negative at 0 and 3 hours. Treated as musculoskeletal. Discharged with advice to see a physician.",
+        "source": "aku"
+      },
+      {
+        "date": "2026-06-15",
+        "setting": "Clinic visit",
+        "doctor": "Dr Ali",
+        "reason": "Diabetes review",
+        "summary": "HbA1c above target. Glimepiride added.",
+        "source": "clinic-ali"
+      }
+    ],
+    "current_medications": [
+      {
+        "name": "Metformin 850 mg tablet",
+        "generic": "metformin",
+        "brand_as_written": "Glucophage",
+        "dose": "850 mg",
+        "route": "oral",
+        "frequency": "twice daily with meals",
+        "start": "2014-01-01",
+        "status": "active",
+        "prescriber": "Dr Ali",
+        "note": "Clinic record says 850 mg. The hospital discharge summary says 500 mg (discrepancy to resolve).",
+        "source": "clinic-ali"
+      },
+      {
+        "name": "Glimepiride 2 mg tablet",
+        "generic": "glimepiride",
+        "brand_as_written": "Amaryl",
+        "dose": "2 mg",
+        "route": "oral",
+        "frequency": "once daily before breakfast",
+        "start": "2026-06-15",
+        "status": "active",
+        "prescriber": "Dr Ali",
+        "note": null,
+        "source": "clinic-ali"
+      },
+      {
+        "name": "Aspirin 75 mg tablet",
+        "generic": "aspirin",
+        "brand_as_written": "Cardiprin",
+        "dose": "75 mg",
+        "route": "oral",
+        "frequency": "once daily after lunch",
+        "start": "2019-01-10",
+        "status": "active",
+        "prescriber": "Dr Ali",
+        "note": null,
+        "source": "clinic-ali"
+      },
+      {
+        "name": "Atorvastatin 40 mg tablet",
+        "generic": "atorvastatin",
+        "brand_as_written": "Lipitor",
+        "dose": "40 mg",
+        "route": "oral",
+        "frequency": "once daily at night",
+        "start": "2019-01-10",
+        "status": "active",
+        "prescriber": "Dr Ali",
+        "note": null,
+        "source": "clinic-ali"
+      },
+      {
+        "name": "Enalapril 10 mg tablet",
+        "generic": "enalapril",
+        "brand_as_written": "Renitec",
+        "dose": "10 mg",
+        "route": "oral",
+        "frequency": "once daily",
+        "start": "2015-07-01",
+        "status": "active",
+        "prescriber": "Dr Ali",
+        "note": null,
+        "source": "clinic-ali"
+      },
+      {
+        "name": "Metformin 500 mg tablet",
+        "generic": "metformin",
+        "brand_as_written": null,
+        "dose": "500 mg",
+        "route": "oral",
+        "frequency": "twice daily",
+        "start": "2014-01-01",
+        "status": "active",
+        "prescriber": null,
+        "note": "As written in the discharge summary",
+        "source": "aku"
+      },
+      {
+        "name": "Aspirin 75 mg tablet",
+        "generic": "aspirin",
+        "brand_as_written": null,
+        "dose": "75 mg",
+        "route": "oral",
+        "frequency": "once daily",
+        "start": "2019-01-10",
+        "status": "active",
+        "prescriber": null,
+        "note": null,
+        "source": "aku"
+      },
+      {
+        "name": "Atorvastatin 20 mg tablet",
+        "generic": "atorvastatin",
+        "brand_as_written": null,
+        "dose": "20 mg",
+        "route": "oral",
+        "frequency": "once daily",
+        "start": "2019-01-10",
+        "status": "active",
+        "prescriber": null,
+        "note": "Discharge summary lists 20 mg, the clinic lists 40 mg (discrepancy)",
+        "source": "aku"
+      }
+    ]
+  }
+}

@@ -6,14 +6,23 @@ reported, never silently dropped.
 """
 from __future__ import annotations
 
+import html
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
 from refcommon import fhir
 
-# Categories pre-selected for the referral brief (clinician can change selection).
-DEFAULT_SELECTED = {"medication", "lab", "condition", "consultation"}
+# Categories included in the referral summary by default (staff can change selection).
+DEFAULT_SELECTED = {"medication", "lab", "condition", "surgery", "visit", "imaging"}
+
+
+def _narrative_text(res: dict) -> str | None:
+    div = (res.get("text") or {}).get("div")
+    if not div:
+        return None
+    return html.unescape(re.sub(r"<[^>]+>", "", div)).strip() or None
 
 
 @dataclass
@@ -72,19 +81,30 @@ def map_resource(res: dict) -> Mapped | None:
         reason = _text((res.get("reasonCode") or [{}])[0])
         start = (res.get("period") or {}).get("start")
         practitioner = ((res.get("participant") or [{}])[0].get("individual") or {}).get("display")
-        cat = "consultation" if "orthodont" in type_text.lower() else "encounter"
-        return Mapped(rtype, rid, version, cat, f"{type_text}: {reason}".strip(": "),
-                      {"type": type_text, "reason": reason, "start": start, "practitioner": practitioner,
-                       "status": res.get("status")}, _parse_time(start), res)
+        summary = _narrative_text(res)
+        display = f"{type_text}: {reason}".strip(": ") + (f" - {summary}" if summary else "")
+        return Mapped(rtype, rid, version, "visit", display,
+                      {"setting": type_text, "reason": reason, "summary": summary, "start": start,
+                       "practitioner": practitioner, "status": res.get("status")}, _parse_time(start), res)
 
     if rtype == "Condition":
         code = res.get("code")
         status = ((res.get("clinicalStatus") or {}).get("coding") or [{}])[0].get("code")
-        onset = res.get("onsetDateTime")
+        onset = res.get("onsetDateTime") or res.get("onsetString")
         recorded = res.get("recordedDate")
-        return Mapped(rtype, rid, version, "condition", f"{_text(code)} ({status or 'status not recorded'})",
+        when = f", since {onset}" if onset else ""
+        return Mapped(rtype, rid, version, "condition", f"{_text(code)} ({status or 'status not recorded'}{when})",
                       {"condition": _text(code), "coding": _coding(code), "clinical_status": status,
-                       "onset": onset, "recorded": recorded}, _parse_time(onset or recorded), res)
+                       "onset": onset, "recorded": recorded}, _parse_time(onset if onset and len(onset) == 10 else recorded), res)
+
+    if rtype == "Procedure":
+        code = res.get("code")
+        performed = res.get("performedDateTime") or res.get("performedString")
+        where = (res.get("location") or {}).get("display")
+        display = _text(code) + (f" ({performed})" if performed else " (date not recorded)") + (f", {where}" if where else "")
+        return Mapped(rtype, rid, version, "surgery", display,
+                      {"procedure": _text(code), "performed": performed, "location": where, "status": res.get("status")},
+                      None, res)
 
     if rtype == "Observation":
         code = res.get("code")
@@ -93,6 +113,13 @@ def map_resource(res: dict) -> Mapped | None:
                                     "collected": res.get("effectiveDateTime"), "issued": res.get("issued"),
                                     "reference_range": ((res.get("referenceRange") or [{}])[0]).get("text"),
                                     "specimen": (res.get("specimen") or {}).get("display")}
+        interp = ((res.get("interpretation") or [{}])[0].get("coding") or [{}])[0].get("display")
+        if interp:
+            original["interpretation"] = interp
+        notes = [n.get("text", "") for n in res.get("note", [])]
+        panel = next((n[len("Panel: "):] for n in notes if n.startswith("Panel: ")), None)
+        if panel:
+            original["panel"] = panel
         if "valueQuantity" in res:
             vq = res["valueQuantity"]
             original.update({"value": vq.get("value"), "unit": vq.get("unit")})
@@ -103,12 +130,22 @@ def map_resource(res: dict) -> Mapped | None:
         else:
             original.update({"value": None, "unit": None, "data_absent": True})
             value_display = "value not recorded"
-        return Mapped(rtype, rid, version, "lab", f"{_text(code)}: {value_display} ({res.get('status')})",
+        ref = f", reference {original['reference_range']}" if original.get("reference_range") else ""
+        flag = f", {interp.lower()}" if interp else ""
+        return Mapped(rtype, rid, version, "lab", f"{_text(code)}: {value_display}{ref}{flag}",
                       original, _parse_time(res.get("effectiveDateTime")), res)
 
     if rtype == "DiagnosticReport":
         code = res.get("code")
         conclusion = res.get("conclusion")
+        cats = [c.get("code") for cat in res.get("category", []) for c in cat.get("coding", [])]
+        if "RAD" in cats:
+            findings = _narrative_text(res)
+            reporter = ((res.get("resultsInterpreter") or [{}])[0]).get("display")
+            return Mapped(rtype, rid, version, "imaging",
+                          f"{_text(code)}: {conclusion or findings or 'report text not recorded'}",
+                          {"study": _text(code), "findings": findings, "impression": conclusion, "reporter": reporter,
+                           "date": res.get("effectiveDateTime")}, _parse_time(res.get("effectiveDateTime")), res)
         return Mapped(rtype, rid, version, "lab_report",
                       f"{_text(code)} report ({res.get('status')})" + (f": {conclusion}" if conclusion else ""),
                       {"report": _text(code), "status": res.get("status"), "conclusion": conclusion,
@@ -121,17 +158,20 @@ def map_resource(res: dict) -> Mapped | None:
         dosage = (res.get("dosageInstruction") or [{}])[0]
         period = (res.get("dispenseRequest") or {}).get("validityPeriod") or {}
         dq = ((dosage.get("doseAndRate") or [{}])[0]).get("doseQuantity") or {}
+        notes = [n.get("text", "") for n in res.get("note", [])]
+        brand = next((n[len("Brand as written: "):] for n in notes if n.startswith("Brand as written: ")), None)
         original = {
-            "medication": med, "record_kind": "prescription", "status": res.get("status"),
+            "medication": med, "brand": brand, "record_kind": "prescription", "status": res.get("status"),
             "dosage_text": dosage.get("text") or None, "route": (dosage.get("route") or {}).get("text"),
             "frequency": ((dosage.get("timing") or {}).get("code") or {}).get("text"),
             "dose_value": dq.get("value"), "dose_unit": dq.get("unit"),
             "start": period.get("start"), "end": period.get("end"), "authored_on": res.get("authoredOn"),
             "prescriber": (res.get("requester") or {}).get("display"),
-            "note": "; ".join(n.get("text", "") for n in res.get("note", [])) or None,
+            "note": "; ".join(n for n in notes if not n.startswith("Brand as written: ")) or None,
         }
+        brand_txt = f" ({brand})" if brand else ""
         return Mapped(rtype, rid, version, "medication",
-                      f"{med} - {original['dosage_text'] or 'dose not recorded'} (prescription {res.get('status')})",
+                      f"{med}{brand_txt} - {original['dosage_text'] or 'dose not recorded'}",
                       original, _parse_time(res.get("authoredOn") or period.get("start")), res)
 
     if rtype == "MedicationStatement":

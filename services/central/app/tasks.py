@@ -81,52 +81,6 @@ def process_document(self, job_id: str) -> None:
         db.commit()
 
 
-@celery_app.task(name="generate_brief", bind=True, max_retries=0)
-def generate_brief(self, job_id: str) -> None:
-    from .generation import brief as brief_mod
-    from .generation.provider import ProviderOutputInvalid, ProviderUnavailable, get_provider
-    from .models import Brief, Referral
-    from .security import audit
-
-    with SessionLocal() as db:
-        job, err = _start(db, job_id)
-        if job is None:
-            log.warning("generate_brief %s skipped: %s", job_id, err)
-            return
-        referral = db.get(Referral, job.referral_id)
-        provider = get_provider()
-        try:
-            out = brief_mod.generate(db, referral, provider)
-            prev = brief_mod.latest_brief(db, referral.id)
-            b = Brief(referral_id=referral.id, version=brief_mod.next_version(db, referral.id), kind="generated",
-                      sections=out["sections"], limitations=out["limitations"], evidence_ids=out["evidence_ids"],
-                      model=f"{provider.name}:{provider.model}", prompt_version=brief_mod.PROMPT_VERSION,
-                      generation_meta={"job_id": job.id, "evidence_supplied": out["evidence_ids"]},
-                      based_on_version=prev.version if prev else None, created_by=f"{provider.model} (draft for {job.created_by})")
-            db.add(b)
-            db.flush()
-            from .referrals.state import mark_clinical_change
-            if referral.current_package_version:
-                mark_clinical_change(db, referral, job.created_by, "brief regenerated")
-            job.status, job.result = "completed", {"brief_version": b.version}
-            audit(db, None, "brief.generate", "brief", f"{referral.reference}:v{b.version}", "success", referral.id,
-                  {"model": b.model, "prompt_version": b.prompt_version},
-                  actor=(job.created_by_id, job.created_by, job.institution_id))
-        except (ProviderUnavailable, ProviderOutputInvalid) as exc:
-            db.rollback()
-            job = db.merge(job)
-            job.status, job.error = "failed", str(exc)
-            audit(db, None, "brief.generate", "referral", referral.reference, "failed", referral.id, {"error": str(exc)},
-                  actor=(job.created_by_id, job.created_by, job.institution_id))
-        except Exception as exc:  # noqa: BLE001
-            log.exception("generate_brief failed")
-            db.rollback()
-            job = db.merge(job)
-            job.status, job.error = "failed", f"Brief generation failed: {exc}"[:500]
-        job.finished_at = utcnow()
-        db.commit()
-
-
 @celery_app.task(name="deliver_outbox")
 def deliver_outbox() -> int:
     from .delivery.outbox import deliver_pending

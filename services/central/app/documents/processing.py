@@ -18,11 +18,12 @@ import time
 from dataclasses import dataclass
 
 from PIL import Image, ImageOps
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..generation.provider import ProviderOutputInvalid, ProviderUnavailable, get_provider
-from ..models import Document, EvidenceItem, ExtractionRun
+from ..models import Document, EvidenceItem, ExtractionRun, MedicineName
 from . import extract_rules
 from .storage import storage
 
@@ -175,7 +176,7 @@ def _save_png(image: Image.Image, key: str) -> None:
     storage.put_named(key, buf.getvalue())
 
 
-def _choose_extractor(lines: list[dict]) -> tuple[dict, str, str, list[str]]:
+def _choose_extractor(lines: list[dict], names: list[str]) -> tuple[dict, str, str, list[str]]:
     notes: list[str] = []
     mode = settings.extraction_mode
     if mode in ("auto", "llm") and settings.llm_configured:
@@ -194,7 +195,7 @@ def _choose_extractor(lines: list[dict]) -> tuple[dict, str, str, list[str]]:
             if mode == "llm":
                 raise
             notes.append(f"Language-model extraction unavailable ({exc}); used rule-based extractor instead.")
-    return extract_rules.extract(lines), "rules", extract_rules.VERSION, notes
+    return extract_rules.extract(lines, names), "rules", extract_rules.VERSION, notes
 
 
 def process(db: Session, doc: Document, job_id: str | None) -> ExtractionRun:
@@ -238,8 +239,9 @@ def process(db: Session, doc: Document, job_id: str | None) -> ExtractionRun:
         db.commit()
         return run
 
+    names = [n.name for n in db.scalars(select(MedicineName).where(MedicineName.status == "active"))]
     try:
-        fields, extractor, extractor_version, notes = _choose_extractor(lines)
+        fields, extractor, extractor_version, notes = _choose_extractor(lines, names)
     except (ProviderUnavailable, ProviderOutputInvalid) as exc:
         run.status, run.error = "failed", f"Field extraction failed: {exc}"
         doc.status, doc.error = "failed", run.error

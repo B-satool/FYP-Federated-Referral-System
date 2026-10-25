@@ -1,11 +1,13 @@
-"""Building blocks shared by the clinic, laboratory and specialist services.
+"""Building blocks shared by every institution service (clinic, laboratory, hospital).
 
-Every source makes its own access decision from its own database: membership
-of the owning institution, the caller's role, and explicit access grants that
-the source's administrator controls. The central platform cannot bypass this.
+Every institution makes its own access decision from its own database:
+membership of the institution, the caller's role, and explicit access grants.
+A grant is created when this institution's own staff approve a patient-link
+request; the central platform cannot create or bypass one.
 """
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Any, Callable
 
@@ -18,17 +20,23 @@ from . import fhir
 from .auth import Principal, forbid
 from .db import utcnow
 
-ALL_CATEGORIES = ("demographics", "encounters", "conditions", "medications", "labs", "documents", "consultations")
+ALL_CATEGORIES = ("demographics", "conditions", "surgeries", "visits", "medications", "labs", "imaging", "documents")
 
-# What each role may read from its OWN institution's records.
+# What each role may read from its OWN institution's records. Staff prepare referrals,
+# so they read the same referral-relevant records as doctors.
 OWN_ROLE_CATEGORIES: dict[str, set[str]] = {
     "clinician": set(ALL_CATEGORIES),
-    "specialist": set(ALL_CATEGORIES),
-    "clinic_staff": {"demographics", "encounters", "medications", "labs", "documents"},
-    "lab_staff": {"demographics", "labs"},
+    "clinic_staff": set(ALL_CATEGORIES),
+    "diagnostics_staff": {"demographics", "labs", "imaging"},
 }
 # Roles from another institution that may use a grant at all.
-GRANTEE_ROLES = {"clinician", "clinic_staff", "specialist"}
+GRANTEE_ROLES = {"clinician", "clinic_staff"}
+
+
+def normalize_cnic(value: str | None) -> str:
+    """CNIC as 13 digits (dashes and spaces removed). Used only to look a patient up;
+    a match is shown to a person who decides, it never links records by itself."""
+    return re.sub(r"\D", "", value or "")
 
 
 class AuditMixin:
@@ -213,26 +221,6 @@ def records_bundle(resources: list[dict], withheld: set[str], institution_id: st
             "search": {"mode": "outcome"},
         })
     return b
-
-
-class MatchIn(BaseModel):
-    local_patient_id: str
-    family: str
-    given: str
-    birth_date: str
-
-
-def identity_match(patient, body: MatchIn) -> dict:
-    """Field-by-field comparison used as verification evidence. Returns booleans only,
-    never the source's demographics, so a failed match leaks nothing."""
-    if patient is None:
-        return {"record_exists": False, "family_match": False, "given_match": False, "birth_date_match": False}
-    return {
-        "record_exists": True,
-        "family_match": patient.family.strip().lower() == body.family.strip().lower(),
-        "given_match": patient.given.strip().lower() == body.given.strip().lower(),
-        "birth_date_match": patient.birth_date.isoformat() == body.birth_date.strip(),
-    }
 
 
 def health_router(check_db: Callable[[], None]) -> APIRouter:

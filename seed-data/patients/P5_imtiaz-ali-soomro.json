@@ -1,0 +1,516 @@
+{
+  "key": "P5",
+  "department": "General Surgery",
+  "demographics": {
+    "name": "Imtiaz Ali Soomro",
+    "sex": "M",
+    "dob": "1981-01-05",
+    "age": 45,
+    "cnic": "41304-0000055-9",
+    "phone": "0300-0000055",
+    "city": "Karachi",
+    "language": "Sindhi, Urdu",
+    "blood_group": "O-",
+    "marital_status": "Married",
+    "occupation": "Shopkeeper",
+    "allergies": []
+  },
+  "local_ids": {
+    "clinic-ali": "DA-6120",
+    "lab-b": "MD-773640",
+    "rad-zia": "MI-56188",
+    "aku": null
+  },
+  "referral": {
+    "from_institution": "clinic-ali",
+    "from_department": "General practice",
+    "requested_by_doctor": "Dr Ali",
+    "referred_doctor_requested": null,
+    "to_institution": "aku",
+    "to_department": "General Surgery",
+    "date": "2026-10-23",
+    "urgency": "Routine (within 4 weeks)",
+    "reason": "Repeated right upper abdominal pain after fatty meals, two episodes needing injections at a local hospital. Ultrasound shows multiple gallstones with a thickened gallbladder wall. Diabetic with a coronary stent in 2025. Needs surgical assessment for gallbladder removal.",
+    "planned_procedure": "Laparoscopic cholecystectomy",
+    "diagnostic_requests": [
+      {
+        "type": "Imaging",
+        "test": "MRCP",
+        "reason": "Liver enzymes mildly raised; exclude a common bile duct stone. Clinic has no MRI",
+        "send_to": "zia",
+        "urgency": "Routine",
+        "status": "requested"
+      },
+      {
+        "type": "Laboratory",
+        "test": "Serum lipase and repeat HbA1c",
+        "reason": "Pre-operative, HbA1c 8.9",
+        "send_to": "lab-b",
+        "urgency": "Routine",
+        "status": "requested"
+      }
+    ]
+  },
+  "brought_by_patient": [
+    {
+      "file": "P5_prescription_cardiology_2025-06-18.jpg",
+      "kind": "Cardiologist prescription after stent (photo of paper)",
+      "date": "2025-06-18"
+    }
+  ],
+  "sources": {
+    "clinic-ali": {
+      "conditions": [
+        {
+          "display": "Type 2 diabetes mellitus",
+          "snomed": "44054006",
+          "onset": "2018-02",
+          "status": "active"
+        },
+        {
+          "display": "Coronary artery disease, drug-eluting stent to LAD",
+          "snomed": "53741008",
+          "onset": "2025-06",
+          "status": "active"
+        },
+        {
+          "display": "Obesity (BMI 33)",
+          "snomed": "414916001",
+          "onset": "2020-01",
+          "status": "active"
+        },
+        {
+          "display": "Cholelithiasis (gallstones)",
+          "snomed": "235919008",
+          "onset": "2026-09",
+          "status": "active"
+        }
+      ],
+      "surgeries": [
+        {
+          "procedure": "Percutaneous coronary intervention with one drug-eluting stent (LAD)",
+          "date": "2025-06",
+          "where": "Ziauddin Hospital"
+        },
+        {
+          "procedure": "Appendicectomy",
+          "date": "2002-07",
+          "where": "Civil hospital, Karachi"
+        }
+      ],
+      "visits": [
+        {
+          "date": "2026-10-20",
+          "setting": "Clinic visit",
+          "doctor": "Dr Ali",
+          "reason": "Abdominal pain, ultrasound review",
+          "summary": "Gallstones with thick wall. Referral to surgery. Advised to continue heart medicines."
+        },
+        {
+          "date": "2026-09-19",
+          "setting": "Clinic visit",
+          "doctor": "Dr Ali",
+          "reason": "Severe right upper abdominal pain",
+          "summary": "Biliary colic. Given injections, advised ultrasound."
+        },
+        {
+          "date": "2026-08-02",
+          "setting": "Clinic visit",
+          "doctor": "Dr Ali",
+          "reason": "Diabetes review",
+          "summary": "Insulin dose increased."
+        }
+      ],
+      "medications": [
+        {
+          "name": "Insulin glargine 100 units/mL",
+          "generic": "insulin glargine",
+          "brand_as_written": "Basalog",
+          "dose": "24 units",
+          "route": "subcutaneous",
+          "frequency": "once daily at night",
+          "start": "2024-05-01",
+          "status": "active",
+          "prescriber": "Dr Ali",
+          "note": "Increased from 20 units on 2026-08-02"
+        },
+        {
+          "name": "Metformin 1000 mg tablet",
+          "generic": "metformin",
+          "brand_as_written": "Glucophage",
+          "dose": "1000 mg",
+          "route": "oral",
+          "frequency": "twice daily with meals",
+          "start": "2018-03-01",
+          "status": "active",
+          "prescriber": "Dr Ali",
+          "note": null
+        },
+        {
+          "name": "Aspirin 75 mg tablet",
+          "generic": "aspirin",
+          "brand_as_written": "Disprin Cardio",
+          "dose": "75 mg",
+          "route": "oral",
+          "frequency": "once daily",
+          "start": "2025-06-18",
+          "status": "active",
+          "prescriber": "Dr Aamir Hussain (Ziauddin cardiology)",
+          "note": null
+        },
+        {
+          "name": "Clopidogrel 75 mg tablet",
+          "generic": "clopidogrel",
+          "brand_as_written": "Plavix",
+          "dose": "75 mg",
+          "route": "oral",
+          "frequency": "once daily",
+          "start": "2025-06-18",
+          "status": "active",
+          "prescriber": "Dr Aamir Hussain (Ziauddin cardiology)",
+          "note": "Planned 12 months after the stent; cardiologist has not yet advised stopping"
+        },
+        {
+          "name": "Atorvastatin 40 mg tablet",
+          "generic": "atorvastatin",
+          "brand_as_written": "Lipitor",
+          "dose": "40 mg",
+          "route": "oral",
+          "frequency": "once daily at night",
+          "start": "2025-06-18",
+          "status": "active",
+          "prescriber": "Dr Aamir Hussain (Ziauddin cardiology)",
+          "note": null
+        },
+        {
+          "name": "Bisoprolol 2.5 mg tablet",
+          "generic": "bisoprolol",
+          "brand_as_written": "Concor",
+          "dose": "2.5 mg",
+          "route": "oral",
+          "frequency": "once daily",
+          "start": "2025-06-18",
+          "status": "active",
+          "prescriber": "Dr Aamir Hussain (Ziauddin cardiology)",
+          "note": null
+        },
+        {
+          "name": "Hyoscine butylbromide 10 mg tablet",
+          "generic": "hyoscine butylbromide",
+          "brand_as_written": "Buscopan",
+          "dose": "10 mg",
+          "route": "oral",
+          "frequency": "as needed for pain",
+          "start": "2026-09-19",
+          "status": "stopped",
+          "prescriber": "Dr Ali",
+          "note": "Short course, finished"
+        }
+      ]
+    },
+    "lab-b": {
+      "labs": [
+        {
+          "date": "2026-10-19",
+          "panel": "HbA1c and glucose",
+          "note": null,
+          "results": [
+            {
+              "test": "HbA1c",
+              "loinc": "4548-4",
+              "value": 8.9,
+              "unit": "%",
+              "reference": "4.0-5.6",
+              "flag": "high"
+            },
+            {
+              "test": "Glucose (fasting)",
+              "loinc": "2345-7",
+              "value": 168,
+              "unit": "mg/dL",
+              "reference": "70-99",
+              "flag": "high"
+            }
+          ]
+        },
+        {
+          "date": "2026-10-19",
+          "panel": "Liver function tests",
+          "note": null,
+          "results": [
+            {
+              "test": "ALT",
+              "loinc": "1742-6",
+              "value": 62,
+              "unit": "U/L",
+              "reference": "7-56",
+              "flag": "high"
+            },
+            {
+              "test": "AST",
+              "loinc": "1920-8",
+              "value": 48,
+              "unit": "U/L",
+              "reference": "10-40",
+              "flag": "high"
+            },
+            {
+              "test": "ALP",
+              "loinc": "6768-6",
+              "value": 168,
+              "unit": "U/L",
+              "reference": "44-147",
+              "flag": "high"
+            },
+            {
+              "test": "Total bilirubin",
+              "loinc": "1975-2",
+              "value": 1.3,
+              "unit": "mg/dL",
+              "reference": "0.2-1.2",
+              "flag": "high"
+            }
+          ]
+        },
+        {
+          "date": "2026-10-19",
+          "panel": "Complete blood count",
+          "note": null,
+          "results": [
+            {
+              "test": "Haemoglobin",
+              "loinc": "718-7",
+              "value": 14.1,
+              "unit": "g/dL",
+              "reference": "13.5-17.5",
+              "flag": ""
+            },
+            {
+              "test": "Platelets",
+              "loinc": "777-3",
+              "value": 231,
+              "unit": "10*9/L",
+              "reference": "150-400",
+              "flag": ""
+            },
+            {
+              "test": "WBC",
+              "loinc": "6690-2",
+              "value": 9.4,
+              "unit": "10*9/L",
+              "reference": "4.0-11.0",
+              "flag": ""
+            }
+          ]
+        },
+        {
+          "date": "2026-10-19",
+          "panel": "Renal function",
+          "note": null,
+          "results": [
+            {
+              "test": "Creatinine",
+              "loinc": "2160-0",
+              "value": 0.9,
+              "unit": "mg/dL",
+              "reference": "0.7-1.3",
+              "flag": ""
+            },
+            {
+              "test": "eGFR",
+              "loinc": "62238-1",
+              "value": 102,
+              "unit": "mL/min/1.73m2",
+              "reference": ">=60",
+              "flag": ""
+            }
+          ]
+        }
+      ]
+    },
+    "rad-zia": {
+      "imaging": [
+        {
+          "date": "2026-10-15",
+          "study": "Ultrasound abdomen",
+          "body_part": "Abdomen",
+          "findings": "Gallbladder contains multiple echogenic stones, largest 11 mm, with posterior shadowing. Wall thickness 4.5 mm. Common bile duct 6 mm. No pericholecystic fluid. Liver is mildly bright (fatty change). Pancreas and both kidneys are normal.",
+          "impression": "Cholelithiasis with a thickened gallbladder wall. Fatty liver. CBD at the upper limit of normal.",
+          "radiologist": "Dr Hira Anwar, Consultant Radiologist"
+        }
+      ]
+    }
+  },
+  "scenario": {
+    "tests": "Drug against procedure: clopidogrel and aspirin before elective laparoscopic surgery with a stent placed 16 months ago (flag; surgeon and cardiologist decide, the system must not tell the patient to stop). Insulin and metformin around surgery and fasting (flag). Liver enzymes raised: shows a result that the requested MRCP should explain. Stopped hyoscine must not appear as current.",
+    "should_flag": [
+      "Clopidogrel before elective surgery",
+      "Aspirin before elective surgery",
+      "Insulin and metformin around fasting for surgery"
+    ],
+    "records_outside_6_months": []
+  },
+  "_meta": {
+    "synthetic": true,
+    "reference_date": "2026-10-26",
+    "recent_window_start": "2026-04-26",
+    "institutions": {
+      "clinic-ali": "Dr Ali's Clinic, Clifton, Karachi",
+      "lab-b": "Chughtai Lab",
+      "aku": "Aga Khan University Hospital",
+      "rad-zia": "Ziauddin Hospital, Radiology"
+    }
+  },
+  "expected_retrieval_view": {
+    "conditions": [
+      {
+        "display": "Type 2 diabetes mellitus",
+        "snomed": "44054006",
+        "onset": "2018-02",
+        "status": "active",
+        "source": "clinic-ali"
+      },
+      {
+        "display": "Coronary artery disease, drug-eluting stent to LAD",
+        "snomed": "53741008",
+        "onset": "2025-06",
+        "status": "active",
+        "source": "clinic-ali"
+      },
+      {
+        "display": "Obesity (BMI 33)",
+        "snomed": "414916001",
+        "onset": "2020-01",
+        "status": "active",
+        "source": "clinic-ali"
+      },
+      {
+        "display": "Cholelithiasis (gallstones)",
+        "snomed": "235919008",
+        "onset": "2026-09",
+        "status": "active",
+        "source": "clinic-ali"
+      }
+    ],
+    "surgeries": [
+      {
+        "procedure": "Percutaneous coronary intervention with one drug-eluting stent (LAD)",
+        "date": "2025-06",
+        "where": "Ziauddin Hospital",
+        "source": "clinic-ali"
+      },
+      {
+        "procedure": "Appendicectomy",
+        "date": "2002-07",
+        "where": "Civil hospital, Karachi",
+        "source": "clinic-ali"
+      }
+    ],
+    "visits_last_6_months": [
+      {
+        "date": "2026-10-20",
+        "setting": "Clinic visit",
+        "doctor": "Dr Ali",
+        "reason": "Abdominal pain, ultrasound review",
+        "summary": "Gallstones with thick wall. Referral to surgery. Advised to continue heart medicines.",
+        "source": "clinic-ali"
+      },
+      {
+        "date": "2026-09-19",
+        "setting": "Clinic visit",
+        "doctor": "Dr Ali",
+        "reason": "Severe right upper abdominal pain",
+        "summary": "Biliary colic. Given injections, advised ultrasound.",
+        "source": "clinic-ali"
+      },
+      {
+        "date": "2026-08-02",
+        "setting": "Clinic visit",
+        "doctor": "Dr Ali",
+        "reason": "Diabetes review",
+        "summary": "Insulin dose increased.",
+        "source": "clinic-ali"
+      }
+    ],
+    "current_medications": [
+      {
+        "name": "Insulin glargine 100 units/mL",
+        "generic": "insulin glargine",
+        "brand_as_written": "Basalog",
+        "dose": "24 units",
+        "route": "subcutaneous",
+        "frequency": "once daily at night",
+        "start": "2024-05-01",
+        "status": "active",
+        "prescriber": "Dr Ali",
+        "note": "Increased from 20 units on 2026-08-02",
+        "source": "clinic-ali"
+      },
+      {
+        "name": "Metformin 1000 mg tablet",
+        "generic": "metformin",
+        "brand_as_written": "Glucophage",
+        "dose": "1000 mg",
+        "route": "oral",
+        "frequency": "twice daily with meals",
+        "start": "2018-03-01",
+        "status": "active",
+        "prescriber": "Dr Ali",
+        "note": null,
+        "source": "clinic-ali"
+      },
+      {
+        "name": "Aspirin 75 mg tablet",
+        "generic": "aspirin",
+        "brand_as_written": "Disprin Cardio",
+        "dose": "75 mg",
+        "route": "oral",
+        "frequency": "once daily",
+        "start": "2025-06-18",
+        "status": "active",
+        "prescriber": "Dr Aamir Hussain (Ziauddin cardiology)",
+        "note": null,
+        "source": "clinic-ali"
+      },
+      {
+        "name": "Clopidogrel 75 mg tablet",
+        "generic": "clopidogrel",
+        "brand_as_written": "Plavix",
+        "dose": "75 mg",
+        "route": "oral",
+        "frequency": "once daily",
+        "start": "2025-06-18",
+        "status": "active",
+        "prescriber": "Dr Aamir Hussain (Ziauddin cardiology)",
+        "note": "Planned 12 months after the stent; cardiologist has not yet advised stopping",
+        "source": "clinic-ali"
+      },
+      {
+        "name": "Atorvastatin 40 mg tablet",
+        "generic": "atorvastatin",
+        "brand_as_written": "Lipitor",
+        "dose": "40 mg",
+        "route": "oral",
+        "frequency": "once daily at night",
+        "start": "2025-06-18",
+        "status": "active",
+        "prescriber": "Dr Aamir Hussain (Ziauddin cardiology)",
+        "note": null,
+        "source": "clinic-ali"
+      },
+      {
+        "name": "Bisoprolol 2.5 mg tablet",
+        "generic": "bisoprolol",
+        "brand_as_written": "Concor",
+        "dose": "2.5 mg",
+        "route": "oral",
+        "frequency": "once daily",
+        "start": "2025-06-18",
+        "status": "active",
+        "prescriber": "Dr Aamir Hussain (Ziauddin cardiology)",
+        "note": null,
+        "source": "clinic-ali"
+      }
+    ]
+  }
+}

@@ -1,8 +1,10 @@
 """Central referral platform (modular monolith).
 
-Feature modules live inside this application (referrals, identity, integration,
-documents, evidence, medications, reviews, generation, approvals, delivery,
-audit). It calls the source services' APIs and never their databases.
+Feature modules: referrals (the doctor's request), identity (patient links confirmed
+by the other institution), integration (retrieval from the most recently visited
+institutions), documents and records, medicines (rules edited in the app), sending,
+tests and scans, response and follow-through, notifications and the work queue.
+It calls the institution services' APIs and never their databases.
 """
 from __future__ import annotations
 
@@ -13,29 +15,29 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-from . import audit_router, evidence_router
-from .approvals import router as approvals
+from . import audit_router, evidence_router, notifications, workqueue
 from .db import engine
 from .delivery import inbound
+from .diagnostics import router as diagnostics
 from .documents import router as documents
-from .generation import router as generation
+from .followup import router as followup
 from .identity import router as identity
 from .medications import router as medications
 from .referrals import router as referrals
-from .reviews import router as reviews
+from .sending import router as sending
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 app = FastAPI(
     title="Referral Preparation and Follow-through Platform - central API",
-    version="1.0.0",
-    description=("Central workflow API. Source records are retrieved through the clinic, laboratory and specialist "
-                 "services' own APIs, which make their own access decisions. FHIR content follows the pinned "
-                 "R4 4.0.1 project subset; envelopes marked 'Project API contract' are not standard FHIR resources."),
+    version="2.0.0",
+    description=("Central workflow API. Patient records are retrieved through each institution's own API, which "
+                 "makes its own access decisions. FHIR content follows the pinned R4 4.0.1 project subset; "
+                 "envelopes marked 'Project API contract' are not standard FHIR resources."),
 )
 
-for module in (referrals, evidence_router, documents, medications, reviews, generation, approvals, identity, inbound,
-               audit_router):
+for module in (referrals, identity, evidence_router, documents, medications, sending, diagnostics, followup, inbound,
+               notifications, workqueue, audit_router):
     app.include_router(module.router)
 
 

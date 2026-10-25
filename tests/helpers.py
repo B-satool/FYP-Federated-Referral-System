@@ -8,9 +8,12 @@ import httpx
 
 KEYCLOAK = os.environ.get("KEYCLOAK_URL", "http://localhost:8080")
 CENTRAL = os.environ.get("CENTRAL_URL", "http://localhost:8000")
-CLINIC = os.environ.get("CLINIC_URL", "http://localhost:8001")
-LAB = os.environ.get("LAB_URL", "http://localhost:8002")
-SPECIALIST = os.environ.get("SPECIALIST_URL", "http://localhost:8003")
+INSTITUTION_URLS = {
+    "drali": os.environ.get("DRALI_URL", "http://localhost:8001"),
+    "chughtai": os.environ.get("CHUGHTAI_URL", "http://localhost:8002"),
+    "ziauddin": os.environ.get("ZIAUDDIN_URL", "http://localhost:8003"),
+    "akuh": os.environ.get("AKUH_URL", "http://localhost:8004"),
+}
 PASSWORD = os.environ.get("DEMO_USER_PASSWORD", "demo1234")
 
 _tokens: dict[str, tuple[str, float]] = {}
@@ -51,6 +54,11 @@ class Api:
 
 def central(user: str) -> Api:
     return Api(CENTRAL, user)
+
+
+def institution(name: str, user: str) -> Api:
+    """An institution's own system (e.g. the receiving hospital's inbox)."""
+    return Api(INSTITUTION_URLS[name], user)
 
 
 def ok(resp: httpx.Response, status: int | tuple = (200, 201, 202)) -> dict:

@@ -1,29 +1,20 @@
-"""Deterministic referral-specific medication flag evaluator (FR-61 to FR-72).
+"""Deterministic medication-against-procedure flag evaluator.
 
-Pure function over typed input: the same verified inputs and rule versions
-always produce the same candidates (NFR 10.6). No language model is involved.
+Pure function over typed input: the same current medicines, procedure and rule
+versions always produce the same candidates. No language model is involved.
 
-Outputs are *candidates*; the service layer persists them as versioned flags.
-Flags never advise starting/stopping/changing medication, prescribe treatment
-or assign urgency (FR-71) - messages come only from clinician-approved rules
-or the fixed system wording below.
+Flags never advise starting, stopping or changing a medicine, never prescribe
+treatment and never assign urgency. Their wording comes only from
+reviewer-approved rules or the fixed system wording below.
 """
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from typing import Iterable
 
-POSSIBLE_USE_TITLE = "Possible medication use—please confirm"
-HISTORY_INCOMPLETE_TITLE = "Medication history incomplete"
-PROCEDURE_REQUIRED_TITLE = "Procedure context required for a medication rule"
-MAPPING_TITLE = "Medication mapping unresolved"
-
-CLASS_LABELS = {
-    "anticoagulant": "anticoagulant",
-    "antiplatelet": "antiplatelet agent",
-    "bisphosphonate": "bisphosphonate",
-    "systemic_corticosteroid": "systemic corticosteroid",
-}
+UNRECOGNISED_TITLE = "Medicine not recognised"
+PROCEDURE_TITLE = "Procedure not known yet: medicine not checked against it"
+INCOMPLETE_TITLE = "Medicine records incomplete"
 
 
 @dataclass(frozen=True)
@@ -31,21 +22,11 @@ class Rule:
     rule_id: str
     version: int
     drug_class: str
-    specialty: str
-    requires_procedure: bool
-    procedures: tuple[str, ...]
+    procedure_tags: tuple[str, ...]
     title: str
     message: str
     rationale: str = ""
     reference: str = ""
-
-    @classmethod
-    def from_dict(cls, d: dict) -> "Rule":
-        return cls(
-            rule_id=d["rule_id"], version=int(d["version"]), drug_class=d["drug_class"], specialty=d["specialty"],
-            requires_procedure=bool(d["requires_procedure"]), procedures=tuple(d.get("procedures") or ()),
-            title=d["title"], message=d["message"], rationale=d.get("rationale", ""), reference=d.get("reference", ""),
-        )
 
 
 @dataclass(frozen=True)
@@ -54,8 +35,7 @@ class MedInput:
     original_name: str
     ingredient: str | None
     drug_class: str | None
-    mapping_status: str  # mapped | clinician_mapped | ambiguous | unmapped
-    use_status: str  # unverified | confirmed_current | historical_stopped | uncertain | conflicting
+    mapping_status: str  # mapped | staff_mapped | ambiguous | unmapped
     source_label: str
     evidence_ids: tuple[int, ...] = ()
 
@@ -64,18 +44,18 @@ class MedInput:
 class SourceState:
     institution: str
     name: str
-    medication_source: bool
     status: str  # successful | empty | partial | denied | unavailable | invalid | not_retrieved
 
 
 @dataclass(frozen=True)
 class EvalInput:
-    specialty: str
-    procedure_status: str  # known | unknown | not_stated
+    procedure_status: str  # known | none | unknown | other
     planned_procedure: str | None
+    procedure_tags: tuple[str, ...]
     medications: tuple[MedInput, ...]
     sources: tuple[SourceState, ...]
     rules: tuple[Rule, ...]
+    class_labels: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -86,7 +66,6 @@ class FlagCandidate:
     message: str
     medication: str | None = None
     drug_class: str | None = None
-    current_use_status: str | None = None
     source_label: str | None = None
     rule_id: str | None = None
     rule_version: int | None = None
@@ -101,17 +80,13 @@ class FlagCandidate:
 
 @dataclass
 class EvalOutput:
-    outcome: str  # flags | no_match | unsupported_coverage
+    outcome: str  # flags | no_match | no_rules
     summary_message: str
     candidates: list[FlagCandidate]
 
 
-def _label(drug_class: str | None) -> str:
-    return CLASS_LABELS.get(drug_class or "", drug_class or "unclassified medication")
-
-
 def _group(meds: Iterable[MedInput]) -> dict[tuple[str, str], list[MedInput]]:
-    """Group by (ingredient, class) so one medication/rule match yields one visible flag."""
+    """One visible flag per medicine (ingredient) and rule, however many sources record it."""
     groups: dict[tuple[str, str], list[MedInput]] = {}
     for m in meds:
         if m.ingredient and m.drug_class:
@@ -120,95 +95,75 @@ def _group(meds: Iterable[MedInput]) -> dict[tuple[str, str], list[MedInput]]:
 
 
 def evaluate_medications(inp: EvalInput) -> EvalOutput:
-    if inp.procedure_status not in {"known", "unknown", "not_stated"}:
+    if inp.procedure_status not in {"known", "none", "unknown", "other"}:
         raise ValueError(f"invalid procedure_status {inp.procedure_status!r}")
     for r in inp.rules:
-        if r.requires_procedure and not r.procedures:
-            raise ValueError(f"rule {r.rule_id} requires a procedure but lists none")
-
-    rules = [r for r in inp.rules if r.specialty == inp.specialty]
+        if not r.procedure_tags:
+            raise ValueError(f"rule {r.rule_id} lists no procedure tags")
+    label = lambda c: inp.class_labels.get(c, c).lower()  # noqa: E731
     candidates: list[FlagCandidate] = []
 
-    # 1. Mapping problems: never presented as confirmed matches (FR-62)
+    # 1. A medicine that could not be identified is reported, never assumed harmless
     for m in inp.medications:
-        if m.use_status == "historical_stopped":
-            continue
         if m.mapping_status in {"ambiguous", "unmapped"}:
             candidates.append(FlagCandidate(
-                flag_key=f"mapping:{m.entry_id}", kind="ambiguous_mapping", title=f"{MAPPING_TITLE}: {m.original_name}",
-                message=("This medication could not be mapped to a verified ingredient and drug class, so it was not "
-                         "evaluated against medication rules. Clarify the medication."),
-                medication=m.original_name, current_use_status=m.use_status, source_label=m.source_label,
-                medication_entry_id=m.entry_id, evidence_ids=list(m.evidence_ids),
-            ))
+                flag_key=f"unrecognised:{m.entry_id}", kind="unrecognised_medicine",
+                title=f"{UNRECOGNISED_TITLE}: {m.original_name}",
+                message=("This medicine could not be matched to an ingredient and drug class, so it was not checked "
+                         "against the medication rules. Check the name, or ask a clinical reviewer to add it."),
+                medication=m.original_name, source_label=m.source_label, medication_entry_id=m.entry_id,
+                evidence_ids=list(m.evidence_ids)))
 
-    mapped = [m for m in inp.medications if m.mapping_status in {"mapped", "clinician_mapped"}]
+    tags = set(inp.procedure_tags)
+    mapped = [m for m in inp.medications if m.mapping_status in {"mapped", "staff_mapped"}]
     for (ingredient, drug_class), meds in sorted(_group(mapped).items()):
-        matching_rules = sorted((r for r in rules if r.drug_class == drug_class), key=lambda r: r.rule_id)
-        if not matching_rules:
+        matching = sorted((r for r in inp.rules if r.drug_class == drug_class), key=lambda r: r.rule_id)
+        if not matching:
             continue
-        confirmed = [m for m in meds if m.use_status == "confirmed_current"]
-        possible = [m for m in meds if m.use_status in {"unverified", "uncertain", "conflicting"}]
-        if not confirmed:
-            if possible:
-                # 2. Uncertain use: prompt, never a confirmed flag (FR-63, FR-66)
-                candidates.append(FlagCandidate(
-                    flag_key=f"possible:{ingredient}", kind="possible_use", title=POSSIBLE_USE_TITLE,
-                    message=(f"{', '.join(sorted({m.original_name for m in possible}))} ({_label(drug_class)}) is recorded "
-                             f"but current use is not confirmed ({', '.join(sorted({m.use_status for m in possible}))}). "
-                             "Confirm current use; related rules have not been applied as confirmed."),
-                    medication=", ".join(sorted({m.original_name for m in possible})), drug_class=drug_class,
-                    current_use_status=sorted({m.use_status for m in possible})[0],
-                    source_label="; ".join(sorted({m.source_label for m in possible})),
-                    evidence_ids=sorted({e for m in possible for e in m.evidence_ids}),
-                ))
-            continue  # historical/stopped only -> no current-use flag
-        ev = sorted({e for m in confirmed for e in m.evidence_ids})
-        src = "; ".join(sorted({m.source_label for m in confirmed}))
-        name = ", ".join(sorted({m.original_name for m in confirmed}))
-        for r in matching_rules:
-            if r.requires_procedure:
-                if inp.procedure_status != "known" or not inp.planned_procedure:
-                    # 3. Missing procedure context is never guessed (FR-64)
-                    candidates.append(FlagCandidate(
-                        flag_key=f"procedure:{r.rule_id}:{ingredient}", kind="procedure_context_required",
-                        title=PROCEDURE_REQUIRED_TITLE,
-                        message=(f"{name} ({_label(drug_class)}) is confirmed current. Rule {r.rule_id} depends on the planned "
-                                 "procedure, which is not known, so it has not been evaluated. Clarify the planned procedure."),
-                        medication=name, drug_class=drug_class, current_use_status="confirmed_current", source_label=src,
-                        rule_id=r.rule_id, rule_version=r.version, evidence_ids=ev,
-                    ))
-                    continue
-                if inp.planned_procedure not in r.procedures:
-                    continue
+        name = ", ".join(sorted({m.original_name for m in meds}))
+        src = "; ".join(sorted({m.source_label for m in meds}))
+        ev = sorted({e for m in meds for e in m.evidence_ids})
+        if inp.procedure_status in {"unknown", "other"}:
+            # 2. Missing procedure context is never guessed
             candidates.append(FlagCandidate(
-                flag_key=f"rule:{r.rule_id}:{ingredient}", kind="confirmed", title=r.title, message=r.message,
-                medication=name, drug_class=drug_class, current_use_status="confirmed_current", source_label=src,
-                rule_id=r.rule_id, rule_version=r.version, evidence_ids=ev,
-            ))
+                flag_key=f"procedure:{ingredient}", kind="procedure_not_checked", title=PROCEDURE_TITLE,
+                message=(f"{name} ({label(drug_class)}) is a current medicine. Some medication rules depend on the "
+                         "planned procedure, which is not known yet, so they have not been checked. They are checked "
+                         "once the procedure is recorded."),
+                medication=name, drug_class=drug_class, source_label=src, evidence_ids=ev))
+            continue
+        if inp.procedure_status == "none":
+            continue
+        for r in matching:
+            if tags & set(r.procedure_tags):
+                candidates.append(FlagCandidate(
+                    flag_key=f"rule:{r.rule_id}:{ingredient}", kind="confirmed", title=r.title, message=r.message,
+                    medication=name, drug_class=drug_class, source_label=src, rule_id=r.rule_id,
+                    rule_version=r.version, evidence_ids=ev))
 
-    # 4. Incomplete history may coexist with confirmed flags (FR-66)
-    incomplete = [s for s in inp.sources if s.medication_source and s.status != "successful"]
+    # 3. Incomplete records can coexist with flags; absence of a flag is not absence of a medicine
+    incomplete = [s for s in inp.sources if s.status not in ("successful", "empty")]
     if incomplete:
         detail = ", ".join(f"{s.name} ({s.status.replace('_', ' ')})" for s in incomplete)
         candidates.append(FlagCandidate(
-            flag_key="history_incomplete", kind="history_incomplete", title=HISTORY_INCOMPLETE_TITLE,
-            message=(f"Medication records are incomplete: {detail}. Flags reflect only the available verified records; "
-                     "absence of a flag does not mean absence of relevant medication."),
-        ))
+            flag_key="records_incomplete", kind="records_incomplete", title=INCOMPLETE_TITLE,
+            message=(f"Medicine records are incomplete: {detail}. Flags reflect only the medicines available; "
+                     "the absence of a flag does not mean the absence of a relevant medicine.")))
 
-    confirmed_count = sum(1 for c in candidates if c.kind == "confirmed")
-    supported = sorted({_label(r.drug_class) for r in rules})
-    if not rules:
-        outcome = "unsupported_coverage"
-        summary = (f"No approved medication rules are active for {inp.specialty}. Medication flags cannot be evaluated; "
-                   "manual clinician review is required. This is not a negative result.")
-    elif confirmed_count:
+    confirmed = sum(1 for c in candidates if c.kind == "confirmed")
+    if not inp.rules:
+        outcome = "no_rules"
+        summary = ("No approved medication rules are active, so medicines cannot be checked against the procedure. "
+                   "A doctor must review the medicines. This is not a negative result.")
+    elif confirmed:
         outcome = "flags"
-        summary = f"{confirmed_count} referral-specific medication flag(s) from approved rules."
+        summary = f"{confirmed} medication flag(s) for the planned procedure, from approved rules."
+    elif inp.procedure_status == "none":
+        outcome = "no_match"
+        summary = ("No procedure is planned (consultation only), so procedure-related medication rules do not apply. "
+                   "This is not treatment clearance.")
     else:
         outcome = "no_match"
-        summary = ("No matching medication flag within the available verified records and the supported rules "
-                   f"({', '.join(supported)}). This is not treatment clearance and does not mean that no relevant "
-                   "medications exist.")
+        summary = ("No medication flag for the planned procedure within the available current medicines and the "
+                   "approved rules. This is not treatment clearance and does not mean that no relevant medicine exists.")
     return EvalOutput(outcome=outcome, summary_message=summary, candidates=candidates)

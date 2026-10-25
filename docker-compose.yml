@@ -14,6 +14,16 @@ x-python-service: &python-service
     postgres: {condition: service_healthy, restart: true}
     keycloak: {condition: service_healthy}
 
+# One image for every institution's own system; INSTITUTION_ID says which one it is.
+x-institution: &institution
+  <<: *python-service
+  build: {context: ., dockerfile: services/provider/Dockerfile}
+  healthcheck: &py-health
+    test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/ready').status==200 else 1)"]
+    interval: 10s
+    timeout: 5s
+    retries: 20
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -22,9 +32,10 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
       CENTRAL_DB_PASSWORD: ${CENTRAL_DB_PASSWORD}
-      CLINIC_DB_PASSWORD: ${CLINIC_DB_PASSWORD}
-      LAB_DB_PASSWORD: ${LAB_DB_PASSWORD}
-      SPECIALIST_DB_PASSWORD: ${SPECIALIST_DB_PASSWORD}
+      DRALI_DB_PASSWORD: ${DRALI_DB_PASSWORD}
+      CHUGHTAI_DB_PASSWORD: ${CHUGHTAI_DB_PASSWORD}
+      ZIAUDDIN_DB_PASSWORD: ${ZIAUDDIN_DB_PASSWORD}
+      AKUH_DB_PASSWORD: ${AKUH_DB_PASSWORD}
       KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -61,9 +72,10 @@ services:
       JAVA_OPTS_KC_HEAP: "-Xms128m -Xmx512m"
       DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD}
       CENTRAL_CLIENT_SECRET: ${CENTRAL_CLIENT_SECRET}
-      CLINIC_CLIENT_SECRET: ${CLINIC_CLIENT_SECRET}
-      LAB_CLIENT_SECRET: ${LAB_CLIENT_SECRET}
-      SPECIALIST_CLIENT_SECRET: ${SPECIALIST_CLIENT_SECRET}
+      DRALI_CLIENT_SECRET: ${DRALI_CLIENT_SECRET}
+      CHUGHTAI_CLIENT_SECRET: ${CHUGHTAI_CLIENT_SECRET}
+      ZIAUDDIN_CLIENT_SECRET: ${ZIAUDDIN_CLIENT_SECRET}
+      AKUH_CLIENT_SECRET: ${AKUH_CLIENT_SECRET}
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
     volumes:
       - ./infra/keycloak/import:/opt/keycloak/data/import:ro
@@ -78,43 +90,57 @@ services:
       retries: 30
       start_period: 30s
 
-  clinic:
-    <<: *python-service
-    build: {context: ., dockerfile: services/clinic/Dockerfile}
+  drali:
+    <<: *institution
     environment:
       <<: *keycloak-env
-      DATABASE_URL: ${CLINIC_DATABASE_URL:-postgresql+psycopg://clinic:${CLINIC_DB_PASSWORD}@postgres:5432/clinic_db}
-      SERVICE_CLIENT_ID: clinic-api
-      SERVICE_CLIENT_SECRET: ${CLINIC_CLIENT_SECRET}
+      INSTITUTION_ID: drali
+      INSTITUTION_NAME: "Dr Ali's Clinic, Clifton"
+      LOCAL_ID_PREFIX: DA
+      DATABASE_URL: ${DRALI_DATABASE_URL:-postgresql+psycopg://drali:${DRALI_DB_PASSWORD}@postgres:5432/drali_db}
+      SERVICE_CLIENT_ID: drali-api
+      SERVICE_CLIENT_SECRET: ${DRALI_CLIENT_SECRET}
+      CENTRAL_URL: http://central:8000
     ports: ["8001:8000"]
-    healthcheck: &py-health
-      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/ready').status==200 else 1)"]
-      interval: 10s
-      timeout: 5s
-      retries: 20
 
-  lab:
-    <<: *python-service
-    build: {context: ., dockerfile: services/lab/Dockerfile}
+  chughtai:
+    <<: *institution
     environment:
       <<: *keycloak-env
-      DATABASE_URL: ${LAB_DATABASE_URL:-postgresql+psycopg://lab:${LAB_DB_PASSWORD}@postgres:5432/lab_db}
-      SERVICE_CLIENT_ID: lab-api
-      SERVICE_CLIENT_SECRET: ${LAB_CLIENT_SECRET}
+      INSTITUTION_ID: chughtai
+      INSTITUTION_NAME: Chughtai Lab
+      LOCAL_ID_PREFIX: MD
+      DATABASE_URL: ${CHUGHTAI_DATABASE_URL:-postgresql+psycopg://chughtai:${CHUGHTAI_DB_PASSWORD}@postgres:5432/chughtai_db}
+      SERVICE_CLIENT_ID: chughtai-api
+      SERVICE_CLIENT_SECRET: ${CHUGHTAI_CLIENT_SECRET}
+      CENTRAL_URL: http://central:8000
     ports: ["8002:8000"]
-    healthcheck: *py-health
 
-  specialist:
-    <<: *python-service
-    build: {context: ., dockerfile: services/specialist/Dockerfile}
+  ziauddin:
+    <<: *institution
     environment:
       <<: *keycloak-env
-      DATABASE_URL: ${SPECIALIST_DATABASE_URL:-postgresql+psycopg://specialist:${SPECIALIST_DB_PASSWORD}@postgres:5432/specialist_db}
-      SERVICE_CLIENT_ID: specialist-api
-      SERVICE_CLIENT_SECRET: ${SPECIALIST_CLIENT_SECRET}
+      INSTITUTION_ID: ziauddin
+      INSTITUTION_NAME: Ziauddin Hospital
+      LOCAL_ID_PREFIX: ZH
+      DATABASE_URL: ${ZIAUDDIN_DATABASE_URL:-postgresql+psycopg://ziauddin:${ZIAUDDIN_DB_PASSWORD}@postgres:5432/ziauddin_db}
+      SERVICE_CLIENT_ID: ziauddin-api
+      SERVICE_CLIENT_SECRET: ${ZIAUDDIN_CLIENT_SECRET}
       CENTRAL_URL: http://central:8000
     ports: ["8003:8000"]
-    healthcheck: *py-health
+
+  akuh:
+    <<: *institution
+    environment:
+      <<: *keycloak-env
+      INSTITUTION_ID: akuh
+      INSTITUTION_NAME: Aga Khan University Hospital
+      LOCAL_ID_PREFIX: AK
+      DATABASE_URL: ${AKUH_DATABASE_URL:-postgresql+psycopg://akuh:${AKUH_DB_PASSWORD}@postgres:5432/akuh_db}
+      SERVICE_CLIENT_ID: akuh-api
+      SERVICE_CLIENT_SECRET: ${AKUH_CLIENT_SECRET}
+      CENTRAL_URL: http://central:8000
+    ports: ["8004:8000"]
 
   central:
     <<: *python-service
@@ -125,9 +151,10 @@ services:
       REDIS_URL: redis://redis:6379/0
       SERVICE_CLIENT_ID: central-api
       SERVICE_CLIENT_SECRET: ${CENTRAL_CLIENT_SECRET}
-      CLINIC_URL: http://clinic:8000
-      LAB_URL: http://lab:8000
-      SPECIALIST_URL: http://specialist:8000
+      DRALI_URL: http://drali:8000
+      CHUGHTAI_URL: http://chughtai:8000
+      ZIAUDDIN_URL: http://ziauddin:8000
+      AKUH_URL: http://akuh:8000
       STORAGE_ROOT: /data/documents
       LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
       LLM_MODEL: ${LLM_MODEL:-claude-opus-5-5}

@@ -1,0 +1,527 @@
+{
+  "key": "P4",
+  "department": "Gastroenterology and Hepatology",
+  "demographics": {
+    "name": "Shazia Parveen",
+    "sex": "F",
+    "dob": "1982-04-17",
+    "age": 44,
+    "cnic": "42101-0000044-2",
+    "phone": "0300-0000044",
+    "city": "Karachi",
+    "language": "Urdu",
+    "blood_group": "AB+",
+    "marital_status": "Married",
+    "occupation": "Schoolteacher",
+    "allergies": [
+      {
+        "substance": "Sulfonamide antibiotics",
+        "reaction": "Rash",
+        "source": "Patient reported"
+      }
+    ]
+  },
+  "local_ids": {
+    "clinic-ali": "DA-12908",
+    "aku": "AK-204118",
+    "lab-b": "MD-773019",
+    "rad-aku": "MI-55902",
+    "zia": null
+  },
+  "referral": {
+    "from_institution": "clinic-ali",
+    "from_department": "General practice",
+    "requested_by_doctor": "Dr Ali",
+    "referred_doctor_requested": "Dr Irfan Siddiqui",
+    "to_institution": "zia",
+    "to_department": "Gastroenterology and Hepatology",
+    "date": "2026-10-22",
+    "urgency": "Urgent (within 2 weeks)",
+    "reason": "Treated hepatitis C in 2019. Now abdominal swelling and fatigue for 2 months, platelets low at 92, ultrasound suggests chronic liver disease with splenomegaly. Needs hepatology assessment and screening for oesophageal varices.",
+    "planned_procedure": "Upper gastrointestinal endoscopy (variceal screening)",
+    "diagnostic_requests": [
+      {
+        "type": "Imaging",
+        "test": "Transient elastography (FibroScan)",
+        "reason": "Liver stiffness; clinic has no elastography",
+        "send_to": "zia",
+        "urgency": "Routine",
+        "status": "requested"
+      }
+    ]
+  },
+  "brought_by_patient": [
+    {
+      "file": "P4_prescription_hospital_2019-03-11.jpg",
+      "kind": "Old hepatitis C treatment prescription (photo of paper)",
+      "date": "2019-03-11"
+    },
+    {
+      "file": "P4_prescription_clinic_2026-10-20.jpg",
+      "kind": "Recent clinic prescription (photo of paper)",
+      "date": "2026-10-20"
+    }
+  ],
+  "sources": {
+    "clinic-ali": {
+      "conditions": [
+        {
+          "display": "Chronic hepatitis C, treated (sustained virological response 2019)",
+          "snomed": "128302006",
+          "onset": "2016-09",
+          "status": "resolved"
+        },
+        {
+          "display": "Suspected chronic liver disease with splenomegaly",
+          "snomed": "235856003",
+          "onset": "2026-10",
+          "status": "active"
+        },
+        {
+          "display": "Iron deficiency anaemia",
+          "snomed": "87522002",
+          "onset": "2025-03",
+          "status": "active"
+        },
+        {
+          "display": "Chronic low back pain",
+          "snomed": "161891005",
+          "onset": "2024-01",
+          "status": "active"
+        }
+      ],
+      "surgeries": [
+        {
+          "procedure": "Caesarean section",
+          "date": "2008-12",
+          "where": "Private hospital, Karachi"
+        }
+      ],
+      "visits": [
+        {
+          "date": "2026-10-20",
+          "setting": "Clinic visit",
+          "doctor": "Dr Ali",
+          "reason": "Review of blood tests and ultrasound",
+          "summary": "Ultrasound shows chronic liver disease with splenomegaly. Propranolol started. Patient says she still takes Brufen for back pain, advised to stop. Referral to hepatology."
+        },
+        {
+          "date": "2026-10-02",
+          "setting": "Clinic visit",
+          "doctor": "Dr Ali",
+          "reason": "Fatigue, abdominal swelling and swollen ankles",
+          "summary": "Mild ascites on examination. Blood tests and ultrasound requested. Advised to avoid painkillers other than paracetamol."
+        },
+        {
+          "date": "2026-05-20",
+          "setting": "Clinic visit",
+          "doctor": "Dr Ali",
+          "reason": "Back pain",
+          "summary": "Brufen as needed. Advised physiotherapy."
+        }
+      ],
+      "medications": [
+        {
+          "name": "Propranolol 20 mg tablet",
+          "generic": "propranolol",
+          "brand_as_written": "Inderal",
+          "dose": "20 mg",
+          "route": "oral",
+          "frequency": "twice daily",
+          "start": "2026-10-20",
+          "status": "active",
+          "prescriber": "Dr Ali",
+          "note": null
+        },
+        {
+          "name": "Omeprazole 20 mg capsule",
+          "generic": "omeprazole",
+          "brand_as_written": "Risek",
+          "dose": "20 mg",
+          "route": "oral",
+          "frequency": "once daily before breakfast",
+          "start": "2025-03-10",
+          "status": "active",
+          "prescriber": "Dr Ali",
+          "note": null
+        },
+        {
+          "name": "Ferrous fumarate 200 mg tablet",
+          "generic": "ferrous fumarate",
+          "brand_as_written": null,
+          "dose": "200 mg",
+          "route": "oral",
+          "frequency": "once daily",
+          "start": "2025-03-10",
+          "status": "active",
+          "prescriber": "Dr Ali",
+          "note": null
+        },
+        {
+          "name": "Paracetamol 500 mg tablet",
+          "generic": "paracetamol",
+          "brand_as_written": "Panadol",
+          "dose": "500 mg",
+          "route": "oral",
+          "frequency": "as needed, maximum 3 per day",
+          "start": "2024-01-15",
+          "status": "active",
+          "prescriber": "Dr Ali",
+          "note": null
+        },
+        {
+          "name": "Ibuprofen 400 mg tablet",
+          "generic": "ibuprofen",
+          "brand_as_written": "Brufen",
+          "dose": "400 mg",
+          "route": "oral",
+          "frequency": "as needed for back pain",
+          "start": "2026-05-20",
+          "status": "active",
+          "prescriber": "Dr Ali",
+          "note": "Patient still takes it from a previous supply despite advice (reported 2026-10-20). Marked active because the patient reports taking it."
+        },
+        {
+          "name": "Sofosbuvir 400 mg + daclatasvir 60 mg",
+          "generic": "sofosbuvir / daclatasvir",
+          "brand_as_written": null,
+          "dose": "400 mg + 60 mg",
+          "route": "oral",
+          "frequency": "once daily for 12 weeks",
+          "start": "2019-03-11",
+          "status": "completed",
+          "prescriber": "Aga Khan University Hospital",
+          "note": "Completed 2019-06"
+        }
+      ]
+    },
+    "aku": {
+      "conditions": [
+        {
+          "display": "Chronic hepatitis C genotype 3",
+          "snomed": "128302006",
+          "onset": "2016-09",
+          "status": "resolved"
+        }
+      ],
+      "surgeries": [],
+      "visits": [
+        {
+          "date": "2019-03-11",
+          "setting": "Outpatient hepatology clinic",
+          "doctor": "Dr Tahir Mehmood",
+          "reason": "Start of hepatitis C treatment",
+          "summary": "Genotype 3. Sofosbuvir and daclatasvir for 12 weeks."
+        },
+        {
+          "date": "2019-10-04",
+          "setting": "Outpatient hepatology clinic",
+          "doctor": "Dr Tahir Mehmood",
+          "reason": "SVR12 check",
+          "summary": "HCV RNA not detected 12 weeks after treatment. Sustained response."
+        }
+      ],
+      "medications": []
+    },
+    "lab-b": {
+      "labs": [
+        {
+          "date": "2026-10-13",
+          "panel": "Liver function tests",
+          "note": null,
+          "results": [
+            {
+              "test": "ALT",
+              "loinc": "1742-6",
+              "value": 58,
+              "unit": "U/L",
+              "reference": "7-35",
+              "flag": "high"
+            },
+            {
+              "test": "AST",
+              "loinc": "1920-8",
+              "value": 74,
+              "unit": "U/L",
+              "reference": "8-33",
+              "flag": "high"
+            },
+            {
+              "test": "Total bilirubin",
+              "loinc": "1975-2",
+              "value": 1.7,
+              "unit": "mg/dL",
+              "reference": "0.2-1.2",
+              "flag": "high"
+            },
+            {
+              "test": "Albumin",
+              "loinc": "1751-7",
+              "value": 3.0,
+              "unit": "g/dL",
+              "reference": "3.5-5.0",
+              "flag": "low"
+            },
+            {
+              "test": "ALP",
+              "loinc": "6768-6",
+              "value": 112,
+              "unit": "U/L",
+              "reference": "44-147",
+              "flag": ""
+            }
+          ]
+        },
+        {
+          "date": "2026-10-13",
+          "panel": "Coagulation",
+          "note": null,
+          "results": [
+            {
+              "test": "INR",
+              "loinc": "6301-6",
+              "value": 1.4,
+              "unit": "{INR}",
+              "reference": "0.8-1.2",
+              "flag": "high"
+            }
+          ]
+        },
+        {
+          "date": "2026-10-13",
+          "panel": "Complete blood count",
+          "note": null,
+          "results": [
+            {
+              "test": "Haemoglobin",
+              "loinc": "718-7",
+              "value": 10.6,
+              "unit": "g/dL",
+              "reference": "12.0-15.5",
+              "flag": "low"
+            },
+            {
+              "test": "Platelets",
+              "loinc": "777-3",
+              "value": 92,
+              "unit": "10*9/L",
+              "reference": "150-400",
+              "flag": "low"
+            },
+            {
+              "test": "WBC",
+              "loinc": "6690-2",
+              "value": 3.9,
+              "unit": "10*9/L",
+              "reference": "4.0-11.0",
+              "flag": "low"
+            }
+          ]
+        },
+        {
+          "date": "2026-10-13",
+          "panel": "Hepatitis C RNA (PCR)",
+          "note": null,
+          "results": [
+            {
+              "test": "HCV RNA",
+              "loinc": "11011-4",
+              "value": "Not detected",
+              "unit": "",
+              "reference": "Not detected",
+              "flag": ""
+            }
+          ]
+        },
+        {
+          "date": "2026-10-13",
+          "panel": "Alpha-fetoprotein",
+          "note": null,
+          "results": [
+            {
+              "test": "AFP",
+              "loinc": "1834-1",
+              "value": 5.2,
+              "unit": "ng/mL",
+              "reference": "<10",
+              "flag": ""
+            }
+          ]
+        }
+      ]
+    },
+    "rad-aku": {
+      "imaging": [
+        {
+          "date": "2026-10-16",
+          "study": "Ultrasound abdomen and pelvis",
+          "body_part": "Abdomen",
+          "findings": "Liver is mildly shrunken with coarse echotexture and nodular contour. Portal vein 13 mm. Spleen enlarged, 14.5 cm. Mild free fluid in the abdomen. Gallbladder, pancreas and both kidneys appear normal. No focal liver lesion seen.",
+          "impression": "Features of chronic liver disease with portal hypertension (splenomegaly, mild ascites).",
+          "radiologist": "Dr Hira Anwar, Consultant Radiologist"
+        }
+      ]
+    }
+  },
+  "scenario": {
+    "tests": "Drug against procedure: ibuprofen reported by the patient with liver disease and portal hypertension before endoscopy (bleeding risk, flag). Propranolol is expected and needs no flag for variceal screening. Source difference: the hospital record shows hepatitis C resolved in 2019 while the clinic now has new liver findings. Completed sofosbuvir course must not appear as a current medicine. Sulfonamide allergy is recorded.",
+    "should_flag": [
+      "NSAID (ibuprofen) with portal hypertension before endoscopy"
+    ],
+    "records_outside_6_months": [
+      "Hospital visits 2019-03-11 and 2019-10-04"
+    ]
+  },
+  "_meta": {
+    "synthetic": true,
+    "reference_date": "2026-10-26",
+    "recent_window_start": "2026-04-26",
+    "institutions": {
+      "clinic-ali": "Dr Ali's Clinic, Clifton, Karachi",
+      "lab-b": "Chughtai Lab",
+      "zia": "Ziauddin Hospital",
+      "aku": "Aga Khan University Hospital",
+      "rad-aku": "Aga Khan University Hospital, Radiology"
+    }
+  },
+  "expected_retrieval_view": {
+    "conditions": [
+      {
+        "display": "Chronic hepatitis C, treated (sustained virological response 2019)",
+        "snomed": "128302006",
+        "onset": "2016-09",
+        "status": "resolved",
+        "source": "clinic-ali"
+      },
+      {
+        "display": "Suspected chronic liver disease with splenomegaly",
+        "snomed": "235856003",
+        "onset": "2026-10",
+        "status": "active",
+        "source": "clinic-ali"
+      },
+      {
+        "display": "Iron deficiency anaemia",
+        "snomed": "87522002",
+        "onset": "2025-03",
+        "status": "active",
+        "source": "clinic-ali"
+      },
+      {
+        "display": "Chronic low back pain",
+        "snomed": "161891005",
+        "onset": "2024-01",
+        "status": "active",
+        "source": "clinic-ali"
+      },
+      {
+        "display": "Chronic hepatitis C genotype 3",
+        "snomed": "128302006",
+        "onset": "2016-09",
+        "status": "resolved",
+        "source": "aku"
+      }
+    ],
+    "surgeries": [
+      {
+        "procedure": "Caesarean section",
+        "date": "2008-12",
+        "where": "Private hospital, Karachi",
+        "source": "clinic-ali"
+      }
+    ],
+    "visits_last_6_months": [
+      {
+        "date": "2026-10-20",
+        "setting": "Clinic visit",
+        "doctor": "Dr Ali",
+        "reason": "Review of blood tests and ultrasound",
+        "summary": "Ultrasound shows chronic liver disease with splenomegaly. Propranolol started. Patient says she still takes Brufen for back pain, advised to stop. Referral to hepatology.",
+        "source": "clinic-ali"
+      },
+      {
+        "date": "2026-10-02",
+        "setting": "Clinic visit",
+        "doctor": "Dr Ali",
+        "reason": "Fatigue, abdominal swelling and swollen ankles",
+        "summary": "Mild ascites on examination. Blood tests and ultrasound requested. Advised to avoid painkillers other than paracetamol.",
+        "source": "clinic-ali"
+      },
+      {
+        "date": "2026-05-20",
+        "setting": "Clinic visit",
+        "doctor": "Dr Ali",
+        "reason": "Back pain",
+        "summary": "Brufen as needed. Advised physiotherapy.",
+        "source": "clinic-ali"
+      }
+    ],
+    "current_medications": [
+      {
+        "name": "Propranolol 20 mg tablet",
+        "generic": "propranolol",
+        "brand_as_written": "Inderal",
+        "dose": "20 mg",
+        "route": "oral",
+        "frequency": "twice daily",
+        "start": "2026-10-20",
+        "status": "active",
+        "prescriber": "Dr Ali",
+        "note": null,
+        "source": "clinic-ali"
+      },
+      {
+        "name": "Omeprazole 20 mg capsule",
+        "generic": "omeprazole",
+        "brand_as_written": "Risek",
+        "dose": "20 mg",
+        "route": "oral",
+        "frequency": "once daily before breakfast",
+        "start": "2025-03-10",
+        "status": "active",
+        "prescriber": "Dr Ali",
+        "note": null,
+        "source": "clinic-ali"
+      },
+      {
+        "name": "Ferrous fumarate 200 mg tablet",
+        "generic": "ferrous fumarate",
+        "brand_as_written": null,
+        "dose": "200 mg",
+        "route": "oral",
+        "frequency": "once daily",
+        "start": "2025-03-10",
+        "status": "active",
+        "prescriber": "Dr Ali",
+        "note": null,
+        "source": "clinic-ali"
+      },
+      {
+        "name": "Paracetamol 500 mg tablet",
+        "generic": "paracetamol",
+        "brand_as_written": "Panadol",
+        "dose": "500 mg",
+        "route": "oral",
+        "frequency": "as needed, maximum 3 per day",
+        "start": "2024-01-15",
+        "status": "active",
+        "prescriber": "Dr Ali",
+        "note": null,
+        "source": "clinic-ali"
+      },
+      {
+        "name": "Ibuprofen 400 mg tablet",
+        "generic": "ibuprofen",
+        "brand_as_written": "Brufen",
+        "dose": "400 mg",
+        "route": "oral",
+        "frequency": "as needed for back pain",
+        "start": "2026-05-20",
+        "status": "active",
+        "prescriber": "Dr Ali",
+        "note": "Patient still takes it from a previous supply despite advice (reported 2026-10-20). Marked active because the patient reports taking it.",
+        "source": "clinic-ali"
+      }
+    ]
+  }
+}

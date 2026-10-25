@@ -1,6 +1,6 @@
 #!/bin/sh
 # Creates one database and one login per owner. The central application never
-# receives credentials for the clinic, lab, or specialist databases.
+# receives credentials for any institution's database.
 set -eu
 
 create_db() {
@@ -13,7 +13,8 @@ EOSQL
 }
 
 create_db central_db central "$CENTRAL_DB_PASSWORD"
-create_db clinic_db clinic "$CLINIC_DB_PASSWORD"
-create_db lab_db lab "$LAB_DB_PASSWORD"
-create_db specialist_db specialist "$SPECIALIST_DB_PASSWORD"
+create_db drali_db drali "$DRALI_DB_PASSWORD"
+create_db chughtai_db chughtai "$CHUGHTAI_DB_PASSWORD"
+create_db ziauddin_db ziauddin "$ZIAUDDIN_DB_PASSWORD"
+create_db akuh_db akuh "$AKUH_DB_PASSWORD"
 create_db keycloak keycloak "$KEYCLOAK_DB_PASSWORD"

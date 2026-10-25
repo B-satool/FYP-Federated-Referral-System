@@ -1,6 +1,5 @@
-"""Evidence review: selection, correction, unresolved/excluded states, manual entry and
-clinician verification (FR-18, FR-25 to FR-28, FR-44). Every change is an
-append-only EvidenceRevision; raw extraction is never overwritten."""
+"""Records and paper fields: selection, correction, exclusion, manual entry and checking.
+Every change is an append-only EvidenceRevision; raw extraction is never overwritten."""
 from __future__ import annotations
 
 from typing import Any, Literal
@@ -16,7 +15,7 @@ from .db import get_db
 from .integration.importer import _parse_time
 from .models import Document, EvidenceItem, EvidenceRevision
 from .referrals.state import ensure_clinical_edit_allowed, mark_clinical_change
-from .security import audit, error, get_principal, load_referral, require_roles
+from .security import audit, error, get_principal, load_referral
 from .serializers import evidence_out
 from .workflow import after_change
 
@@ -188,8 +187,9 @@ class VerifyIn(BaseModel):
 
 @router.post("/evidence/{evidence_id}/verify")
 def verify(evidence_id: int, body: VerifyIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    """Clinical verification is a separate, clinician-only action (FR-25, 4.3 step 7)."""
-    ev = _load(db, evidence_id, principal, "verify", roles=("clinician",))
+    """Checking a field read from a paper against the paper. Staff do this while preparing the
+    referral; a checked medicine joins the current-medicine list."""
+    ev = _load(db, evidence_id, principal, "verify", roles=("clinic_staff", "clinician"))
     if ev.row_version != body.expected_row_version:
         raise error(409, "stale_version", "This field changed since you opened it; reload")
     if ev.origin == "source":

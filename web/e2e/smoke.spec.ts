@@ -94,7 +94,12 @@ async function clickAllEnabled(page: Page, name: string) {
 }
 
 async function reviewAllFlags(page: Page) {
-  await clickAllEnabled(page, "Mark reviewed");
+  // Some flags (e.g. an unresolved mapping) appear after re-evaluation, so repeat until the
+  // Medications step no longer reports anything to review.
+  await expect(async () => {
+    await clickAllEnabled(page, "Mark reviewed");
+    await expect(page.getByRole("tab", { name: /Medications & flags/ })).not.toContainText(/to review/i, { timeout: 5_000 });
+  }).toPass({ timeout: 120_000 });
 }
 
 async function sendForApprovalAndApprove(page: Page) {

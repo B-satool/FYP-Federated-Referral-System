@@ -89,8 +89,14 @@ test("referral: doctor requests, staff prepare, doctor reviews flags, staff send
   await go(dr, `${url}?tab=medicines`);
   await expect(dr.getByText("Medication requires review: antiplatelet agent before surgery").first()).toBeVisible();
   await expect(dr.getByRole("button", { name: "Add a medicine" })).toHaveCount(0);
-  for (let i = 0; i < 10; i++) {
-    const btn = dr.getByRole("button", { name: "Mark as reviewed" });
+  await expect(dr.getByText(/Automatically generated, not clinically reviewed/).first()).toBeVisible();
+  const needed = dr.getByRole("region", { name: "Needs your decision" });
+  await needed.getByRole("button", { name: "Ignore" }).first().click();
+  await dr.getByRole("dialog").getByLabel("Note (optional)").fill("Cardiology aware");
+  await dr.getByRole("dialog").getByRole("button", { name: "Ignore" }).click();
+  await expect(dr.getByText(/Ignored \(not relevant for this patient\) by Dr Ali Raza/)).toBeVisible({ timeout: 20_000 });
+  for (let i = 0; i < 15; i++) {
+    const btn = needed.getByRole("button", { name: "Mark as reviewed" });
     const n = await btn.count();
     if (n === 0) break;
     await btn.first().click();

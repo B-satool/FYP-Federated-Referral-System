@@ -11,7 +11,7 @@ A web application for referring a patient from one clinic or hospital in Karachi
   - send test and scan orders
 - **Receiving staff:** take the referral in, confirm the patient (match their record or register them as new) and assign a doctor. Laboratory and radiology staff confirm the patient on orders the same way.
 - **Platform:**
-  - checks every current medicine against the planned procedure using reviewer-approved rules
+  - checks every current medicine against the planned procedure (reviewer-approved rules), against each other (DDInter interactions) and against the procedure and recorded conditions (rules read from US drug labels), showing the source of every flag
   - sends the referral as a readable letter, and results back with their report and images
   - tracks each request through the response or results and follow-up until closure
 
@@ -20,6 +20,7 @@ A web application for referring a patient from one clinic or hospital in Karachi
 | Document | Where |
 |---|---|
 | **What changed in version 2, and differences from the SRS** | [`docs/v2-changes.md`](docs/v2-changes.md) |
+| Medication flags: DDInter interactions, drug-label rules, sources and coverage | [`docs/medication-flagging.md`](docs/medication-flagging.md) |
 | Requirements (SRS) | [`docs/requirements/FYP SRS.pdf`](docs/requirements/FYP%20SRS.pdf) |
 | Development roadmap | [`docs/requirements/FYP Development Roadmap.pdf`](docs/requirements/FYP%20Development%20Roadmap.pdf) |
 | Seed patients (5 synthetic Karachi patients) and their expected results | [`seed-data/README.md`](seed-data/README.md) |
@@ -190,10 +191,10 @@ Other scenarios: P2 (Ziauddin cardiology, metformin with contrast; Ziauddin staf
 python -m venv .venv
 .\.venv\Scripts\pip install httpx pytest
 
-# API checks: P5 referral, P3 test request with an image, every patient's expected flags, OCR merge (resets demo data first). Expect: 9 passed
+# API checks: P5 referral, P3 test request with an image, every patient's expected flags, OCR merge (resets demo data first). Expect: 10 passed
 .\.venv\Scripts\python -m pytest tests -q
 
-# Medication-rule logic. Expect: 17 passed
+# Medication-rule logic, interactions, label rules and the extraction validator. Expect: 39 passed
 docker compose run --rm --no-deps -v ${PWD}/services/central/tests:/srv/tests central python -m pytest tests -q
 
 # Browser robot: the referral and test-request journeys across 7 accounts in Chrome (reset the demo data first). Expect: 2 passed

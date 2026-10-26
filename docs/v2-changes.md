@@ -67,7 +67,7 @@ Where this section differs from section 1 (procedure list, tests inside a referr
 
 ## 4. Not done, or still open
 
-- **Drug-to-drug interactions** are not implemented. The checks are drug against procedure only, as agreed. Pakistan-specific brand names are already mapped to ingredients (`rules/terminology/medicine-names.pk.json`). An interaction check would go on to map ingredients to RxNorm or ATC codes, look them up in DDInter or a licensed source, and have a pharmacist confirm them.
+- **Drug-to-drug interactions and drug-label rules** were added afterwards (spec v2). DDInter interactions and rules read from US drug labels are flagged with their source, marked automatically generated, and the doctor can Ignore or Research each. See [medication-flagging.md](medication-flagging.md) for what was built, the coverage figures and what is still open.
 - **Clinical content** is plausible but not reviewed. This covers the rules, references, procedure features and brand mappings. The seed marks the rules as approved by a demo reviewer so the demo works straight away. A named clinician must check them before any real use.
 - **Documents not updated:** `docs/architecture.md`, `docs/traceability.md` and `docs/demo-script.md` sections that describe v1 in detail. The integration examples in `contracts/` were not regenerated either, because they belong to their owner (`scripts/export_contract_examples.py` and `scripts/export_fhir_samples.py` need updating for v2).
 - **The shared Neon copy** still holds v1 data. Republish it with `scripts/publish-shared-db.ps1` after setting it up for the new databases.

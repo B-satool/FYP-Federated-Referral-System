@@ -1,0 +1,31 @@
+{
+  "imported": "2026-10-27",
+  "files": [
+    "ddinter_downloads_code_A.csv",
+    "ddinter_downloads_code_B.csv",
+    "ddinter_downloads_code_D.csv",
+    "ddinter_downloads_code_H.csv",
+    "ddinter_downloads_code_L.csv",
+    "ddinter_downloads_code_P.csv",
+    "ddinter_downloads_code_R.csv",
+    "ddinter_downloads_code_V.csv"
+  ],
+  "files_sha256": "2710ca66c8e5017813bddc0372ff3075e78873f370a1b377e8d04c37cdaa17a6",
+  "ddinter_rows": 222383,
+  "ddinter_drugs": 1939,
+  "ddinter_drugs_not_mapped_to_our_ingredients": 1900,
+  "our_ingredients": 41,
+  "our_ingredients_found_in_ddinter": 39,
+  "our_ingredients_not_in_ddinter": [
+    "gliclazide",
+    "hyoscine butylbromide"
+  ],
+  "pairs_written": 342,
+  "rows_with_unknown_level": 0,
+  "by_severity": {
+    "Major": 23,
+    "Minor": 17,
+    "Moderate": 163,
+    "Unknown": 139
+  }
+}

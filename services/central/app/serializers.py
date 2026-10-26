@@ -114,9 +114,13 @@ def flag_out(f: MedicationFlag, acks: list | None = None) -> dict:
         "message": f.message, "medication": f.medication, "drug_class": f.drug_class,
         "drug_class_label": DRUG_CLASSES.get(f.drug_class or "", f.drug_class), "source_label": f.source_label,
         "rule_id": f.rule_id, "rule_version": f.rule_version, "evidence_ids": f.evidence_ids, "status": f.status,
-        "created_at": f.created_at, "superseded_at": f.superseded_at,
+        "created_at": f.created_at, "superseded_at": f.superseded_at, "severity": f.severity,
+        "ingredients": f.ingredients or [], "source_type": f.source_type, "source_name": f.source_name,
+        "source_ref": f.source_ref, "source_version": f.source_version, "source_quote": f.source_quote,
+        "auto_generated": f.auto_generated, "requires_decision": f.requires_decision,
         "acknowledgements": [{"id": a.id, "side": a.side, "by": a.reviewer, "institution_id": a.institution_id,
-                              "flag_version": a.flag_version, "note": a.note, "created_at": a.created_at}
+                              "flag_version": a.flag_version, "decision": a.decision, "note": a.note,
+                              "created_at": a.created_at}
                              for a in (acks or [])],
     }
 

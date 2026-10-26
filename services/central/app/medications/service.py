@@ -9,19 +9,22 @@
 """
 from __future__ import annotations
 
+import json
 import logging
+from functools import lru_cache
 
 from refcommon.db import utcnow
 from refcommon.exchange import content_hash
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..config import DRUG_CLASSES, INSTITUTIONS, institution_name
+from ..config import DRUG_CLASSES, INSTITUTIONS, institution_name, settings
 from ..integration.retrieval import latest_by_source, linked_sources
 from ..models import EvaluationRun, EvidenceItem, FlagReview, MedicationEntry, MedicationFlag, Referral
 from ..security import audit
 from . import mapping, rules
 from .evaluator import EvalInput, MedInput, SourceState, evaluate_medications
+from .label_validation import patient_categories
 
 log = logging.getLogger("medications")
 USABLE = {"source_record", "verified"}
@@ -50,6 +53,7 @@ def sync_entries(db: Session, referral: Referral) -> None:
     usable_ids = {e.id for e in evidence}
     existing = {e.evidence_id: e for e in db.scalars(select(MedicationEntry).where(MedicationEntry.referral_id == referral.id))}
     index = mapping.name_index(db)
+    parts = rules.components(db)
     for ev in evidence:
         cur = ev.current or ev.original
         name = cur.get("medication") or ev.display
@@ -74,6 +78,7 @@ def sync_entries(db: Session, referral: Referral) -> None:
             m = index.map(name, entry.brand)
             entry.mapping_status, entry.ingredient, entry.drug_class, entry.mapping_note = (
                 m.status, m.ingredient, m.drug_class, m.note)
+        entry.ingredients = parts.get(entry.ingredient or "", [entry.ingredient] if entry.ingredient else [])
     db.flush()
     # group: same ingredient (or same name when unrecognised)
     groups: dict[str, list[MedicationEntry]] = {}
@@ -128,17 +133,45 @@ def source_states(db: Session, referral: Referral) -> list[SourceState]:
     return out
 
 
-def build_input(db: Session, referral: Referral) -> tuple[EvalInput, dict[str, int]]:
+@lru_cache(maxsize=1)
+def _vocab() -> dict:
+    path = settings.repo_root / "rules" / "vocab" / "label-targets.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+
+INACTIVE = {"resolved", "inactive", "remission", "entered-in-error", "refuted"}
+
+
+def patient_conditions(db: Session, referral: Referral) -> tuple[str, ...]:
+    """Condition categories from the patient's current recorded conditions (resolved ones are left out)."""
+    texts = []
+    for ev in db.scalars(select(EvidenceItem).where(
+            EvidenceItem.referral_id == referral.id, EvidenceItem.category == "condition",
+            EvidenceItem.superseded_by.is_(None), EvidenceItem.review_state != "excluded",
+            EvidenceItem.selected.is_(True), EvidenceItem.verification_status.in_(USABLE))):
+        cur = ev.current or ev.original or {}
+        if (cur.get("clinical_status") or "").lower() in INACTIVE:
+            continue
+        texts.append(cur.get("condition") or ev.display)
+    return tuple(sorted(patient_categories(texts, _vocab())))
+
+
+def build_input(db: Session, referral: Referral) -> tuple[EvalInput, dict[str, int], str]:
     rule_list = rules.active_rules(db)
+    entries = current_entries(db, referral.id)
     meds = tuple(MedInput(entry_id=e.id, original_name=e.original_name, ingredient=e.ingredient,
                           drug_class=e.drug_class, mapping_status=e.mapping_status, source_label=e.source_label,
-                          evidence_ids=tuple(x.evidence_id for x in _group_members(db, e)))
-                 for e in current_entries(db, referral.id))
+                          evidence_ids=tuple(x.evidence_id for x in _group_members(db, e)),
+                          ingredients=tuple(e.ingredients or ([e.ingredient] if e.ingredient else [])))
+                 for e in entries)
+    ings = {i for m in meds if m.mapping_status in ("mapped", "staff_mapped") for i in m.ingredients}
     tags = tuple(sorted(referral.procedure_tags or [])) if referral.procedure_status == "planned" else ()
     inp = EvalInput(procedure_status=referral.procedure_status, planned_procedure=referral.planned_procedure,
                     procedure_tags=tags, medications=meds, sources=tuple(source_states(db, referral)),
-                    rules=tuple(rule_list), class_labels=DRUG_CLASSES)
-    return inp, {r.rule_id: r.version for r in rule_list}
+                    rules=tuple(rule_list), class_labels=DRUG_CLASSES,
+                    interactions=tuple(rules.interactions_for(db, ings)), label_rules=tuple(rules.label_rules_for(db, ings)),
+                    conditions=patient_conditions(db, referral), interaction_coverage=rules.interaction_coverage(db))
+    return inp, {r.rule_id: r.version for r in rule_list}, rules.ruleset_hash(db, rule_list)
 
 
 def _group_members(db: Session, rep: MedicationEntry) -> list[MedicationEntry]:
@@ -152,14 +185,14 @@ def reevaluate(db: Session, referral: Referral, trigger: str, actor: str, princi
     from ..referrals.state import CLINICAL_LOCKED, mark_clinical_change
 
     sync_entries(db, referral)
-    inp, rule_versions = build_input(db, referral)
+    inp, rule_versions, ruleset = build_input(db, referral)
     input_hash = content_hash({"meds": [m.__dict__ for m in inp.medications], "sources": [s.__dict__ for s in inp.sources],
-                               "rules": rule_versions,
+                               "rules": rule_versions, "ruleset": ruleset, "conditions": list(inp.conditions),
                                "procedure": [inp.procedure_status, inp.planned_procedure, list(inp.procedure_tags)]})
     run = EvaluationRun(referral_id=referral.id, trigger=trigger, status="completed", input_hash=input_hash,
-                        rule_versions=rule_versions, triggered_by=actor,
+                        rule_versions=rule_versions, triggered_by=actor, ruleset_hash=ruleset,
                         context={"procedure_status": inp.procedure_status, "planned_procedure": inp.planned_procedure,
-                                 "procedure_tags": list(inp.procedure_tags),
+                                 "procedure_tags": list(inp.procedure_tags), "conditions": list(inp.conditions),
                                  "sources": {s.institution: s.status for s in inp.sources}})
     db.add(run)
     try:
@@ -195,7 +228,11 @@ def reevaluate(db: Session, referral: Referral, trigger: str, actor: str, princi
                               kind=cand.kind, title=cand.title, message=cand.message, medication=cand.medication,
                               drug_class=cand.drug_class, source_label=cand.source_label, rule_id=cand.rule_id,
                               rule_version=cand.rule_version, medication_entry_id=cand.medication_entry_id,
-                              evidence_ids=c["evidence_ids"], content_hash=h, run_id=run.id))
+                              evidence_ids=c["evidence_ids"], content_hash=h, run_id=run.id, severity=cand.severity,
+                              ingredients=cand.ingredients, source_type=cand.source_type, source_name=cand.source_name,
+                              source_ref=cand.source_ref, source_version=cand.source_version,
+                              source_quote=cand.source_quote, auto_generated=cand.auto_generated,
+                              requires_decision=cand.requires_decision))
         changed += 1
     for stale in active.values():
         stale.status, stale.superseded_at = "withdrawn", now
@@ -230,4 +267,6 @@ def acknowledgement(db: Session, flag: MedicationFlag) -> FlagReview | None:
 
 
 def unacknowledged_flags(db: Session, referral_id: int) -> list[MedicationFlag]:
-    return [f for f in active_flags(db, referral_id) if acknowledgement(db, f) is None]
+    """Flags the doctor must decide on before sending (approved rules, Major interactions, label warnings
+    from a boxed warning or contraindication, and gaps). The others are shown but optional."""
+    return [f for f in active_flags(db, referral_id) if f.requires_decision and acknowledgement(db, f) is None]

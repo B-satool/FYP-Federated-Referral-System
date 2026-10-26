@@ -162,6 +162,14 @@ def procedure_label(status: str, text: str | None) -> str:
         return "No procedure planned (consultation only)"
     return "Not known yet (the specialist will decide)"
 
+# Shown beside medication flags. Wording to be confirmed by the supervisor (see docs/medication-flagging.md).
+FLAG_DISCLAIMER = (
+    "Medication flags are information for the clinician, produced automatically from approved rules, the DDInter "
+    "interaction database and US drug labels. Imported flags are not clinically reviewed and may be incomplete or "
+    "wrong. They are not medical advice, never mean a medicine is safe, and do not replace the clinician's judgement "
+    "or a pharmacist's review."
+)
+
 # --------------------------------------------------------------------------- doctor directory
 # Picked in the referral form: the referring doctor (from the clinic's own staff) and,
 # optionally, the doctor the patient should see. "username" marks demo sign-in accounts.

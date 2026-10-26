@@ -12,7 +12,8 @@ from sqlalchemy.orm import Session
 
 from ..config import DRUG_CLASSES, PROCEDURE_HINTS, PROCEDURE_TAGS
 from ..db import get_db
-from ..models import EvidenceItem, EvidenceRevision, FlagReview, MedicationEntry, MedicationFlag, MedicationRule, MedicineName, Referral
+from ..models import (DrugInteraction, EvidenceItem, EvidenceRevision, FlagReview, LabelRule, MedicationEntry, MedicationFlag,
+                      MedicationRule, MedicineName, Referral, RulesetRelease)
 from ..notifications import notify_staff
 from ..referrals.state import CLINICAL_LOCKED, TERMINAL, ensure_clinical_edit_allowed, mark_clinical_change
 from ..security import audit, error, get_principal, load_referral, require_roles
@@ -177,14 +178,16 @@ def medicines_checked(referral_id: int, body: CheckedIn, db: Session = Depends(g
 
 class AckIn(BaseModel):
     flag_version: int
+    # reviewed | ignore (not relevant for this patient) | research (needs follow-up)
+    decision: Literal["reviewed", "ignore", "research"] = "reviewed"
     note: str = ""
 
 
 @router.post("/referrals/{referral_id}/flags/{flag_id}/acknowledge")
 def acknowledge_flag(referral_id: int, flag_id: int, body: AckIn, db: Session = Depends(get_db),
                      principal: Principal = Depends(get_principal)):
-    """The doctor acknowledges the flag for this patient. Acknowledgment means 'seen';
-    it is never treatment clearance."""
+    """The doctor records a decision on the flag for this patient: reviewed, ignore or research.
+    Any decision means 'seen'; it is never treatment clearance. Ignored flags stay in the record."""
     r = load_referral(db, referral_id, principal, "acknowledge_flag", roles=("clinician",))
     f = db.get(MedicationFlag, flag_id)
     if f is None or f.referral_id != r.id:
@@ -194,10 +197,13 @@ def acknowledge_flag(referral_id: int, flag_id: int, body: AckIn, db: Session = 
     if f.status != "active" or f.version != body.flag_version:
         raise error(409, "flag_version_changed", "This flag has changed; acknowledge the current version")
     if service.acknowledgement(db, f) is None:
+        run = service.latest_run(db, r.id)
         db.add(FlagReview(referral_id=r.id, flag_id=f.id, flag_version=f.version, side="referring",
                           reviewer=principal.display_name, reviewer_id=principal.subject,
-                          institution_id=principal.institution_id, note=body.note))
-        audit(db, principal, "flag.acknowledge", "medication_flag", f"{f.id}v{f.version}", "success", r.id)
+                          institution_id=principal.institution_id, note=body.note.strip(), decision=body.decision,
+                          ruleset_hash=run.ruleset_hash if run else None))
+        audit(db, principal, f"flag.{body.decision}", "medication_flag", f"{f.id}v{f.version}", "success", r.id,
+              {"decision": body.decision, "note": body.note, "ruleset": run.ruleset_hash if run else None})
         db.flush()
         if r.status == "requested" and not service.unacknowledged_flags(db, r.id):
             notify_staff(db, r, "ready_to_send", f"{r.reference}: flags reviewed, ready to send",
@@ -396,6 +402,38 @@ def _reevaluate_open(db: Session, principal: Principal, trigger: str) -> int:
     for ref in open_refs:
         after_change(db, ref, trigger, actor=principal.display_name)
     return len(open_refs)
+
+
+@router.get("/rules/interactions")
+def list_interactions(q: str = "", db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Imported drug-drug interactions (read-only), searchable by ingredient."""
+    require_roles(principal, "rule_reviewer", action="rule.list", message="Only a clinical rule reviewer can view the rules")
+    rows = rules.search_interactions(db, q)
+    total = db.scalar(select(func.count()).select_from(DrugInteraction)) or 0
+    return {"total": total, "shown": len(rows), "source": "DDInter 2.0 (CC BY-NC-SA 4.0)",
+            "rows": [{"ingredient_a": x.ingredient_a, "ingredient_b": x.ingredient_b, "severity": x.severity,
+                      "source": x.source, "source_ref": x.source_ref, "source_version": x.source_version} for x in rows]}
+
+
+@router.get("/rules/label-rules")
+def list_label_rules(q: str = "", kind: str = "", db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Rules read from drug labels by script (read-only), with the sentence each relies on."""
+    require_roles(principal, "rule_reviewer", action="rule.list", message="Only a clinical rule reviewer can view the rules")
+    stmt = select(LabelRule)
+    if q.strip():
+        like = f"%{q.strip().lower()}%"
+        stmt = stmt.where((LabelRule.ingredient.ilike(like)) | (LabelRule.target.ilike(like)) | (LabelRule.target_label.ilike(like)))
+    if kind:
+        stmt = stmt.where(LabelRule.kind == kind)
+    rows = db.scalars(stmt.order_by(LabelRule.ingredient, LabelRule.kind, LabelRule.target).limit(300)).all()
+    release = db.scalars(select(RulesetRelease).order_by(RulesetRelease.id.desc())).first()
+    return {"release": {"hash": release.hash, "created_at": release.created_at, "counts": release.counts, "notes": release.notes}
+            if release else None,
+            "rows": [{"rule_key": x.rule_key, "kind": x.kind, "ingredient": x.ingredient, "target": x.target,
+                      "target_label": x.target_label, "severity_hint": x.severity_hint, "summary": x.summary,
+                      "quote": x.quote, "section": x.section, "source_name": x.source_name, "source_ref": x.source_ref,
+                      "source_version": x.source_version, "extractor_version": x.extractor_version, "status": x.status}
+                     for x in rows]}
 
 
 @router.get("/drug-classes")

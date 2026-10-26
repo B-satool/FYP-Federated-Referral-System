@@ -1,0 +1,255 @@
+{
+  "version": "label-targets/1.1",
+  "note": "Controlled vocabulary for rules read from drug labels. A label sentence becomes a candidate for a target when every group has at least one match (case-insensitive, whole words; a trailing * matches any ending). 'exclude' drops a sentence. Procedure targets are the platform's procedure features (PROCEDURE_TAGS), so they match what the doctor ticks. 'patient_terms' map a patient's recorded condition to a condition target.",
+  "procedure": {
+    "oral_surgery": {
+      "label": "dental or oral surgery",
+      "groups": [
+        [
+          "osteonecrosis of the jaw",
+          "dental procedure*",
+          "dental surgery",
+          "tooth extraction*",
+          "oral surgery",
+          "invasive dental"
+        ]
+      ]
+    },
+    "iodinated_contrast": {
+      "label": "iodinated contrast",
+      "groups": [
+        [
+          "iodinated contrast",
+          "contrast media",
+          "contrast agent*",
+          "radiologic stud*"
+        ]
+      ]
+    },
+    "major_surgery": {
+      "label": "surgery",
+      "groups": [
+        [
+          "surgery",
+          "surgical procedure*",
+          "elective surgery",
+          "surgical intervention*"
+        ]
+      ],
+      "exclude": [
+        "coronary artery bypass",
+        "CABG",
+        "dental"
+      ]
+    },
+    "general_anaesthesia": {
+      "label": "general anaesthesia",
+      "groups": [
+        [
+          "general anesthesia",
+          "general anaesthesia",
+          "anesthesia",
+          "anaesthesia"
+        ]
+      ]
+    },
+    "prolonged_fasting": {
+      "label": "fasting around a procedure",
+      "groups": [
+        [
+          "fasting",
+          "withholding of food",
+          "restricted food",
+          "food and fluid",
+          "nothing by mouth",
+          "reduced intake of food"
+        ]
+      ]
+    },
+    "gi_endoscopy": {
+      "label": "gastrointestinal endoscopy",
+      "groups": [
+        [
+          "endoscop*",
+          "colonoscop*"
+        ]
+      ]
+    },
+    "bleeding_risk": {
+      "label": "a procedure with bleeding risk",
+      "groups": [
+        [
+          "bleeding",
+          "hemorrhage",
+          "haemorrhage"
+        ],
+        [
+          "procedure*",
+          "surgery",
+          "surgical",
+          "invasive",
+          "biopsy"
+        ]
+      ],
+      "exclude": [
+        "coronary artery bypass",
+        "CABG"
+      ]
+    }
+  },
+  "condition": {
+    "renal_impairment": {
+      "label": "kidney impairment",
+      "groups": [
+        [
+          "renal impairment",
+          "kidney disease",
+          "renal failure",
+          "renal insufficiency",
+          "eGFR",
+          "creatinine clearance",
+          "kidney impairment"
+        ]
+      ],
+      "patient_terms": [
+        "chronic kidney disease",
+        "ckd",
+        "renal impairment",
+        "renal failure",
+        "nephropathy",
+        "kidney disease"
+      ],
+      "exclude": [
+        "neonatal",
+        "fetal",
+        "fetus",
+        "gestation"
+      ]
+    },
+    "hepatic_impairment": {
+      "label": "liver impairment",
+      "groups": [
+        [
+          "hepatic impairment",
+          "liver disease",
+          "cirrhosis",
+          "hepatic disease",
+          "hepatic failure",
+          "hepatic insufficiency",
+          "liver impairment"
+        ]
+      ],
+      "patient_terms": [
+        "cirrhosis",
+        "chronic liver disease",
+        "liver disease",
+        "hepatic impairment",
+        "fatty liver",
+        "steatosis",
+        "hepatitis"
+      ]
+    },
+    "portal_hypertension": {
+      "label": "portal hypertension or varices",
+      "groups": [
+        [
+          "portal hypertension",
+          "varices",
+          "variceal"
+        ]
+      ],
+      "patient_terms": [
+        "portal hypertension",
+        "varices",
+        "variceal"
+      ]
+    },
+    "peptic_ulcer_or_gi_bleed": {
+      "label": "peptic ulcer or gastrointestinal bleeding",
+      "groups": [
+        [
+          "peptic ulcer*",
+          "gastrointestinal bleeding",
+          "GI bleeding",
+          "stomach bleeding",
+          "ulceration"
+        ]
+      ],
+      "patient_terms": [
+        "peptic ulcer",
+        "gastric ulcer",
+        "duodenal ulcer",
+        "gi bleed",
+        "gastrointestinal bleeding",
+        "upper gi bleed"
+      ]
+    },
+    "heart_failure": {
+      "label": "heart failure",
+      "groups": [
+        [
+          "heart failure"
+        ]
+      ],
+      "patient_terms": [
+        "heart failure",
+        "cardiac failure",
+        "lvef"
+      ]
+    },
+    "asthma_or_copd": {
+      "label": "asthma or COPD",
+      "groups": [
+        [
+          "asthma",
+          "bronchospasm",
+          "COPD",
+          "chronic obstructive pulmonary"
+        ]
+      ],
+      "patient_terms": [
+        "asthma",
+        "copd",
+        "chronic obstructive pulmonary"
+      ]
+    },
+    "bleeding_disorder": {
+      "label": "a bleeding disorder",
+      "groups": [
+        [
+          "bleeding disorder*",
+          "coagulation disorder*",
+          "hemophilia",
+          "haemophilia",
+          "thrombocytopenia"
+        ]
+      ],
+      "patient_terms": [
+        "bleeding disorder",
+        "haemophilia",
+        "hemophilia",
+        "thrombocytopenia",
+        "coagulopathy"
+      ]
+    },
+    "pregnancy": {
+      "label": "pregnancy",
+      "groups": [
+        [
+          "pregnan*"
+        ]
+      ],
+      "patient_terms": [
+        "pregnant",
+        "pregnancy"
+      ]
+    }
+  },
+  "severity_by_section": {
+    "boxed_warning": "high",
+    "contraindications": "high",
+    "warnings_and_cautions": "moderate",
+    "warnings": "moderate",
+    "precautions": "low"
+  }
+}

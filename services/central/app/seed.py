@@ -1,4 +1,5 @@
-"""Central seed: medicine names, medication rules and the patients' existing patient links.
+"""Central seed: medicine names, medication rules, imported rule data (ingredients, DDInter
+interactions, drug-label rules) and the patients' existing patient links.
 
 Run: python -m app.seed --reset --yes   (wipes central workflow data and uploaded files)
 
@@ -9,11 +10,13 @@ being referred to is NOT seeded: requesting and approving it is part of the demo
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import shutil
 import sys
 from datetime import datetime, timezone
 
+from refcommon.exchange import content_hash
 from refcommon.sourcekit import normalize_cnic
 from sqlalchemy import text
 
@@ -21,7 +24,8 @@ from .config import settings
 from .db import Base, SessionLocal
 from .medications import mapping
 from .medications.rules import rule_hash
-from .models import MedicationRule, MedicineName, PatientLink, PatientLinkEvent
+from .models import (DrugInteraction, Ingredient, LabelRule, MedicationRule, MedicineName, PatientLink, PatientLinkEvent,
+                     RulesetRelease)
 
 SEED_ACTOR = ("seed-script", "Seed script (synthetic data)")
 REVIEWER = ("seed-reviewer", "Dr Nadia Hassan (clinical reviewer, seed approval)")
@@ -90,6 +94,38 @@ def seed_links(db) -> int:
     return count
 
 
+def seed_imported(db) -> dict:
+    """Load the imported rule data (files produced by the scripts in scripts/) and record the release."""
+    root = settings.repo_root / "rules"
+    report = json.loads((root / "interactions" / "ddinter-import-report.json").read_text(encoding="utf-8"))
+    absent = set(report["our_ingredients_not_in_ddinter"])
+    ingredients = json.loads((root / "terminology" / "ingredients.json").read_text(encoding="utf-8"))
+    for i in ingredients["ingredients"]:
+        db.add(Ingredient(name=i["name"], standard=i.get("standard"), label_name=i.get("label_name"),
+                          rxnorm_id=i.get("rxnorm_id"), atc_codes=i.get("atc_codes", []), components=i.get("components", []),
+                          in_interaction_source=bool(i.get("standard")) and i["name"] not in absent, note=i.get("note")))
+    version = f"retrieved {report['imported']}"
+    with (root / "interactions" / "ddinter-subset.csv").open(encoding="utf-8") as fh:
+        pairs = list(csv.DictReader(fh))
+    db.add_all(DrugInteraction(ingredient_a=p["ingredient_a"], ingredient_b=p["ingredient_b"], severity=p["severity"],
+                               source="ddinter", source_version=version, source_ref=p["source_ref"]) for p in pairs)
+    labels = json.loads((root / "labels" / "label-rules.json").read_text(encoding="utf-8"))
+    vocab = json.loads((root / "vocab" / "label-targets.json").read_text(encoding="utf-8"))
+    for r in labels["rules"]:
+        group = "procedure" if r["kind"] == "drug_procedure" else "condition"
+        db.add(LabelRule(rule_key=r["rule_key"], kind=r["kind"], ingredient=r["ingredient"], target=r["target"],
+                         target_label=vocab[group].get(r["target"], {}).get("label", r["target"]),
+                         severity_hint=r["severity_hint"], summary=r["summary"], quote=r["quote"], section=r["section"],
+                         source_type=r["source_type"], source_ref=r["source_ref"], source_name=r["source_name"],
+                         source_version=r["source_version"], extractor_version=r["extractor_version"]))
+    counts = {"ingredients": len(ingredients["ingredients"]), "interactions": len(pairs), "label_rules": len(labels["rules"])}
+    release_hash = content_hash({"ddinter": report["files_sha256"], "labels": labels["content_sha256"],
+                                 "ingredients": ingredients, "vocabulary": vocab["version"]})
+    db.add(RulesetRelease(hash=release_hash, counts=counts,
+                          notes=f"DDInter 2.0 {version}; {labels['version']} ({labels['extractor_version']}); {vocab['version']}"))
+    return counts
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--reset", action="store_true")
@@ -108,8 +144,10 @@ def main() -> None:
                 for p in settings.storage_root.iterdir():
                     p.unlink() if p.is_file() else shutil.rmtree(p)
         n_names, n_rules, n_links = seed_names(db), seed_rules(db), seed_links(db)
+        imported = seed_imported(db)
         db.commit()
-        print(f"Central seeded: {n_names} medicine names, {n_rules} approved rules, {n_links} existing patient links")
+        print(f"Central seeded: {n_names} medicine names, {n_rules} approved rules, {n_links} existing patient links, "
+              f"{imported['interactions']} DDInter interactions, {imported['label_rules']} drug-label rules")
 
 
 if __name__ == "__main__":

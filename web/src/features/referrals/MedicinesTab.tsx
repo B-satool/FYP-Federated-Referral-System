@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Alert,
   Autocomplete,
+  Box,
   Button,
   Checkbox,
   Dialog,
@@ -21,9 +22,10 @@ import {
 } from "@mui/material";
 import Add from "@mui/icons-material/Add";
 import { api } from "../../api/client";
-import type { MedicationEntry, MedicationView, MedicineNamesView, ReferralDetail } from "../../api/types";
+import type { Flag, FlagDecision, MedicationEntry, MedicationView, MedicineNamesView, ReferralDetail } from "../../api/types";
 import { FlagCard } from "../../components/FlagCard";
 import { Empty, ErrorAlert, fmtDate, Loading, ReasonDialog, Section, Tag } from "../../components/common";
+import { useRefData } from "../../hooks";
 import { useInvalidateReferral } from "./ReferralWorkspace";
 import type { Role } from "./steps";
 
@@ -100,7 +102,90 @@ function MatchDialog({ referralId, entry, onClose, onDone }: { referralId: numbe
   );
 }
 
+const SEVERITY_ORDER: Record<string, number> = { Major: 0, high: 0, Moderate: 1, moderate: 1, Minor: 2, low: 2, Unknown: 3 };
+
+/** Flags grouped so the ones that need a decision come first and low-severity ones are collapsed. */
+function flagGroups(flags: Flag[]) {
+  const decided = (f: Flag) => f.acknowledgements.some((a) => a.side === "referring");
+  const bySeverity = (a: Flag, b: Flag) => (SEVERITY_ORDER[a.severity ?? ""] ?? 9) - (SEVERITY_ORDER[b.severity ?? ""] ?? 9);
+  const required = flags.filter((f) => f.requires_decision);
+  const optional = flags.filter((f) => !f.requires_decision);
+  const ddi = optional.filter((f) => f.kind === "interaction").sort(bySeverity);
+  const label = optional.filter((f) => f.kind === "label_warning").sort(bySeverity);
+  const rest = optional.filter((f) => !["interaction", "label_warning"].includes(f.kind));
+  return [
+    { key: "required", title: "Needs your decision", note: "Approved rules, Major interactions, boxed warnings and contraindications, and anything that could not be checked.",
+      flags: required.sort((a, b) => Number(decided(a)) - Number(decided(b))), collapsed: false },
+    { key: "ddi", title: "Other drug interactions (DDInter)", note: "Moderate, minor and ungraded interactions, for reading.", flags: ddi, collapsed: false },
+    { key: "label", title: "Other drug-label mentions", note: "Label warnings and precautions that mention the procedure or a recorded condition.", flags: label, collapsed: true },
+    { key: "rest", title: "Other notes", note: "", flags: rest, collapsed: false },
+  ].filter((g) => g.flags.length > 0);
+}
+
+function FlagGroup({ title, note, flags, collapsed, render }: { title: string; note: string; flags: Flag[]; collapsed: boolean; render: (f: Flag) => JSX.Element }) {
+  const [open, setOpen] = useState(!collapsed);
+  const minor = flags.filter((f) => ["Minor", "Unknown", "low"].includes(f.severity ?? ""));
+  const [showMinor, setShowMinor] = useState(false);
+  const shown = showMinor || flags.length === minor.length ? flags : flags.filter((f) => !minor.includes(f));
+  return (
+    <Box component="section" aria-label={title}>
+      <Stack direction="row" justifyContent="space-between" alignItems="baseline" spacing={1}>
+        <Typography variant="subtitle1" component="h3" sx={{ fontWeight: 700 }}>
+          {title} ({flags.length})
+        </Typography>
+        <Button size="small" onClick={() => setOpen(!open)}>{open ? "Hide" : "Show"}</Button>
+      </Stack>
+      {note && <Typography variant="caption" color="text.secondary" component="div" sx={{ mb: 1 }}>{note}</Typography>}
+      {open && (
+        <Stack spacing={1.5}>
+          {shown.map(render)}
+          {minor.length > 0 && shown.length < flags.length && (
+            <Button size="small" sx={{ alignSelf: "start" }} onClick={() => setShowMinor(true)}>
+              Show {minor.length} minor or ungraded
+            </Button>
+          )}
+        </Stack>
+      )}
+    </Box>
+  );
+}
+
+/** Reviewed, Ignore (not relevant for this patient) or Research (needs follow-up), with an optional note. */
+function DecisionButtons({ busy, onDecide }: { busy: boolean; onDecide: (d: FlagDecision, note: string) => void }) {
+  const [pending, setPending] = useState<FlagDecision | null>(null);
+  const [note, setNote] = useState("");
+  const close = () => {
+    setPending(null);
+    setNote("");
+  };
+  return (
+    <>
+      <Button variant="contained" size="small" disabled={busy} onClick={() => onDecide("reviewed", "")}>Mark as reviewed</Button>
+      <Button variant="outlined" size="small" disabled={busy} onClick={() => setPending("ignore")}>Ignore</Button>
+      <Button variant="outlined" size="small" disabled={busy} onClick={() => setPending("research")}>Research</Button>
+      <Dialog open={!!pending} onClose={close} fullWidth maxWidth="sm">
+        <DialogTitle>{pending === "ignore" ? "Ignore this flag for this patient" : "Mark for research (needs follow-up)"}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            {pending === "ignore"
+              ? "The flag stays in the record with your name and note. Ignoring is not treatment clearance."
+              : "The flag is marked as needing follow-up; open the source to look into it."}
+          </Typography>
+          <TextField fullWidth multiline minRows={2} label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={close}>Cancel</Button>
+          <Button variant="contained" onClick={() => { onDecide(pending!, note.trim()); close(); }}>
+            {pending === "ignore" ? "Ignore" : "Mark for research"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
+  );
+}
+
 export function MedicinesTab({ r, role }: { r: ReferralDetail; role: Role }) {
+  const rd = useRefData();
   const refresh = useInvalidateReferral(r.id);
   const q = useQuery({ queryKey: ["referral", r.id, "medications"], queryFn: () => api.get<MedicationView>(`/referrals/${r.id}/medications`) });
   const [adding, setAdding] = useState(false);
@@ -118,8 +203,9 @@ export function MedicinesTab({ r, role }: { r: ReferralDetail; role: Role }) {
     onSuccess: done,
   });
   const ack = useMutation({
-    mutationFn: ({ id, version }: { id: number; version: number }) => api.post(`/referrals/${r.id}/flags/${id}/acknowledge`, { flag_version: version }),
-    meta: { success: "Marked as reviewed." },
+    mutationFn: ({ id, version, decision, note }: { id: number; version: number; decision: FlagDecision; note: string }) =>
+      api.post(`/referrals/${r.id}/flags/${id}/acknowledge`, { flag_version: version, decision, note }),
+    meta: { success: "Decision recorded." },
     onSuccess: done,
   });
   if (q.isLoading) return <Loading />;
@@ -139,8 +225,6 @@ export function MedicinesTab({ r, role }: { r: ReferralDetail; role: Role }) {
   }
   const reps = v.entries.filter((e) => !e.duplicate_of);
   const dups = (id: number) => v.entries.filter((e) => e.duplicate_of === id);
-  const confirmedFlags = v.flags.filter((f) => f.kind === "confirmed");
-  const otherFlags = v.flags.filter((f) => f.kind !== "confirmed");
 
   return (
     <Stack spacing={2}>
@@ -241,29 +325,35 @@ export function MedicinesTab({ r, role }: { r: ReferralDetail; role: Role }) {
       <Section
         title="Medication flags"
         description={staff
-          ? "Checked automatically: each current medicine against the planned procedure, using reviewer-approved rules. The doctor reviews them once you mark the referral ready (Check & send)."
-          : "Checked automatically: each current medicine against the planned procedure, using reviewer-approved rules. Review each one for this patient."}
+          ? "Checked automatically against approved rules, drug interactions (DDInter) and US drug labels. The doctor reviews them once you mark the referral ready (Check & send)."
+          : "Checked automatically against approved rules, drug interactions (DDInter) and US drug labels. Flags under 'Needs your decision' must each be marked before staff can send; the others are for reading."}
       >
         <ErrorAlert error={ack.error} />
         {v.evaluation && (
-          <Alert severity={v.evaluation.status === "failed" ? "error" : v.evaluation.outcome === "flags" ? "warning" : "info"} sx={{ mb: 2 }}>
+          <Alert severity={v.evaluation.status === "failed" ? "error" : v.evaluation.outcome === "flags" ? "warning" : "info"} sx={{ mb: 1.5 }}>
             {v.evaluation.summary_message}
           </Alert>
         )}
-        <Stack spacing={1.5}>
-          {[...confirmedFlags, ...otherFlags].map((f) => {
-            const a = f.acknowledgements.find((x) => x.side === "referring");
-            return (
-              <FlagCard key={f.id} flag={f} acknowledged={a ? { by: a.by, at: a.created_at } : null}
-                actions={role === "doctor" && !a && !locked ? (
-                  <Button variant="contained" size="small" disabled={ack.isPending} onClick={() => ack.mutate({ id: f.id, version: f.version })}>
-                    Mark as reviewed
-                  </Button>
-                ) : undefined}
-                footer={staff && !a ? <Tag tone="wait" label={gathering ? "The doctor reviews this after you mark the referral ready" : `Waiting for ${r.requesting_doctor_name} to review`} /> : undefined} />
-            );
-          })}
-          {v.flags.length === 0 && <Empty>No flags for the planned procedure.</Empty>}
+        {rd.data?.flag_disclaimer && (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {rd.data.flag_disclaimer}
+          </Typography>
+        )}
+        {v.flags.length === 0 && <Empty>No matching rule on file for these medicines. This is not treatment clearance.</Empty>}
+        <Stack spacing={2.5}>
+          {flagGroups(v.flags).map((g) => (
+            <FlagGroup key={g.key} title={g.title} note={g.note} flags={g.flags} collapsed={g.collapsed}
+              render={(f) => {
+                const a = f.acknowledgements.find((x) => x.side === "referring");
+                return (
+                  <FlagCard key={f.id} flag={f} acknowledged={a ? { by: a.by, at: a.created_at, decision: a.decision, note: a.note } : null}
+                    actions={role === "doctor" && !a && !locked ? (
+                      <DecisionButtons busy={ack.isPending} onDecide={(decision, note) => ack.mutate({ id: f.id, version: f.version, decision, note })} />
+                    ) : undefined}
+                    footer={staff && !a && f.requires_decision ? <Tag tone="wait" label={gathering ? "The doctor reviews this after you mark the referral ready" : `Waiting for ${r.requesting_doctor_name} to review`} /> : undefined} />
+                );
+              }} />
+          ))}
         </Stack>
       </Section>
 

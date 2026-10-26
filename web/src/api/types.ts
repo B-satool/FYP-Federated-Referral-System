@@ -32,6 +32,7 @@ export type ReferenceData = {
   diagnostic_categories: Record<string, string>;
   drug_classes: Record<string, string>;
   referral_window_days: number;
+  flag_disclaimer: string;
   llm_configured: boolean;
   limits: { max_upload_mb: number; max_pages: number; formats: string[]; language: string };
 };
@@ -327,11 +328,26 @@ export type MedicationEntry = {
   excluded_reason: string | null;
 };
 
-export type Flag = {
+export type FlagDecision = "reviewed" | "ignore" | "research";
+
+/** Where a flag came from, shown beside it. */
+export type FlagSource = {
+  severity?: string | null;
+  ingredients?: string[];
+  source_type?: string | null;
+  source_name?: string | null;
+  source_ref?: string | null;
+  source_version?: string | null;
+  source_quote?: string | null;
+  auto_generated?: boolean;
+};
+
+export type Flag = FlagSource & {
   id: number;
   flag_key: string;
   version: number;
-  kind: "confirmed" | "unrecognised_medicine" | "procedure_not_checked" | "records_incomplete";
+  kind: "confirmed" | "interaction" | "label_warning" | "unrecognised_medicine" | "interactions_not_checked" | "procedure_not_checked" | "records_incomplete";
+  requires_decision: boolean;
   title: string;
   message: string;
   medication: string | null;
@@ -343,7 +359,7 @@ export type Flag = {
   evidence_ids: number[];
   status: string;
   created_at: string;
-  acknowledgements: { id: number; side: string; by: string; institution_id: string; flag_version: number; note: string; created_at: string }[];
+  acknowledgements: { id: number; side: string; by: string; institution_id: string; flag_version: number; decision: FlagDecision; note: string; created_at: string }[];
 };
 
 export type MedicationView = {
@@ -546,7 +562,7 @@ export type PackageEnvelope = {
   content_hash: string;
 };
 
-export type LetterFlag = {
+export type LetterFlag = FlagSource & {
   flag_id: number;
   version: number;
   kind: string;
@@ -555,7 +571,7 @@ export type LetterFlag = {
   medication: string | null;
   source_label: string | null;
   rule_id: string | null;
-  acknowledged: { by: string; at: string } | null;
+  acknowledged: { by: string; at: string; decision?: FlagDecision; note?: string } | null;
 };
 
 export type CaseDetail = {

@@ -53,7 +53,16 @@ class FlagSnapshot(BaseModel):
     rule_id: str | None = None
     rule_version: int | None = None
     evidence_ids: list[int] = Field(default_factory=list)
-    acknowledged: dict[str, Any] | None = None
+    acknowledged: dict[str, Any] | None = None  # {by, at, decision: reviewed|ignore|research, note}
+    # where the flag came from (approved manual rule, DDInter, drug label), shown beside it
+    severity: str | None = None
+    ingredients: list[str] = Field(default_factory=list)
+    source_type: str | None = None
+    source_name: str | None = None
+    source_ref: str | None = None
+    source_version: str | None = None
+    source_quote: str | None = None
+    auto_generated: bool = False
 
 
 class EvidenceSnapshot(BaseModel):

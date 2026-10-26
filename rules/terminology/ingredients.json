@@ -1,0 +1,423 @@
+{
+  "version": "ingredients/1.0",
+  "note": "Ingredient names as used in medicine-names.pk.json, with the international (INN/USAN) name used by DDInter and drug labels, and the parts of combination products. Hand-curated for the synthetic demo; a pharmacist must confirm before any real use. rxnorm_id and atc_codes are filled by scripts/build_ingredient_codes.py (RxNav).",
+  "ingredients": [
+    {
+      "name": "alendronic acid",
+      "standard": "alendronic acid",
+      "label_name": "alendronate",
+      "rxnorm_id": "46041",
+      "atc_codes": [
+        "M05BA"
+      ]
+    },
+    {
+      "name": "amlodipine",
+      "standard": "amlodipine",
+      "rxnorm_id": "17767",
+      "atc_codes": [
+        "C08CA",
+        "C09BB",
+        "C09DB",
+        "C09DX",
+        "C09XA",
+        "C10BX"
+      ]
+    },
+    {
+      "name": "apixaban",
+      "standard": "apixaban",
+      "rxnorm_id": "1364430",
+      "atc_codes": [
+        "B01AF"
+      ]
+    },
+    {
+      "name": "aspirin",
+      "standard": "acetylsalicylic acid",
+      "label_name": "aspirin",
+      "rxnorm_id": "1191",
+      "atc_codes": [
+        "A01AD",
+        "B01AC",
+        "N02AJ",
+        "N02BA"
+      ]
+    },
+    {
+      "name": "atorvastatin",
+      "standard": "atorvastatin",
+      "rxnorm_id": "83367",
+      "atc_codes": [
+        "C10AA",
+        "C10BA",
+        "C10BX"
+      ]
+    },
+    {
+      "name": "bisoprolol",
+      "standard": "bisoprolol",
+      "rxnorm_id": "19484",
+      "atc_codes": [
+        "C07AB"
+      ]
+    },
+    {
+      "name": "calcium carbonate/colecalciferol",
+      "components": [
+        "calcium carbonate",
+        "colecalciferol"
+      ]
+    },
+    {
+      "name": "calcium carbonate",
+      "standard": "calcium carbonate",
+      "component_only": true,
+      "rxnorm_id": "1897",
+      "atc_codes": [
+        "A02AC",
+        "A12AA"
+      ]
+    },
+    {
+      "name": "colecalciferol",
+      "standard": "cholecalciferol",
+      "component_only": true,
+      "rxnorm_id": "2418",
+      "atc_codes": [
+        "A11CC"
+      ]
+    },
+    {
+      "name": "clopidogrel",
+      "standard": "clopidogrel",
+      "rxnorm_id": "32968",
+      "atc_codes": [
+        "B01AC"
+      ]
+    },
+    {
+      "name": "co-amoxiclav",
+      "components": [
+        "amoxicillin",
+        "clavulanic acid"
+      ]
+    },
+    {
+      "name": "amoxicillin",
+      "standard": "amoxicillin",
+      "component_only": true,
+      "rxnorm_id": "723",
+      "atc_codes": [
+        "A02BD",
+        "J01CA"
+      ]
+    },
+    {
+      "name": "clavulanic acid",
+      "standard": "clavulanic acid",
+      "label_name": "clavulanate",
+      "component_only": true,
+      "rxnorm_id": "48203",
+      "atc_codes": []
+    },
+    {
+      "name": "dapagliflozin",
+      "standard": "dapagliflozin",
+      "rxnorm_id": "1488564",
+      "atc_codes": [
+        "A10BD",
+        "A10BK"
+      ]
+    },
+    {
+      "name": "dexamethasone",
+      "standard": "dexamethasone",
+      "rxnorm_id": "3264",
+      "atc_codes": [
+        "A01AC",
+        "C05AA",
+        "D07AB",
+        "D07XB",
+        "D10AA",
+        "H02AB",
+        "R01AD",
+        "S01BA",
+        "S01CB",
+        "S02BA",
+        "S03BA"
+      ]
+    },
+    {
+      "name": "diclofenac",
+      "standard": "diclofenac",
+      "rxnorm_id": "3355",
+      "atc_codes": [
+        "D11AX",
+        "M01AB",
+        "M02AA",
+        "S01BC"
+      ]
+    },
+    {
+      "name": "empagliflozin",
+      "standard": "empagliflozin",
+      "rxnorm_id": "1545653",
+      "atc_codes": [
+        "A10BD",
+        "A10BK"
+      ]
+    },
+    {
+      "name": "enalapril",
+      "standard": "enalapril",
+      "rxnorm_id": "3827",
+      "atc_codes": [
+        "C09AA"
+      ]
+    },
+    {
+      "name": "esomeprazole",
+      "standard": "esomeprazole",
+      "rxnorm_id": "283742",
+      "atc_codes": [
+        "A02BC",
+        "M01AE"
+      ]
+    },
+    {
+      "name": "ferrous fumarate",
+      "standard": "ferrous fumarate",
+      "rxnorm_id": "24941",
+      "atc_codes": [
+        "B03AA",
+        "B03AD"
+      ]
+    },
+    {
+      "name": "ferrous sulfate",
+      "standard": "ferrous sulfate anhydrous",
+      "label_name": "ferrous sulfate",
+      "rxnorm_id": "24947",
+      "atc_codes": [
+        "B03AA",
+        "B03AD"
+      ]
+    },
+    {
+      "name": "gliclazide",
+      "standard": "gliclazide",
+      "note": "Not in DDInter 2.0 or US labels (not marketed in the US); interactions cannot be checked from these sources.",
+      "rxnorm_id": "4816",
+      "atc_codes": [
+        "A10BB"
+      ]
+    },
+    {
+      "name": "glimepiride",
+      "standard": "glimepiride",
+      "rxnorm_id": "25789",
+      "atc_codes": [
+        "A10BB",
+        "A10BD"
+      ]
+    },
+    {
+      "name": "human insulin",
+      "standard": "insulin human",
+      "label_name": "insulin human",
+      "rxnorm_id": "253182",
+      "atc_codes": []
+    },
+    {
+      "name": "hyoscine butylbromide",
+      "standard": "butylscopolamine",
+      "note": "Not in DDInter 2.0 or US labels; interactions cannot be checked from these sources.",
+      "rxnorm_id": "1085787",
+      "atc_codes": [
+        "A03BB"
+      ]
+    },
+    {
+      "name": "ibandronic acid",
+      "standard": "ibandronate",
+      "label_name": "ibandronate",
+      "rxnorm_id": "115264",
+      "atc_codes": [
+        "M05BA"
+      ]
+    },
+    {
+      "name": "ibuprofen",
+      "standard": "ibuprofen",
+      "rxnorm_id": "5640",
+      "atc_codes": [
+        "C01EB",
+        "G02CC",
+        "M01AE",
+        "M02AA",
+        "N02AJ",
+        "R02AX"
+      ]
+    },
+    {
+      "name": "insulin glargine",
+      "standard": "insulin glargine",
+      "rxnorm_id": "274783",
+      "atc_codes": [
+        "A10AE"
+      ]
+    },
+    {
+      "name": "levothyroxine",
+      "standard": "levothyroxine",
+      "rxnorm_id": "10582",
+      "atc_codes": [
+        "H03AA"
+      ]
+    },
+    {
+      "name": "losartan",
+      "standard": "losartan",
+      "rxnorm_id": "52175",
+      "atc_codes": [
+        "C09CA"
+      ]
+    },
+    {
+      "name": "metformin",
+      "standard": "metformin",
+      "rxnorm_id": "6809",
+      "atc_codes": [
+        "A10BA",
+        "A10BD"
+      ]
+    },
+    {
+      "name": "naproxen",
+      "standard": "naproxen",
+      "rxnorm_id": "7258",
+      "atc_codes": [
+        "G02CC",
+        "M01AE",
+        "M02AA",
+        "N02CC"
+      ]
+    },
+    {
+      "name": "omeprazole",
+      "standard": "omeprazole",
+      "rxnorm_id": "7646",
+      "atc_codes": [
+        "A02BC",
+        "A02BD"
+      ]
+    },
+    {
+      "name": "paracetamol",
+      "standard": "acetaminophen",
+      "label_name": "acetaminophen",
+      "rxnorm_id": "161",
+      "atc_codes": [
+        "N02AJ",
+        "N02BE"
+      ]
+    },
+    {
+      "name": "prednisolone",
+      "standard": "prednisolone",
+      "rxnorm_id": "8638",
+      "atc_codes": [
+        "A01AC",
+        "A07EA",
+        "C05AA",
+        "D07AA",
+        "D07XA",
+        "H02AB",
+        "R01AD",
+        "S01BA",
+        "S01CB",
+        "S02BA",
+        "S03BA"
+      ]
+    },
+    {
+      "name": "propranolol",
+      "standard": "propranolol",
+      "rxnorm_id": "8787",
+      "atc_codes": [
+        "C07AA"
+      ]
+    },
+    {
+      "name": "rivaroxaban",
+      "standard": "rivaroxaban",
+      "rxnorm_id": "1114195",
+      "atc_codes": [
+        "B01AF"
+      ]
+    },
+    {
+      "name": "rosuvastatin",
+      "standard": "rosuvastatin",
+      "rxnorm_id": "301542",
+      "atc_codes": [
+        "C10AA",
+        "C10BA"
+      ]
+    },
+    {
+      "name": "salbutamol",
+      "standard": "salbutamol",
+      "label_name": "albuterol",
+      "rxnorm_id": "435",
+      "atc_codes": [
+        "R03AC",
+        "R03CC"
+      ]
+    },
+    {
+      "name": "sofosbuvir/daclatasvir",
+      "components": [
+        "sofosbuvir",
+        "daclatasvir"
+      ]
+    },
+    {
+      "name": "sofosbuvir",
+      "standard": "sofosbuvir",
+      "component_only": true,
+      "rxnorm_id": "1484911",
+      "atc_codes": [
+        "J05AP"
+      ]
+    },
+    {
+      "name": "daclatasvir",
+      "standard": "daclatasvir",
+      "component_only": true,
+      "rxnorm_id": "1606218",
+      "atc_codes": [
+        "J05AP"
+      ]
+    },
+    {
+      "name": "tramadol",
+      "standard": "tramadol",
+      "rxnorm_id": "10689",
+      "atc_codes": [
+        "N02AJ",
+        "N02AX"
+      ]
+    },
+    {
+      "name": "warfarin",
+      "standard": "warfarin",
+      "rxnorm_id": "11289",
+      "atc_codes": [
+        "B01AA"
+      ]
+    }
+  ],
+  "codes_retrieved": "2026-10-27"
+}

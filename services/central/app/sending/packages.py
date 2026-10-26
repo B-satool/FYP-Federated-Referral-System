@@ -45,7 +45,11 @@ def _flag_snapshot(db: Session, f) -> dict:
     return {"flag_id": f.id, "version": f.version, "kind": f.kind, "title": f.title, "message": f.message,
             "medication": f.medication, "drug_class": f.drug_class, "source_label": f.source_label,
             "rule_id": f.rule_id, "rule_version": f.rule_version, "evidence_ids": f.evidence_ids,
-            "acknowledged": {"by": ack.reviewer, "at": ack.created_at.isoformat()} if ack else None}
+            "acknowledged": {"by": ack.reviewer, "at": ack.created_at.isoformat(), "decision": ack.decision,
+                             "note": ack.note} if ack else None,
+            "severity": f.severity, "ingredients": f.ingredients or [], "source_type": f.source_type,
+            "source_name": f.source_name, "source_ref": f.source_ref, "source_version": f.source_version,
+            "source_quote": f.source_quote, "auto_generated": f.auto_generated}
 
 
 def _fhir_bundle(r: Referral, evidence: list[EvidenceItem], sent_at, requester: str) -> dict:
@@ -142,6 +146,7 @@ def send(db: Session, r: Referral, principal: Principal) -> ReferralPackage:
         medication_evaluation={"status": run.status if run else "not_run", "outcome": run.outcome if run else None,
                                "summary": run.summary_message if run else None,
                                "rule_versions": run.rule_versions if run else {},
+                               "ruleset_hash": run.ruleset_hash if run else None,
                                "evaluated_at": run.created_at.isoformat() if run else None},
         evidence=[_evidence_snapshot(db, e) for e in sorted(evidence, key=lambda e: e.id)],
         limitations=content["limitations"],

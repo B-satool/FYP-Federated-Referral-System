@@ -157,32 +157,53 @@ function Investigations({ s, cite }: { s: BriefSection; cite?: Cite }) {
   );
 }
 
+const DECISION: Record<string, string> = { reviewed: "Reviewed", ignore: "Ignored as not relevant", research: "Marked for research" };
+const MINOR = ["Minor", "Unknown", "low"];
+
+function FlagLine({ f }: { f: LetterFlag }) {
+  const source = f.source_type === "manual_rule" ? `Approved rule ${f.source_version ?? f.rule_id ?? ""}`
+    : f.source_name ? `${f.source_name}${f.source_version ? `, ${f.source_version}` : ""}${f.auto_generated ? " (automatically generated, not clinically reviewed)" : ""}` : "";
+  return (
+    <Box sx={{ borderLeft: `3px solid ${f.kind === "confirmed" || f.severity === "Major" || f.severity === "high" ? tokens.warn.text : tokens.field}`, pl: 1.5 }}>
+      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+        {f.title}
+        {f.severity ? ` · ${f.severity === "Unknown" ? "severity not graded" : f.severity.toLowerCase()}` : ""}
+      </Typography>
+      <Typography variant="body2">{f.message}</Typography>
+      {f.source_quote && <Typography variant="body2" sx={{ fontStyle: "italic", color: tokens.muted }}>"{f.source_quote}"</Typography>}
+      <Muted>
+        {[source, f.acknowledged ? `${DECISION[f.acknowledged.decision ?? "reviewed"]} by ${f.acknowledged.by}, ${fmtDate(f.acknowledged.at)}${f.acknowledged.note ? `: ${f.acknowledged.note}` : ""}` : "No decision recorded"]
+          .filter(Boolean).join(" · ")}
+      </Muted>
+    </Box>
+  );
+}
+
 function FlagsSection({ flags, summary }: { flags: LetterFlag[]; summary?: string | null }) {
-  const confirmed = flags.filter((f) => f.kind === "confirmed");
-  const other = flags.filter((f) => f.kind !== "confirmed");
+  const main = flags.filter((f) => !MINOR.includes(f.severity ?? ""));
+  const minor = flags.filter((f) => MINOR.includes(f.severity ?? ""));
   return (
     <Box>
       <Heading>Medication review</Heading>
       <Typography variant="body2" sx={{ color: tokens.muted, mb: 1 }}>
-        Produced by approved rules from the current medicines and the planned procedure. "Reviewed" means the referring doctor
-        has seen it; it is not advice to change a medicine.
+        From approved rules, the DDInter interaction database and US drug labels, checked against the current medicines, the
+        planned procedure and recorded conditions. A decision means the referring doctor has seen the flag; it is not advice to
+        change a medicine.
       </Typography>
-      {flags.length === 0 && <Typography variant="body2">{summary ?? "No medication flags."}</Typography>}
+      {flags.length === 0 && <Typography variant="body2">{summary ?? "No matching rule on file."}</Typography>}
       <Stack spacing={1}>
-        {[...confirmed, ...other].map((f) => (
-          <Box key={f.flag_id} sx={{ borderLeft: `3px solid ${f.kind === "confirmed" ? tokens.warn.text : tokens.field}`, pl: 1.5 }}>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {f.title}
-              {f.medication ? `: ${f.medication}` : ""}
-            </Typography>
-            <Typography variant="body2">{f.message}</Typography>
-            <Muted>
-              {f.acknowledged ? `Reviewed by ${f.acknowledged.by}, ${fmtDate(f.acknowledged.at)}` : "Not reviewed"}
-              {f.rule_id ? ` · ${f.rule_id}` : ""}
-            </Muted>
-          </Box>
-        ))}
+        {main.map((f) => <FlagLine key={f.flag_id} f={f} />)}
       </Stack>
+      {minor.length > 0 && (
+        <Box component="details" sx={{ mt: 1 }}>
+          <summary>
+            <Typography component="span" variant="body2">{minor.length} minor, ungraded or precaution-level flag(s)</Typography>
+          </summary>
+          <Stack spacing={1} sx={{ mt: 1 }}>
+            {minor.map((f) => <FlagLine key={f.flag_id} f={f} />)}
+          </Stack>
+        </Box>
+      )}
     </Box>
   );
 }

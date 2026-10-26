@@ -15,6 +15,13 @@ import {
   MenuItem,
   Paper,
   Stack,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  Tabs,
   TextField,
   Typography,
 } from "@mui/material";
@@ -203,23 +210,42 @@ function RuleVersion({ r, view, onDecide }: { r: Rule; view: RulesView; onDecide
 }
 
 export function RulesPage() {
+  const [tab, setTab] = useState(0);
+  return (
+    <>
+      <PageHeader
+        title="Medication rules"
+        subtitle="Where medication flags come from: rules approved by a clinical reviewer, drug-drug interactions imported from DDInter, and rules read from US drug labels. Imported rules apply as loaded and are shown as automatically generated, not clinically reviewed. Flags never advise changing a medicine."
+      />
+      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }} variant="scrollable" allowScrollButtonsMobile>
+        <Tab label="Approved rules" />
+        <Tab label="Drug interactions (DDInter)" />
+        <Tab label="Drug-label rules" />
+      </Tabs>
+      {tab === 0 && <ApprovedRules />}
+      {tab === 1 && <InteractionRules />}
+      {tab === 2 && <LabelRules />}
+    </>
+  );
+}
+
+function ApprovedRules() {
   const q = useQuery({ queryKey: ["rules"], queryFn: () => api.get<RulesView>("/rules") });
   const [editing, setEditing] = useState<{ ruleId?: string; initial?: Rule } | null>(null);
   const [deciding, setDeciding] = useState<{ rule: Rule; decision: "approve" | "reject" | "retire" } | null>(null);
   const view = q.data;
   return (
     <>
-      <PageHeader
-        title="Medication rules"
-        subtitle="Drug-against-procedure rules. A rule raises flags only after a clinical reviewer approves that exact version. Flags never advise changing a medicine."
-        actions={
-          view?.can_edit && (
-            <Button variant="contained" onClick={() => setEditing({})}>
-              New rule
-            </Button>
-          )
-        }
-      />
+      <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={1} sx={{ mb: 2 }}>
+        <Typography variant="body2" color="text.secondary">
+          Drug class against procedure features. A rule raises flags only after a clinical reviewer approves that exact version.
+        </Typography>
+        {view?.can_edit && (
+          <Button variant="contained" onClick={() => setEditing({})} sx={{ flexShrink: 0 }}>
+            New rule
+          </Button>
+        )}
+      </Stack>
       {q.isLoading && <Loading />}
       <ErrorAlert error={q.error} />
       {view && view.rules.length === 0 && <Empty>No rules yet.</Empty>}
@@ -270,5 +296,102 @@ export function RulesPage() {
       {editing && view && <RuleDialog view={view} ruleId={editing.ruleId} initial={editing.initial} onClose={() => setEditing(null)} />}
       {deciding && <DecisionDialog rule={deciding.rule} decision={deciding.decision} onClose={() => setDeciding(null)} />}
     </>
+  );
+}
+
+type InteractionsView = { total: number; shown: number; source: string; rows: { ingredient_a: string; ingredient_b: string; severity: string; source_ref: string; source_version: string }[] };
+type LabelRulesView = {
+  release: { hash: string; created_at: string; counts: Record<string, number>; notes: string } | null;
+  rows: { rule_key: string; kind: string; ingredient: string; target_label: string; severity_hint: string; summary: string; quote: string; section: string; source_name: string; source_ref: string; source_version: string; extractor_version: string }[];
+};
+const LEVEL_TONE: Record<string, "bad" | "warn" | "neutral"> = { Major: "bad", Moderate: "warn", high: "bad", moderate: "warn" };
+
+function useSearch() {
+  const [text, setText] = useState("");
+  const [q, setQ] = useState("");
+  const box = (
+    <Stack component="form" direction="row" spacing={1} sx={{ mb: 2 }} onSubmit={(e) => { e.preventDefault(); setQ(text); }}>
+      <TextField size="small" label="Search by ingredient or topic" value={text} onChange={(e) => setText(e.target.value)} />
+      <Button type="submit" variant="outlined">Search</Button>
+    </Stack>
+  );
+  return { q, box };
+}
+
+/** Imported DDInter pairs (read-only). */
+function InteractionRules() {
+  const { q, box } = useSearch();
+  const res = useQuery({ queryKey: ["rules", "interactions", q], queryFn: () => api.get<InteractionsView>(`/rules/interactions?q=${encodeURIComponent(q)}`) });
+  return (
+    <Paper sx={{ p: { xs: 2, md: 2.5 } }}>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+        Pairs among this project's ingredients, from DDInter 2.0 (CC BY-NC-SA 4.0, non-commercial). The severity is DDInter's own level, unchanged.
+        DDInter notes that a missing pair does not mean there is no interaction.
+      </Typography>
+      {box}
+      {res.isLoading && <Loading />}
+      <ErrorAlert error={res.error} />
+      {res.data && (
+        <>
+          <Typography variant="body2" sx={{ mb: 1 }}>{res.data.shown} of {res.data.total} pairs shown</Typography>
+          <Table size="small" aria-label="Drug interactions">
+            <TableHead>
+              <TableRow>
+                <TableCell>Ingredients</TableCell>
+                <TableCell>Severity</TableCell>
+                <TableCell>DDInter entries</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {res.data.rows.map((x) => (
+                <TableRow key={`${x.ingredient_a}-${x.ingredient_b}`}>
+                  <TableCell>{x.ingredient_a} and {x.ingredient_b}</TableCell>
+                  <TableCell><Tag tone={LEVEL_TONE[x.severity] ?? "neutral"} label={x.severity === "Unknown" ? "not graded" : x.severity} /></TableCell>
+                  <TableCell sx={{ fontFamily: "monospace", fontSize: 12 }}>{x.source_ref}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </>
+      )}
+    </Paper>
+  );
+}
+
+/** Rules read from US drug labels by script, with the sentence each relies on (read-only). */
+function LabelRules() {
+  const { q, box } = useSearch();
+  const res = useQuery({ queryKey: ["rules", "labels", q], queryFn: () => api.get<LabelRulesView>(`/rules/label-rules?q=${encodeURIComponent(q)}`) });
+  const release = res.data?.release;
+  return (
+    <Paper sx={{ p: { xs: 2, md: 2.5 } }}>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+        Read from openFDA label sections (boxed warning, contraindications, warnings, precautions) by fixed word patterns. Each rule keeps the exact
+        sentence it relies on and passed the validator (verbatim quote, known ingredient and topic, no advice). Not clinically reviewed.
+      </Typography>
+      {release && (
+        <Typography variant="caption" color="text.secondary" component="div" sx={{ mb: 1.5 }}>
+          Release {release.hash.slice(0, 12)} · {release.notes} · loaded {fmtDate(release.created_at)}
+        </Typography>
+      )}
+      {box}
+      {res.isLoading && <Loading />}
+      <ErrorAlert error={res.error} />
+      {res.data?.rows.length === 0 && <Empty>No label rules match.</Empty>}
+      <Stack spacing={1.5}>
+        {res.data?.rows.map((x) => (
+          <Box key={x.rule_key} sx={{ borderLeft: "3px solid", borderColor: "divider", pl: 1.5 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {x.ingredient} · {x.target_label} ({x.kind === "drug_procedure" ? "procedure" : "condition"}) <Tag tone={LEVEL_TONE[x.severity_hint] ?? "neutral"} label={x.severity_hint} />
+            </Typography>
+            <Typography variant="body2" sx={{ fontStyle: "italic" }}>"{x.quote}"</Typography>
+            <Typography variant="caption" color="text.secondary">
+              {x.source_name}, version {x.source_version} ·{" "}
+              <a href={`https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid=${x.source_ref}`} target="_blank" rel="noopener noreferrer">label</a> · {x.extractor_version}
+            </Typography>
+          </Box>
+        ))}
+      </Stack>
+    </Paper>
   );
 }

@@ -75,7 +75,9 @@ export function LetterPreview({ r }: { r: ReferralDetail }) {
   const flags: LetterFlag[] = meds.data!.flags.map((f) => {
     const a = f.acknowledgements.find((x) => x.side === "referring");
     return { flag_id: f.id, version: f.version, kind: f.kind, title: f.title, message: f.message, medication: f.medication, source_label: f.source_label,
-      rule_id: f.rule_id, acknowledged: a ? { by: a.by, at: a.created_at } : null };
+      rule_id: f.rule_id, acknowledged: a ? { by: a.by, at: a.created_at, decision: a.decision, note: a.note } : null,
+      severity: f.severity, ingredients: f.ingredients, source_type: f.source_type, source_name: f.source_name, source_ref: f.source_ref,
+      source_version: f.source_version, source_quote: f.source_quote, auto_generated: f.auto_generated };
   });
   return (
     <ReferralLetter header={header(r, null)} sections={brief.data!.sections} flags={flags} flagSummary={meds.data!.evaluation?.summary_message} cite={cite}

@@ -34,6 +34,33 @@ def test_scenario_flags(patient, dest, dept, procedure, tags, expected):
     assert _flags(r["id"]) == expected
 
 
+def test_imported_flags_show_source_and_decisions_are_logged():
+    """P3: DDInter interactions and drug-label flags carry their source; Ignore and Research are logged
+    with the rule-set version, and an ignored flag stays in the record."""
+    r = new_referral("Gondal", "akuh", "orthopaedics", "Total knee replacement (right)", SURGERY)
+    rid = r["id"]
+    ok(STAFF.post(f"/referrals/{rid}/retrieve"))
+    flags = ok(STAFF.get(f"/referrals/{rid}/medications"))["flags"]
+    ddi = [f for f in flags if f["kind"] == "interaction"]
+    assert any(set(f["ingredients"]) == {"aspirin", "diclofenac"} for f in ddi), [f["ingredients"] for f in ddi]
+    for f in ddi + [f for f in flags if f["kind"] == "label_warning"]:
+        assert f["auto_generated"] and f["source_ref"] and f["source_version"] and f["severity"]
+    assert all(f["source_quote"] for f in flags if f["kind"] == "label_warning")
+    ok(STAFF.post(f"/referrals/{rid}/medications/checked", {"note": "Asked"}))
+    ok(STAFF.post(f"/referrals/{rid}/prepared", {"expected_version": ok(STAFF.get(f"/referrals/{rid}"))["row_version"]}))
+    doctor = central("dr.ali")
+    target, other = ddi[0], next(f for f in flags if f["kind"] == "confirmed")
+    ok(doctor.post(f"/referrals/{rid}/flags/{target['id']}/acknowledge",
+                   {"flag_version": target["version"], "decision": "ignore", "note": "Known; cardiology aware"}))
+    ok(doctor.post(f"/referrals/{rid}/flags/{other['id']}/acknowledge", {"flag_version": other["version"], "decision": "research"}))
+    after = {f["id"]: f for f in ok(STAFF.get(f"/referrals/{rid}/medications"))["flags"]}
+    assert after[target["id"]]["acknowledgements"][0]["decision"] == "ignore"  # still listed, with the decision
+    assert after[other["id"]]["acknowledgements"][0]["decision"] == "research"
+    audit = ok(doctor.get(f"/referrals/{rid}/audit"))
+    ignored = next(a for a in audit if a["action"] == "flag.ignore")
+    assert ignored["actor_name"] == "Dr Ali Raza" and ignored["detail"]["ruleset"]
+
+
 def test_procedure_without_features_is_not_checked():
     """A procedure written without saying what it involves: procedure rules are not run, and say so."""
     r = new_referral("Imtiaz", "akuh", "general_surgery", "Gallbladder operation", [])

@@ -30,6 +30,8 @@ class MedicationEntry(Base):
     over_the_counter: Mapped[bool] = mapped_column(Boolean, default=False)
     source_label: Mapped[str] = mapped_column(String(300))
     ingredient: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # every ingredient checked for this medicine (several for a combination product)
+    ingredients: Mapped[list[str]] = mapped_column(JSON, default=list)
     drug_class: Mapped[str | None] = mapped_column(String(60), nullable=True)
     # mapped | ambiguous | unmapped | staff_mapped
     mapping_status: Mapped[str] = mapped_column(String(20))
@@ -55,6 +57,66 @@ class MedicineName(Base):
     kind: Mapped[str] = mapped_column(String(20), default="generic")  # generic | brand
     status: Mapped[str] = mapped_column(String(20), default="active")  # active | retired
     added_by: Mapped[str] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Ingredient(Base):
+    """An ingredient as named in this project, with its international name (used by DDInter and
+    drug labels), RxNorm and ATC codes, and the parts of a combination product."""
+    __tablename__ = "ingredients"
+    name: Mapped[str] = mapped_column(String(100), primary_key=True)
+    standard: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    label_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    rxnorm_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    atc_codes: Mapped[list[str]] = mapped_column(JSON, default=list)
+    components: Mapped[list[str]] = mapped_column(JSON, default=list)
+    in_interaction_source: Mapped[bool] = mapped_column(Boolean, default=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class DrugInteraction(Base):
+    """A drug-drug interaction pair from an imported source (stored once, ingredient_a < ingredient_b).
+    The severity is the source's own level, unchanged."""
+    __tablename__ = "drug_interactions"
+    __table_args__ = (UniqueConstraint("ingredient_a", "ingredient_b", "source"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ingredient_a: Mapped[str] = mapped_column(String(100), index=True)
+    ingredient_b: Mapped[str] = mapped_column(String(100), index=True)
+    severity: Mapped[str] = mapped_column(String(20))  # Major | Moderate | Minor | Unknown
+    source: Mapped[str] = mapped_column(String(40))  # ddinter
+    source_version: Mapped[str] = mapped_column(String(80))
+    source_ref: Mapped[str] = mapped_column(String(80))
+
+
+class LabelRule(Base):
+    """A drug-condition or drug-procedure rule read from a drug label by script, with the exact
+    sentence it relies on. Imported rules are labelled automatically generated, not clinically reviewed."""
+    __tablename__ = "label_rules"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    rule_key: Mapped[str] = mapped_column(String(200), unique=True)
+    kind: Mapped[str] = mapped_column(String(20))  # drug_condition | drug_procedure
+    ingredient: Mapped[str] = mapped_column(String(100), index=True)
+    target: Mapped[str] = mapped_column(String(60))
+    target_label: Mapped[str] = mapped_column(String(120))
+    severity_hint: Mapped[str] = mapped_column(String(20))  # high | moderate | low (display only)
+    summary: Mapped[str] = mapped_column(Text)
+    quote: Mapped[str] = mapped_column(Text)
+    section: Mapped[str] = mapped_column(String(40))
+    source_type: Mapped[str] = mapped_column(String(40), default="drug_label")
+    source_ref: Mapped[str] = mapped_column(String(80))
+    source_name: Mapped[str] = mapped_column(String(200))
+    source_version: Mapped[str] = mapped_column(String(80))
+    extractor_version: Mapped[str] = mapped_column(String(40))
+    status: Mapped[str] = mapped_column(String(20), default="auto_extracted")  # auto_extracted | withdrawn
+
+
+class RulesetRelease(Base):
+    """The exact rule set in force: approved manual rules, label rules and interaction data, by hash."""
+    __tablename__ = "ruleset_releases"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    hash: Mapped[str] = mapped_column(String(64), unique=True)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    counts: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -96,6 +158,7 @@ class EvaluationRun(Base):
     context: Mapped[dict] = mapped_column(JSON, default=dict)
     rule_versions: Mapped[dict] = mapped_column(JSON, default=dict)
     input_hash: Mapped[str] = mapped_column(String(64))
+    ruleset_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     changed_flags: Mapped[int] = mapped_column(Integer, default=0)
     triggered_by: Mapped[str] = mapped_column(String(200))
@@ -110,8 +173,19 @@ class MedicationFlag(Base):
     referral_id: Mapped[int] = mapped_column(ForeignKey("referrals.id"), index=True)
     flag_key: Mapped[str] = mapped_column(String(200))
     version: Mapped[int] = mapped_column(Integer, default=1)
-    # confirmed | unrecognised_medicine | procedure_not_checked | records_incomplete
+    # confirmed (approved manual rule) | interaction | label_warning | unrecognised_medicine |
+    # interactions_not_checked | procedure_not_checked | records_incomplete
     kind: Mapped[str] = mapped_column(String(40))
+    severity: Mapped[str | None] = mapped_column(String(20), nullable=True)  # the source's level, unchanged
+    ingredients: Mapped[list[str]] = mapped_column(JSON, default=list)
+    source_type: Mapped[str | None] = mapped_column(String(40), nullable=True)  # manual_rule | ddinter | drug_label
+    source_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    source_ref: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_version: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    source_quote: Mapped[str | None] = mapped_column(Text, nullable=True)
+    auto_generated: Mapped[bool] = mapped_column(Boolean, default=False)
+    # the doctor must record a decision before sending (approved rules, Major interactions, high label warnings, gaps)
+    requires_decision: Mapped[bool] = mapped_column(Boolean, default=True)
     title: Mapped[str] = mapped_column(String(300))
     message: Mapped[str] = mapped_column(Text)
     medication: Mapped[str | None] = mapped_column(String(300), nullable=True)
@@ -129,8 +203,9 @@ class MedicationFlag(Base):
 
 
 class FlagReview(Base):
-    """A doctor's acknowledgment of one flag version for this patient. Acknowledgment means
-    the flag has been seen; it is never treatment clearance."""
+    """A doctor's decision on one flag version for this patient: reviewed, ignore (not relevant for
+    this patient) or research (needs follow-up). Any decision means the flag has been seen; it is
+    never treatment clearance. Ignored flags stay visible in the record."""
     __tablename__ = "flag_reviews"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     referral_id: Mapped[int] = mapped_column(ForeignKey("referrals.id"), index=True)
@@ -141,5 +216,7 @@ class FlagReview(Base):
     reviewer_id: Mapped[str] = mapped_column(String(64))
     institution_id: Mapped[str] = mapped_column(String(50))
     package_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    decision: Mapped[str] = mapped_column(String(20), default="reviewed")  # reviewed | ignore | research
+    ruleset_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     note: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

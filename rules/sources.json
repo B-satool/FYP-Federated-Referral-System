@@ -1,0 +1,54 @@
+{
+  "note": "Every external data source used for medication flags: where it came from, which release, when it was retrieved, and its licence. Files are downloaded by a person with the scripts named here; the application never calls these sources.",
+  "ddinter": {
+    "name": "DDInter 2.0 drug-drug interaction database",
+    "url": "https://ddinter2.scbdd.com/download/",
+    "files": [
+      "ddinter_downloads_code_A.csv",
+      "ddinter_downloads_code_B.csv",
+      "ddinter_downloads_code_D.csv",
+      "ddinter_downloads_code_H.csv",
+      "ddinter_downloads_code_L.csv",
+      "ddinter_downloads_code_P.csv",
+      "ddinter_downloads_code_R.csv",
+      "ddinter_downloads_code_V.csv"
+    ],
+    "release": "DDInter 2.0",
+    "retrieved": "2026-10-27",
+    "licence": "CC BY-NC-SA 4.0 (non-commercial, share-alike), as stated on the DDInter terms page",
+    "attribution": "DDInter, Computational Biology & Drug Design Group (Xiangya School of Pharmaceutical Sciences, Central South University).",
+    "disclaimer": "DDInter states it cannot guarantee accuracy or completeness and that the absence of an interaction does not mean no interaction exists.",
+    "fields": "Drug A, Drug B, severity level (Major, Moderate, Minor, Unknown). The download files carry no mechanism or management text.",
+    "gaps": "The download offers ATC groups A, B, D, H, L, P, R and V only; pairs where neither drug is in one of these groups may be missing.",
+    "script": "scripts/import_ddinter.py",
+    "use": "Final year project, non-commercial. A real deployment needs a licensed source or written permission.",
+    "files_sha256": "2710ca66c8e5017813bddc0372ff3075e78873f370a1b377e8d04c37cdaa17a6"
+  },
+  "openfda_labels": {
+    "name": "openFDA drug labeling (US FDA structured product labels)",
+    "url": "https://api.fda.gov/drug/label.json",
+    "retrieved": "2026-10-27",
+    "licence": "openFDA data is public domain (CC0), per open.fda.gov terms; labels are US labelling and may not match Pakistani products.",
+    "sections_used": [
+      "boxed_warning",
+      "contraindications",
+      "warnings_and_cautions",
+      "warnings",
+      "precautions"
+    ],
+    "script": "scripts/extract_label_rules.py"
+  },
+  "rxnav": {
+    "name": "US NLM RxNav (RxNorm codes; RxClass for WHO ATC codes)",
+    "url": "https://rxnav.nlm.nih.gov/REST",
+    "retrieved": "2026-10-27",
+    "licence": "RxNorm is free; some source vocabularies have their own terms (see NLM RxNorm terms of service).",
+    "script": "scripts/build_ingredient_codes.py"
+  },
+  "brand_names": {
+    "name": "Pakistani brand names (curated)",
+    "file": "rules/terminology/medicine-names.pk.json",
+    "licence": "Written for this project from general knowledge; not from DRAP or DrugsInfo Pakistan (neither offers a bulk file; permission not obtained).",
+    "status": "Not yet confirmed by a pharmacist."
+  }
+}

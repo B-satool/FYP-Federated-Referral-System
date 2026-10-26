@@ -276,13 +276,14 @@ def _rule_out(r: MedicationRule) -> dict:
 
 @router.get("/rules")
 def list_rules(db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    rows = db.scalars(select(MedicationRule).order_by(MedicationRule.rule_id, MedicationRule.version.desc())).all()
+    require_roles(principal, "rule_reviewer", action="rule.list", message="Only a clinical rule reviewer can view the rules")
+    rows =db.scalars(select(MedicationRule).order_by(MedicationRule.rule_id, MedicationRule.version.desc())).all()
     grouped: dict[str, list[dict]] = {}
     for r in rows:
         grouped.setdefault(r.rule_id, []).append(_rule_out(r))
     return {"rules": [{"rule_id": k, "versions": v} for k, v in grouped.items()], "drug_classes": DRUG_CLASSES,
             "procedure_tags": PROCEDURE_TAGS, "can_approve": "rule_reviewer" in principal.roles,
-            "can_edit": principal.has_any("rule_reviewer", "clinician")}
+            "can_edit": "rule_reviewer" in principal.roles}
 
 
 class RuleIn(BaseModel):
@@ -321,8 +322,8 @@ def _new_version(db: Session, principal: Principal, rule_id: str, body: RuleIn) 
 
 @router.post("/rules", status_code=201)
 def create_rule(body: RuleIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    """Doctors and reviewers can propose a rule. It does nothing until a reviewer approves it."""
-    require_roles(principal, "rule_reviewer", "clinician", action="rule.create")
+    """Reviewers draft a rule. It does nothing until a reviewer approves it."""
+    require_roles(principal, "rule_reviewer", action="rule.create")
     _validate_rule(body)
     n = (db.scalar(select(func.count(func.distinct(MedicationRule.rule_id)))) or 0) + 1
     rule_id = f"RULE-{n:03d}"
@@ -337,7 +338,7 @@ def create_rule(body: RuleIn, db: Session = Depends(get_db), principal: Principa
 @router.put("/rules/{rule_id}")
 def edit_rule(rule_id: str, body: RuleIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     """An edit is a new draft version; the approved version keeps working until the new one is approved."""
-    require_roles(principal, "rule_reviewer", "clinician", action="rule.edit")
+    require_roles(principal, "rule_reviewer", action="rule.edit")
     if not db.scalars(select(MedicationRule).where(MedicationRule.rule_id == rule_id)).first():
         raise error(404, "not_found", "Rule not found")
     _validate_rule(body)

@@ -34,6 +34,14 @@ function Home() {
   return <Alert severity="info">Your account has no role in this application. Ask your institution administrator to assign one.</Alert>;
 }
 
+/** Medication rules and medicine names are for clinical rule reviewers only. */
+function ReviewerOnly({ children }: { children: ReactNode }) {
+  const { data: me, isLoading } = useMe();
+  if (isLoading) return <Loading />;
+  if (!hasRole(me, "rule_reviewer")) return <NotFound />;
+  return <>{children}</>;
+}
+
 /** Policy pages are readable before signing in, with a minimal frame instead of the signed-in navigation. */
 function PublicFrame({ children }: { children: ReactNode }) {
   return (
@@ -80,8 +88,8 @@ export default function App() {
         <Route path="/incoming/:id" element={<IncomingCase />} />
         <Route path="/orders" element={<OrderList />} />
         <Route path="/orders/:id" element={<OrderView />} />
-        <Route path="/rules" element={<RulesPage />} />
-        <Route path="/medicine-names" element={<MedicineNames />} />
+        <Route path="/rules" element={<ReviewerOnly><RulesPage /></ReviewerOnly>} />
+        <Route path="/medicine-names" element={<ReviewerOnly><MedicineNames /></ReviewerOnly>} />
         <Route path="/admin/users" element={<AdminUsers />} />
         <Route path="/admin/access" element={<SourceAccess />} />
         <Route path="/admin/audit" element={<AuditLog />} />

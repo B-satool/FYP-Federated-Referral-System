@@ -55,8 +55,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     {
       title: "Rules",
       items: [
-        { to: "/rules", label: "Medication rules", show: doctor || hasRole(me, "rule_reviewer") },
-        { to: "/medicine-names", label: "Medicine names", show: doctor || staff || hasRole(me, "rule_reviewer") },
+        // rules and the name list are maintained by clinical reviewers only; doctors and staff just see the flags
+        { to: "/rules", label: "Medication rules", show: hasRole(me, "rule_reviewer") },
+        { to: "/medicine-names", label: "Medicine names", show: hasRole(me, "rule_reviewer") },
       ],
     },
     {

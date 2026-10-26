@@ -74,7 +74,7 @@ export function PrivacyNotice() {
       </Block>
       <Block title="Language model assistance">
         <Typography>
-          If the operator turns on the optional drafting assistant, selected evidence for one referral is sent to an external language model service to draft a brief (the prototype supports Anthropic's API). The draft is only a draft: a clinician reviews, edits and approves it. The model never creates or changes medication flags. If no model is configured, the brief is written by hand or from a template and nothing is sent for this purpose.
+          If the operator turns on the optional language model (the prototype supports Anthropic's API), the referral reason and a short text of each retrieved record for one referral are sent to it so it can recommend which records the specialist needs. The recommendation is only a suggestion: staff decide what is sent, the model can never remove a record that is included by default, and every recommendation is recorded with the model and prompt version. The model never creates or changes medication flags. Separately, a small model trained on DDInter's known interactions suggests possible clashes for medicine pairs DDInter does not cover; these travel with the referral labelled "AI suggestion, not verified" and are never flags. If no model is configured, nothing is sent for this purpose and the default selection applies.
         </Typography>
       </Block>
       <Block title="Cookies and browser storage">
@@ -85,8 +85,9 @@ export function PrivacyNotice() {
       <Block title="How long data is kept (provisional)">
         <Typography component="div">
           <ul style={{ margin: 0, paddingLeft: 20 }}>
-            <li>Uploaded document copies, page images and extracted text are deleted a set number of days after the referral is closed (365 by default).</li>
-            <li>Evidence values used in an approved package are kept inside that package, which cannot be changed once written.</li>
+            <li>Records retrieved or added for a referral are a temporary working set. They are removed 72 hours after the specialist's answer is returned or the referral ends (cancelled, declined, closed), and at the latest 60 days after they were first gathered. Removal waits until the referral and the clinic's own copy have been delivered.</li>
+            <li>After removal the platform keeps only the referral's reference, a list of what was sent (which record and version, from where, and which flags and rules), the SHA-256 fingerprint of each sent version, and the audit trail. The sending clinic's system keeps its own copy of what was sent, the receiving institution keeps what it received, and the source institutions keep their own records.</li>
+            <li>Access that another institution gives to its records is temporary: 14 days by default and at most 30, and it is closed when the referral finishes.</li>
             <li>Audit events and referral events are kept and are append-only.</li>
           </ul>
         </Typography>

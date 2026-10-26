@@ -6,8 +6,9 @@
   hospital, clinic and laboratory only. Older ones are listed as skipped, with the dates.
 * A source that is unavailable or denies access is never skipped silently: it is
   recorded with that outcome, which the referral carries as a limitation.
-* Each institution returns only what a referral needs (current medicines; visits,
-  results and imaging since the window start).
+* Each institution returns only what a referral needs: current medicines, conditions, and visits,
+  results and imaging from the last few years (REFERRAL_HISTORY_YEARS). Only the last 6 months
+  are selected by default; older records are offered for staff (and the AI recommendation) to add.
 """
 from __future__ import annotations
 
@@ -23,13 +24,20 @@ from ..config import INSTITUTIONS, SOURCES, settings
 from ..identity.links import links_for, verified_counterparts
 from ..models import EvidenceItem, Referral, SourceRetrieval
 from ..security import audit
+from ..selection.selection import apply_default
 from . import importer, sources
 
 KIND_WORD = {"hospital": "hospital", "clinic": "clinic", "laboratory": "laboratory"}
 
 
 def window_start() -> date:
+    """Start of the default-selection window (6 months)."""
     return date.today() - timedelta(days=settings.referral_window_days)
+
+
+def history_start() -> date:
+    """How far back records are retrieved (the working set; older ones start unselected)."""
+    return date.today() - timedelta(days=365 * settings.history_years)
 
 
 def linked_sources(db: Session, referral: Referral) -> list[tuple[str, str, int | None]]:
@@ -61,9 +69,12 @@ def latest_by_source(db: Session, referral: Referral) -> dict[str, SourceRetriev
 
 
 def retrieve(db: Session, referral: Referral, principal: Principal) -> list[SourceRetrieval]:
+    from ..lifecycle.working_set import start
+
+    start(referral)  # the temporary working set begins (or begins again after a purge)
     targets = linked_sources(db, referral)
     own, others = targets[0], targets[1:]
-    since = window_start().isoformat()
+    since = history_start().isoformat()
     with ThreadPoolExecutor(max_workers=max(1, len(others))) as pool:
         activity = list(pool.map(lambda t: sources.last_activity(t[0], t[1], principal, referral.reference), others))
 
@@ -77,7 +88,7 @@ def retrieve(db: Session, referral: Referral, principal: Principal) -> list[Sour
         if status != "successful":
             results.append(_row(referral, t, principal, status, message, kind, None, since,
                                 retryable=status == "unavailable"))
-            if status == "denied":
+            if status in ("denied", "expired"):
                 _revoke_retained(db, referral, t[0], principal)
             continue
         by_kind.setdefault(kind, []).append((t, last))
@@ -100,7 +111,7 @@ def retrieve(db: Session, referral: Referral, principal: Principal) -> list[Sour
         sr = _row(referral, t, principal, call.status, call.message, INSTITUTIONS[inst]["kind"],
                   chosen_dates.get(inst), since, retryable=call.retryable, attempts=call.attempts,
                   duration_ms=call.duration_ms, withheld=call.withheld)
-        if call.status == "denied":
+        if call.status in ("denied", "expired"):
             _revoke_retained(db, referral, inst, principal)
         if call.bundle is not None:
             mapped, invalid = importer.parse_bundle(call.bundle)
@@ -148,12 +159,15 @@ def _import(db: Session, referral: Referral, inst: str, local_id: str, link_id: 
         exists = db.scalars(select(EvidenceItem).where(
             EvidenceItem.referral_id == referral.id, EvidenceItem.source_institution == inst,
             EvidenceItem.source_record_type == m.record_type, EvidenceItem.source_record_id == m.record_id,
-            EvidenceItem.source_record_version == m.version)).first()
+            EvidenceItem.source_record_version == m.version, EvidenceItem.superseded_by.is_(None))).first()
         if exists:
             if exists.verification_status == "access_revoked":
                 exists.verification_status = "source_record"
-            if not exists.selected and m.category in importer.DEFAULT_SELECTED and exists.review_state != "excluded":
-                exists.selected = True
+                if exists.selection_source != "staff":
+                    exists.selection_source = None  # access is back: the default applies again
+            if exists.review_state != "excluded" and exists.selection_source in (None, "default"):
+                exists.selection_source = None
+                apply_default(exists)
             dup += 1
             continue
         prior = db.scalars(select(EvidenceItem).where(
@@ -166,8 +180,11 @@ def _import(db: Session, referral: Referral, inst: str, local_id: str, link_id: 
             source_record_version=m.version, link_id=link_id, category=m.category, display=m.display,
             original=m.original, current=m.original, fhir=m.resource, clinical_time=m.clinical_time,
             retrieved_at=utcnow(), review_state="imported", verification_status="source_record",
-            selected=(m.category in importer.DEFAULT_SELECTED) if prior is None else prior.selected,
         )
+        apply_default(item)
+        if prior is not None and prior.selection_source == "staff":  # a staff decision carries to the new version
+            item.selected, item.selection_source = prior.selected, "staff"
+            item.selected_by, item.selected_at = prior.selected_by, prior.selected_at
         db.add(item)
         db.flush()
         if prior is not None:

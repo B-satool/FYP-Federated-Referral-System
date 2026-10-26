@@ -84,6 +84,9 @@ async def upload(referral_id: int, file: UploadFile = File(...), doc_type: str =
                    storage_key=key, doc_type=doc_type, page_count=pages, status="queued")
     db.add(doc)
     db.flush()
+    from ..lifecycle.working_set import start
+
+    start(r)  # an uploaded paper is part of the temporary working set
     job = _new_job(db, "process_document", principal, r.id, doc.id)
     audit(db, principal, "document.upload", "document", doc.id, "success", r.id,
           {"filename": name, "type": detected, "size": len(data), "sha256": digest})

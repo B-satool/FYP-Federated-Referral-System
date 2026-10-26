@@ -27,6 +27,7 @@ function Home() {
   const { data: me, isLoading, error } = useMe();
   if (isLoading) return <Loading />;
   if (error) return <ErrorAlert error={error} />;
+  if (me?.home) return <Navigate to={me.home} replace />; // from the role templates
   if (hasRole(me, "clinic_staff", "clinician")) return <Navigate to="/work-queue" replace />;
   if (hasRole(me, "diagnostics_staff")) return <Navigate to="/orders" replace />;
   if (hasRole(me, "rule_reviewer")) return <Navigate to="/rules" replace />;

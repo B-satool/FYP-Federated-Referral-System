@@ -35,8 +35,10 @@ This behaviour is tested in `tests/test_t1_foundation.py::test_disabled_account_
 
 | Data | Retention |
 |---|---|
-| Uploaded document copies, page images, OCR text | Deleted `DOCUMENT_RETENTION_DAYS` (default 365) after the referral is closed (hourly `retention_sweep` task) |
-| Evidence values used in approved packages | Retained inside the immutable package snapshot |
+| Referral working set: retrieved records, papers and OCR, medicines, flag text, letter, package content, outbox payloads, responses, results | Removed `WORKING_SET_GRACE_HOURS` (72) after the answer is returned or the referral ends, or at the latest `WORKING_SET_MAX_DAYS` (60) after the first retrieval. Only once every package, order and the clinic's copy is delivered (worker `purge_working_sets`, every 10 minutes, audited `retention.purge_working_set`). See `docs/data-lifecycle.md`. |
+| Uploaded document copies, page images, OCR text (referrals that end without a purge) | Also deleted `DOCUMENT_RETENTION_DAYS` (default 365) after the referral is closed (hourly `retention_sweep` task) |
+| Sent packages | The manifest and SHA-256 are kept; the content stays with the receiving institution and in the sending clinic's `sent_copies` |
+| Access grants | Expire (`DEFAULT_GRANT_DAYS` 14, at most `MAX_GRANT_DAYS` 30) and are revoked at every institution when the referral finishes (`close_referral_grants`, every minute). Grants made before expiry existed show as `legacy_no_expiry`. |
 | Audit events, referral events | Retained (append-only) |
 | Redis queue | Transient. Not a source of truth. |
 

@@ -187,14 +187,14 @@ function DecisionButtons({ busy, onDecide }: { busy: boolean; onDecide: (d: Flag
 /** Model suggestions for pairs DDInter does not cover: separate from flags, never verified, never blocking. */
 function AiSuggestions({ r, role, items, label, locked, onDone }: { r: ReferralDetail; role: Role; items: AiSuggestion[]; label: string; locked: boolean; onDone: () => void }) {
   const review = useMutation({
-    mutationFn: ({ pair_key, decision }: { pair_key: string; decision: "relevant" | "not_relevant" }) =>
+    mutationFn: ({ pair_key, decision }: { pair_key: string; decision: "ignore" | "research" }) =>
       api.post(`/referrals/${r.id}/ai-suggestions/review`, { pair_key, decision, note: "" }),
     meta: { success: "Recorded." },
     onSuccess: onDone,
   });
   return (
     <Section title={`AI suggestions (${items.length})`}
-      description="Possible clashes between current medicines that have no entry in DDInter, scored by a small model trained on DDInter's known interactions. These are not flags: they are unverified, never block sending and are not sent with the referral.">
+      description={`Possible clashes between current medicines that have no entry in DDInter, scored by a small model trained on DDInter's known interactions. These are not flags: they are unverified and never block sending. They go with the referral labelled "${label}", with your decision.`}>
       <ErrorAlert error={review.error} />
       <Stack spacing={1.5}>
         {items.map((s) => (
@@ -210,12 +210,12 @@ function AiSuggestions({ r, role, items, label, locked, onDone }: { r: ReferralD
             </Typography>
             {s.review ? (
               <Typography variant="body2" sx={{ mt: 0.5 }}>
-                Marked <strong>{s.review.decision === "relevant" ? "relevant" : "not relevant"}</strong> by {s.review.by}, {fmtDate(s.review.at)}
+                <strong>{s.review.decision === "research" ? "Research (needs follow-up)" : "Ignored (not relevant for this patient)"}</strong> by {s.review.by}, {fmtDate(s.review.at)}
               </Typography>
             ) : role === "doctor" && !locked ? (
               <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                <Button size="small" variant="outlined" disabled={review.isPending} onClick={() => review.mutate({ pair_key: s.pair_key, decision: "relevant" })}>Relevant</Button>
-                <Button size="small" variant="outlined" disabled={review.isPending} onClick={() => review.mutate({ pair_key: s.pair_key, decision: "not_relevant" })}>Not relevant</Button>
+                <Button size="small" variant="outlined" disabled={review.isPending} onClick={() => review.mutate({ pair_key: s.pair_key, decision: "ignore" })}>Ignore</Button>
+                <Button size="small" variant="outlined" disabled={review.isPending} onClick={() => review.mutate({ pair_key: s.pair_key, decision: "research" })}>Research</Button>
               </Stack>
             ) : null}
           </Alert>

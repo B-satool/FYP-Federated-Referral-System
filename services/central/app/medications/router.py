@@ -20,7 +20,8 @@ from ..referrals.state import CLINICAL_LOCKED, TERMINAL, ensure_clinical_edit_al
 from ..security import audit, error, get_principal, load_referral, require_roles
 from ..serializers import flag_out, medication_out
 from ..workflow import after_change
-from . import mapping, rules, service, suggestions
+from ..lifecycle import working_set
+from . import ai_view, mapping, rules, service, suggestions
 
 router = APIRouter(tags=["medications"])
 
@@ -55,34 +56,19 @@ def medications(referral_id: int, db: Session = Depends(get_db), principal: Prin
 
 
 def _ai_suggestions(db: Session, r: Referral) -> list[dict]:
-    """Suggestions for pairs among the current medicines that the interaction source does not cover."""
-    ings = {i for e in service.current_entries(db, r.id) if e.mapping_status in ("mapped", "staff_mapped")
-            for i in (e.ingredients or ([e.ingredient] if e.ingredient else []))}
-    covered = {(x.ingredient_a, x.ingredient_b) for x in rules.interactions_for(db, ings)}
-    stored = {s.pair_key: suggestions.Suggestion(s.pair_key, s.ingredient_a, s.ingredient_b, s.score, s.reason, s.model_version,
-                                                 s.data_version)
-              for s in db.scalars(select(AiSuggestion).where(AiSuggestion.ingredient_a.in_(ings), AiSuggestion.ingredient_b.in_(ings)))}
-    reviews = {v.pair_key: v for v in db.scalars(select(SuggestionReview).where(SuggestionReview.referral_id == r.id)
-                                                 .order_by(SuggestionReview.id))}
-    out = []
-    for s in suggestions.suggestions_for(ings, stored, covered):
-        v = reviews.get(s.pair_key)
-        out.append({"pair_key": s.pair_key, "ingredients": [s.ingredient_a, s.ingredient_b], "score": s.score, "reason": s.reason,
-                    "model_version": s.model_version, "data_version": s.data_version,
-                    "review": {"decision": v.decision, "note": v.note, "by": v.reviewer, "at": v.created_at} if v else None})
-    return out
+    return ai_view.for_referral(db, r)
 
 
 class SuggestionReviewIn(BaseModel):
     pair_key: str
-    decision: Literal["relevant", "not_relevant"]
+    decision: Literal["ignore", "research"]
     note: str = ""
 
 
 @router.post("/referrals/{referral_id}/ai-suggestions/review")
 def review_suggestion(referral_id: int, body: SuggestionReviewIn, db: Session = Depends(get_db),
                       principal: Principal = Depends(get_principal)):
-    """The doctor marks an AI suggestion as relevant or not for this patient. It changes no flag."""
+    """The doctor marks an AI suggestion Ignore (not relevant for this patient) or Research (needs follow-up). It changes no flag."""
     r = load_referral(db, referral_id, principal, "review_ai_suggestion", roles=("clinician",))
     s = db.get(AiSuggestion, body.pair_key)
     if s is None or body.pair_key not in {x["pair_key"] for x in _ai_suggestions(db, r)}:
@@ -105,8 +91,8 @@ def ai_model(db: Session = Depends(get_db), principal: Principal = Depends(get_p
     rows = db.scalars(select(AiSuggestion).order_by(AiSuggestion.score.desc())).all()
     reviewed = db.scalars(select(SuggestionReview)).all()
     return {"label": suggestions.LABEL, "evaluation": evaluation,
-            "reviews": {"relevant": sum(1 for v in reviewed if v.decision == "relevant"),
-                        "not_relevant": sum(1 for v in reviewed if v.decision == "not_relevant")},
+            "reviews": {"research": sum(1 for v in reviewed if v.decision == "research"),
+                        "ignore": sum(1 for v in reviewed if v.decision == "ignore")},
             "suggestions": [{"pair_key": s.pair_key, "ingredients": [s.ingredient_a, s.ingredient_b], "score": s.score,
                              "reason": s.reason, "model_version": s.model_version} for s in rows]}
 
@@ -127,6 +113,7 @@ def add_medicine(referral_id: int, body: ManualMedIn, db: Session = Depends(get_
     """Staff add a medicine the patient says they take, e.g. an over-the-counter painkiller."""
     r = load_referral(db, referral_id, principal, "edit", roles=("clinic_staff",))
     ensure_clinical_edit_allowed(r)
+    working_set.start(r)
     fields = {"medication": body.name.strip(), "strength": body.strength, "dosage_text": " ".join(
         x for x in [body.dose, body.frequency] if x) or None, "frequency": body.frequency, "route": body.route,
         "over_the_counter": body.over_the_counter, "record_kind": "manual", "note": body.note or None}

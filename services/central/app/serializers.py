@@ -40,6 +40,7 @@ def referral_out(r: Referral) -> dict:
         "procedure_tag_labels": [PROCEDURE_TAGS.get(t, t) for t in r.procedure_tags or []],
         "procedure_label": procedure_label(r.procedure_status, r.planned_procedure),
         "requested_at": r.requested_at, "created_by": r.created_by_name,
+        "working_set_expires_at": r.working_set_expires_at, "working_set_purged_at": r.working_set_purged_at,
         "amendment_open": r.amendment_open, "current_package_version": r.current_package_version,
         "submitted_package_version": r.submitted_package_version, "delivery_status": r.delivery_status,
         "meds_checked_by": r.meds_checked_by, "meds_checked_at": r.meds_checked_at,
@@ -64,6 +65,9 @@ def evidence_out(e: EvidenceItem) -> dict:
         "page": e.page, "region": e.region, "source_text": None if revoked else e.source_text,
         "confidence": e.confidence, "review_state": e.review_state, "verification_status": e.verification_status,
         "verified_by": e.verified_by, "verified_at": e.verified_at, "selected": e.selected,
+        "in_default": e.in_default or e.origin != "source", "selection_source": e.selection_source,
+        "selected_by": e.selected_by, "selected_at": e.selected_at, "ai_recommendation": e.ai_recommendation,
+        "ai_relevance": e.ai_relevance, "ai_reason": None if revoked else e.ai_reason,
         "superseded_by": e.superseded_by, "author": e.author, "row_version": e.row_version,
     }
 

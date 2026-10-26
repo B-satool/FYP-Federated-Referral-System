@@ -22,6 +22,7 @@ from .config import (
     settings,
 )
 from .db import get_db
+from .identity import role_templates
 from .models import AuditEvent, Referral, User
 from .referrals.state import STATUS_LABELS, TEST_STATUS_LABELS
 from .security import get_principal, load_referral, require_roles
@@ -72,7 +73,9 @@ def me(db: Session = Depends(get_db), principal: Principal = Depends(get_princip
             "institution_kind": inst.get("kind"), "department": principal.department,
             "department_name": department_name(principal.department),
             "department_kind": DEPARTMENTS.get(principal.department or "", {}).get("kind"),
-            "roles": sorted(principal.roles), "account_status": u.account_status if u else "active"}
+            "roles": sorted(principal.roles), "account_status": u.account_status if u else "active",
+            # home screen and menu from the role templates the user holds (hiding is convenience; the API enforces)
+            **role_templates.navigation(set(principal.roles), principal.institution_id)}
 
 
 @router.get("/reference-data")

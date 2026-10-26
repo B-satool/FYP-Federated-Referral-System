@@ -66,6 +66,11 @@ class Referral(Base):
     closed_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Temporary working set: retrieved records and everything derived from them are held only until
+    # working_set_expires_at, then their clinical content is removed (identifiers, status, audit,
+    # manifest and fingerprint stay). See lifecycle/working_set.py.
+    working_set_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    working_set_purged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -130,6 +135,9 @@ class ReferralPackage(Base):
     sent_by_id: Mapped[str] = mapped_column(String(64))
     sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     superseded: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Reference list of what the package contained (no clinical values); survives the content purge.
+    manifest: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    content_purged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Outbox(Base):

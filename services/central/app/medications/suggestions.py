@@ -2,14 +2,15 @@
 
 Scored offline by scripts/train_ai_suggestions.py; the app only looks the stored suggestions up.
 This module is separate from the evaluator on purpose: a suggestion can never add, remove,
-downgrade or hide a flag, never blocks sending and is never sent as part of the referral.
+downgrade or hide a flag and never blocks sending. It travels in the sent referral only as a
+labelled suggestion ("AI suggestion, not verified"), never as a flag (decision 2026-10-27).
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import combinations
 
-LABEL = "AI suggestion, unverified"
+LABEL = "AI suggestion, not verified"
 
 
 @dataclass(frozen=True)

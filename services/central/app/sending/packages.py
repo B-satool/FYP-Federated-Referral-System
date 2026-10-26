@@ -11,6 +11,9 @@ from sqlalchemy.orm import Session
 from ..config import INSTITUTIONS, department_name, institution_name, procedure_label
 from ..identity.links import verified_counterparts
 from ..identity.router import create_request
+from ..lifecycle.manifest import build_manifest
+from ..medications import ai_view
+from ..selection import selection
 from ..medications import service as med
 from ..models import Brief, EvidenceItem, MedicationEntry, Outbox, Referral, ReferralPackage
 from ..referrals.state import IN_FLIGHT, event
@@ -151,6 +154,8 @@ def send(db: Session, r: Referral, principal: Principal) -> ReferralPackage:
         evidence=[_evidence_snapshot(db, e) for e in sorted(evidence, key=lambda e: e.id)],
         limitations=content["limitations"],
         diagnostic_requests=[],
+        ai_suggestions=[{k: v for k, v in s.items() if k != "review"} | {"decision": s["review"]} for s in ai_view.for_referral(db, r)],
+        selection=selection.snapshot(db, r),
         sent_by=principal.display_name, sent_by_id=principal.subject, sent_at=sent_at, content_hash="",
         fhir_bundle=_fhir_bundle(r, evidence, sent_at, r.requesting_doctor_name),
         supersedes_version=r.current_package_version,
@@ -162,11 +167,17 @@ def send(db: Session, r: Referral, principal: Principal) -> ReferralPackage:
         old.superseded = True
     pkg = ReferralPackage(referral_id=r.id, version=version, brief_id=b.id, envelope=dumped,
                           content_hash=dumped["content_hash"], delivery_key=dumped["delivery_key"],
-                          sent_by=principal.display_name, sent_by_id=principal.subject, sent_at=sent_at)
+                          sent_by=principal.display_name, sent_by_id=principal.subject, sent_at=sent_at,
+                          manifest=build_manifest(dumped))
     db.add(pkg)
     r.current_package_version = version
     db.add(Outbox(referral_id=r.id, kind="deliver_package", target_institution=r.destination_institution,
                   message_key=pkg.delivery_key, payload=dumped))
+    # The sending clinic keeps its own copy (its lasting record once the working set here ends)
+    db.add(Outbox(referral_id=r.id, kind="sender_copy", target_institution=r.source_institution,
+                  message_key=f"copy:{pkg.delivery_key}",
+                  payload={"copy_key": f"copy:{pkg.delivery_key}", "referral_id": r.reference, "kind": "package",
+                           "version": version, "content": dumped}))
     r.delivery_status = "pending"
     bump(r)
     event(db, r, "send_scheduled", principal.display_name, principal.institution_id,

@@ -75,11 +75,39 @@ class EvidenceItem(Base):
     verified_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     selected: Mapped[bool] = mapped_column(Boolean, default=False)
+    # packet selection (spec v3 B): rule-based default, AI recommendation, staff decision
+    in_default: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    selection_source: Mapped[str | None] = mapped_column(String(10), nullable=True)  # default | ai | staff
+    selected_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    selected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ai_recommendation: Mapped[str | None] = mapped_column(String(10), nullable=True)  # include | exclude | optional
+    ai_relevance: Mapped[str | None] = mapped_column(String(10), nullable=True)  # high | medium | low
+    ai_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai_run_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     superseded_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
     author: Mapped[str | None] = mapped_column(String(200), nullable=True)
     row_version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class SelectionRun(Base):
+    """One AI packet-selection attempt: which model and prompt, and whether its answer was used."""
+    __tablename__ = "selection_runs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    referral_id: Mapped[int] = mapped_column(ForeignKey("referrals.id"), index=True)
+    # completed | unavailable (no model / API error) | rejected (answer failed checks) | nothing_to_review
+    status: Mapped[str] = mapped_column(String(20))
+    provider: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    model: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    prompt_version: Mapped[str] = mapped_column(String(40))
+    prompt_hash: Mapped[str] = mapped_column(String(64))
+    item_count: Mapped[int] = mapped_column(Integer, default=0)
+    truncated: Mapped[bool] = mapped_column(Boolean, default=False)
+    missing: Mapped[list] = mapped_column(JSON, default=list)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[str] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class EvidenceRevision(Base):

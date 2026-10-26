@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 from refcommon.db import utcnow
 
 from ..db import get_db
+from ..integration import sources
+from ..lifecycle.manifest import verify_copy
 from ..medications import service as med
 from ..models import Outbox, ReferralPackage
 from ..notifications import notify_doctor, notify_staff
@@ -103,4 +105,42 @@ def get_package(referral_id: int, version: int, db: Session = Depends(get_db), p
     if pkg is None:
         raise error(404, "not_found", "Version not found")
     return {"version": pkg.version, "sent_by": pkg.sent_by, "sent_at": pkg.sent_at, "content_hash": pkg.content_hash,
-            "superseded": pkg.superseded, "envelope": pkg.envelope}
+            "superseded": pkg.superseded, "envelope": pkg.envelope, "manifest": pkg.manifest,
+            "content_purged_at": pkg.content_purged_at}
+
+
+class VerifyCopyIn(BaseModel):
+    package: dict
+
+
+def _package(db: Session, r, version: int) -> ReferralPackage:
+    pkg = db.scalars(select(ReferralPackage).where(ReferralPackage.referral_id == r.id, ReferralPackage.version == version)).first()
+    if pkg is None:
+        raise error(404, "not_found", "Version not found")
+    return pkg
+
+
+@router.post("/referrals/{referral_id}/packages/{version}/verify")
+def verify_package_copy(referral_id: int, version: int, body: VerifyCopyIn, db: Session = Depends(get_db),
+                        principal: Principal = Depends(get_principal)):
+    """Compare a copy of the package (held by the sender or the receiver) with the fingerprint kept at sending."""
+    r = load_referral(db, referral_id, principal, "view")
+    pkg = _package(db, r, version)
+    result = verify_copy(pkg.content_hash, body.package)
+    audit(db, principal, "package.verify_copy", "referral_package", f"{r.reference}v{version}", result["result"], r.id)
+    db.commit()
+    return {"package_version": version, "content_hash": pkg.content_hash, **result}
+
+
+@router.post("/referrals/{referral_id}/packages/{version}/verify-own-copy")
+def verify_own_copy(referral_id: int, version: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Fetch this clinic's own stored copy (from its own system, with the user's token) and check it."""
+    r = load_referral(db, referral_id, principal, "view")
+    pkg = _package(db, r, version)
+    copies = sources.call(r.source_institution, "GET", "/outbound-copies", principal, params={"referral_id": r.reference})
+    mine = next((c for c in copies if c["kind"] == "package" and c["version"] == version), None)
+    result = verify_copy(pkg.content_hash, mine["content"]) if mine else {
+        "result": "no_copy", "message": "Your clinic's system holds no copy of this version"}
+    audit(db, principal, "package.verify_own_copy", "referral_package", f"{r.reference}v{version}", result["result"], r.id)
+    db.commit()
+    return {"package_version": version, "content_hash": pkg.content_hash, "copy": mine["content"] if mine else None, **result}

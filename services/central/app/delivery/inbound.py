@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from ..config import institution_name
 from ..db import get_db
 from ..diagnostics.router import apply_order_event
-from ..models import Clarification, ConsultationResponse, DiagnosticRequest, InboundMessage, Referral
+from ..models import Clarification, ConsultationResponse, DiagnosticRequest, InboundMessage, Outbox, Referral
 from ..notifications import notify_doctor, notify_staff
 from ..referrals.state import event as add_event
 from ..referrals.state import transition
@@ -85,6 +85,13 @@ def provider_event(body: ProviderEvent, db: Session = Depends(get_db), principal
                                             specialist_name=body.data.get("returned_by", body.actor_name),
                                             returned_at=body.data.get("returned_at") or body.occurred_at,
                                             fhir_task=body.data.get("fhir_task")))
+            # the sending clinic keeps its own copy of the response too
+            copy_key = f"copy:{body.event_key}"
+            if not db.scalars(select(Outbox).where(Outbox.message_key == copy_key)).first():
+                db.add(Outbox(referral_id=referral.id, kind="sender_copy", target_institution=referral.source_institution,
+                              message_key=copy_key,
+                              payload={"copy_key": copy_key, "referral_id": referral.reference, "kind": "response",
+                                       "version": body.package_version or 0, "content": body.data}))
             if referral.status == "acknowledged":
                 transition(db, referral, "accepted", actor_label, None, detail, institution=body.institution_id)
             transition(db, referral, "response_returned", actor_label, None, {"package_version": body.package_version},

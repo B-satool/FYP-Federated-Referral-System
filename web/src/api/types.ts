@@ -10,7 +10,13 @@ export type Me = {
   department_kind: "clinical" | "laboratory" | "imaging" | "cardiac" | null;
   roles: string[];
   account_status: string;
+  /** role templates the user holds, their home route and menu (from rules/roles/templates.v1.json) */
+  templates?: string[];
+  home?: string | null;
+  menu?: MenuItem[];
 };
+
+export type MenuItem = { key: string; route: string; label: string; group: string };
 
 export type Department = { name: string; kind: "clinical" | "laboratory" | "imaging" | "cardiac" };
 export type Institution = { name: string; kind: "clinic" | "hospital" | "laboratory"; departments: string[] };
@@ -100,6 +106,9 @@ export type Referral = {
   accepted_at: string | null;
   closed_at: string | null;
   closed_by: string | null;
+  /** the temporary working set: content is held until this time, then removed */
+  working_set_expires_at: string | null;
+  working_set_purged_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -253,9 +262,39 @@ export type Evidence = {
   verified_by: string | null;
   verified_at: string | null;
   selected: boolean;
+  /** selected by the rule-based default (current conditions, medicines, last 6 months) */
+  in_default: boolean;
+  selection_source: "default" | "ai" | "staff" | null;
+  selected_by: string | null;
+  selected_at: string | null;
+  ai_recommendation: "include" | "exclude" | "optional" | null;
+  ai_relevance: "high" | "medium" | "low" | null;
+  ai_reason: string | null;
   superseded_by: number | null;
   author: string | null;
   row_version: number;
+};
+
+export type SelectionRun = {
+  id: number;
+  status: "completed" | "unavailable" | "rejected" | "nothing_to_review";
+  provider: string | null;
+  model: string | null;
+  prompt_version: string;
+  prompt_hash: string;
+  item_count: number;
+  truncated: boolean;
+  missing: string[];
+  error: string | null;
+  created_by: string;
+  created_at: string;
+};
+
+export type SelectionStatus = {
+  run: SelectionRun | null;
+  counts: { retrieved: number; selected: number; staff_overrides_of_ai: number };
+  llm_configured: boolean;
+  prompt_version: string;
 };
 
 export type EvidenceDetail = Evidence & {
@@ -381,7 +420,8 @@ export type AiSuggestion = {
   reason: string;
   model_version: string;
   data_version?: string;
-  review: { decision: "relevant" | "not_relevant"; note: string; by: string; at: string } | null;
+  label?: string;
+  review: { decision: "ignore" | "research"; note: string; by: string; at: string } | null;
 };
 
 export type BriefStatement = {
@@ -570,10 +610,47 @@ export type PackageEnvelope = {
   medication_flags: LetterFlag[];
   medication_evaluation: { status: string; outcome: string | null; summary: string | null };
   limitations: string[];
+  /** labelled "AI suggestion, not verified"; never flags */
+  ai_suggestions?: (Omit<AiSuggestion, "review"> & { decision?: AiSuggestion["review"] })[];
+  selection?: Record<string, unknown>;
   sent_by: string;
   sent_at: string;
   content_hash: string;
+  /** set once the working set has ended: only identifiers and the fingerprint remain */
+  purged?: boolean;
+  note?: string;
 };
+
+export type PackageView = {
+  version: number;
+  sent_by: string;
+  sent_at: string;
+  content_hash: string;
+  superseded: boolean;
+  envelope: PackageEnvelope;
+  manifest: Record<string, unknown> | null;
+  content_purged_at: string | null;
+};
+
+export type CopyCheck = { package_version: number; content_hash: string; result: "match" | "mismatch" | "unusable_copy" | "no_copy"; message: string; copy?: PackageEnvelope | null };
+
+export type AccessGrant = {
+  id: number;
+  grantee_institution: string;
+  local_patient_id: string;
+  categories: string[];
+  status: string;
+  basis: string;
+  granted_by: string;
+  created_at: string;
+  revoked_by: string | null;
+  revoked_at: string | null;
+  expires_at: string | null;
+  referral_ref: string | null;
+  state: "active" | "expired" | "revoked" | "legacy_no_expiry";
+};
+
+export type RoleTemplate = { template_id: string; name: string; description: string; roles: string[]; institution_kinds: string[]; default_grant_days?: number; home: string; menu: string[] };
 
 export type LetterFlag = FlagSource & {
   flag_id: number;

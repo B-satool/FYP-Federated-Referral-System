@@ -1,11 +1,12 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Box, Button, Link, List, ListItem, ListItemIcon, ListItemText, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from "@mui/material";
+import { Alert, Box, Button, Link, List, ListItem, ListItemIcon, ListItemText, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from "@mui/material";
 import CheckCircle from "@mui/icons-material/CheckCircle";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import RadioButtonUnchecked from "@mui/icons-material/RadioButtonUnchecked";
 import { api } from "../../api/client";
-import type { BriefPreview, LetterFlag, MedicationView, PackageEnvelope, ReferralDetail } from "../../api/types";
+import type { BriefPreview, CopyCheck, LetterFlag, MedicationView, PackageEnvelope, PackageView, ReferralDetail } from "../../api/types";
 import { EvidenceRef } from "../../components/EvidenceRef";
 import { ReferralLetter } from "../../components/ReferralLetter";
 import { ErrorAlert, fmtDate, Loading, Section, Tag } from "../../components/common";
@@ -16,6 +17,7 @@ type Delivery = { id: number; kind: string; target_institution: string; status: 
 const KIND_LABEL: Record<string, string> = {
   deliver_package: "Referral",
   deliver_order: "Test or scan order",
+  sender_copy: "Copy kept in your clinic's own system",
   clarification_answer: "Answer to a question",
 };
 
@@ -81,19 +83,64 @@ export function LetterPreview({ r }: { r: ReferralDetail }) {
   });
   return (
     <ReferralLetter header={header(r, null)} sections={brief.data!.sections} flags={flags} flagSummary={meds.data!.evaluation?.summary_message} cite={cite}
+      aiSuggestions={meds.data!.ai_suggestions.map(({ review, ...s }) => ({ ...s, decision: review }))}
       footer={`Requested by ${r.requesting_doctor_name}${r.requested_at ? `, ${fmtDate(r.requested_at)}` : ""}. Not sent yet.`} />
   );
 }
 
-/** A version exactly as it was sent. */
+function Letter({ r, env, version }: { r: ReferralDetail; env: PackageEnvelope; version: number }) {
+  return (
+    <ReferralLetter header={header(r, env.sent_at)} sections={env.brief_sections} flags={env.medication_flags} flagSummary={env.medication_evaluation.summary}
+      aiSuggestions={env.ai_suggestions} cite={cite}
+      footer={`Requested by ${env.requesting_doctor.name}; compiled and sent by ${env.sent_by}, ${fmtDate(env.sent_at)}. Version ${version}.`} />
+  );
+}
+
+/** A version exactly as it was sent. Once the working set has ended only the fingerprint is kept here;
+ * the clinic's own copy can be fetched from its system and checked against it. */
 export function SentLetter({ r, version }: { r: ReferralDetail; version: number }) {
-  const q = useQuery({ queryKey: ["referral", r.id, "package", version], queryFn: () => api.get<{ envelope: PackageEnvelope }>(`/referrals/${r.id}/packages/${version}`) });
+  const q = useQuery({ queryKey: ["referral", r.id, "package", version], queryFn: () => api.get<PackageView>(`/referrals/${r.id}/packages/${version}`) });
+  const [check, setCheck] = useState<CopyCheck | null>(null);
+  const verify = useMutation({
+    mutationFn: () => api.post<CopyCheck>(`/referrals/${r.id}/packages/${version}/verify-own-copy`),
+    meta: { silent: true },
+    onSuccess: setCheck,
+  });
   if (q.isLoading) return <Loading />;
   if (q.error) return <ErrorAlert error={q.error} />;
-  const env = q.data!.envelope;
+  const pkg = q.data!;
+  const verifyButton = (
+    <Button variant="outlined" size="small" disabled={verify.isPending} onClick={() => verify.mutate()}>
+      Check our clinic's copy against the fingerprint
+    </Button>
+  );
+  const result = check && (
+    <Alert severity={check.result === "match" ? "success" : "warning"} sx={{ my: 1 }}>
+      {check.message}. Fingerprint {check.content_hash.slice(0, 16)}…
+    </Alert>
+  );
+  if (pkg.content_purged_at) {
+    return (
+      <Stack spacing={1.5}>
+        <Alert severity="info">
+          Content has been removed. Reference and fingerprint kept. Removed {fmtDate(pkg.content_purged_at)}; the platform no
+          longer holds this letter. Your clinic's system keeps its own copy.
+        </Alert>
+        <Typography variant="body2" sx={{ fontFamily: "monospace", fontSize: 12 }}>Fingerprint {pkg.content_hash}</Typography>
+        <Box>{verifyButton}</Box>
+        <ErrorAlert error={verify.error} />
+        {result}
+        {check?.result === "match" && check.copy && <Letter r={r} env={check.copy} version={version} />}
+      </Stack>
+    );
+  }
   return (
-    <ReferralLetter header={header(r, env.sent_at)} sections={env.brief_sections} flags={env.medication_flags} flagSummary={env.medication_evaluation.summary} cite={cite}
-      footer={`Requested by ${env.requesting_doctor.name}; compiled and sent by ${env.sent_by}, ${fmtDate(env.sent_at)}. Version ${version}.`} />
+    <Stack spacing={1}>
+      <Letter r={r} env={pkg.envelope} version={version} />
+      <Box>{verifyButton}</Box>
+      <ErrorAlert error={verify.error} />
+      {result}
+    </Stack>
   );
 }
 

@@ -26,8 +26,12 @@ from refcommon.db import make_session_factory, session_dependency, utcnow
 from refcommon.exchange import ClarificationAnswer, DiagnosticOrder, ProviderEvent, ResultForward
 from refcommon.sourcekit import (
     ALL_CATEGORIES,
+    DEFAULT_GRANT_DAYS,
     build_admin_router,
+    build_grant_service_router,
     decide_access,
+    grant_expiry,
+    grant_is_live,
     health_router,
     normalize_cnic,
     record_audit,
@@ -55,6 +59,7 @@ from .models import (
     OrderAttachment,
     Outbox,
     Patient,
+    SentCopy,
     Surgery,
     Visit,
 )
@@ -140,6 +145,7 @@ def _check_db() -> None:
 app.include_router(health_router(_check_db))
 app.include_router(build_admin_router(INSTITUTION, AccessGrant, AuditEvent,
                                       lambda db, pid: db.get(Patient, pid) is not None, get_db, get_principal))
+app.include_router(build_grant_service_router(INSTITUTION, AccessGrant, AuditEvent, get_db, get_principal))
 
 
 # --------------------------------------------------------------------------- helpers
@@ -286,6 +292,8 @@ class ShareIn(BaseModel):
     grantee_institution: str
     local_patient_id: str
     basis: str = Field(min_length=5)
+    duration_days: int = DEFAULT_GRANT_DAYS
+    referral_ref: str | None = None
 
 
 @app.post("/sharing/grants", status_code=201, tags=["sharing"])
@@ -297,19 +305,25 @@ def share_records(body: ShareIn, db: Session = Depends(get_db), principal: Princ
         raise _not_found("No such patient")
     if body.grantee_institution == INSTITUTION:
         raise HTTPException(422, {"code": "self_grant", "message": "An institution does not need a grant for itself"})
-    existing = db.scalars(select(AccessGrant).where(AccessGrant.grantee_institution == body.grantee_institution,
-                                                    AccessGrant.local_patient_id == body.local_patient_id,
-                                                    AccessGrant.status == "active")).first()
+    expires = grant_expiry(body.duration_days)
+    existing = [g for g in db.scalars(select(AccessGrant).where(AccessGrant.grantee_institution == body.grantee_institution,
+                                                                AccessGrant.local_patient_id == body.local_patient_id,
+                                                                AccessGrant.status == "active"))
+                if grant_is_live(g)]
     if existing:
-        return {"id": existing.id, "status": existing.status, "categories": existing.categories}
+        g = existing[0]
+        return {"id": g.id, "status": g.status, "categories": g.categories, "expires_at": g.expires_at}
     g = AccessGrant(grantee_institution=body.grantee_institution, local_patient_id=body.local_patient_id,
-                    categories=list(ALL_CATEGORIES), basis=body.basis, granted_by=principal.display_name)
+                    categories=list(ALL_CATEGORIES), basis=body.basis, granted_by=principal.display_name,
+                    expires_at=expires, referral_ref=body.referral_ref)
     db.add(g)
     db.flush()
     record_audit(db, AuditEvent, principal, "grant.create", "access_grant", str(g.id), "success",
-                 detail={"grantee": g.grantee_institution, "patient": g.local_patient_id, "basis": body.basis})
+                 referral_context=body.referral_ref,
+                 detail={"grantee": g.grantee_institution, "patient": g.local_patient_id, "basis": body.basis,
+                         "expires_at": g.expires_at.isoformat()})
     db.commit()
-    return {"id": g.id, "status": g.status, "categories": g.categories}
+    return {"id": g.id, "status": g.status, "categories": g.categories, "expires_at": g.expires_at}
 
 
 # --------------------------------------------------------------------------- referral-relevant records
@@ -480,6 +494,40 @@ def receive_result(body: ResultForward, db: Session = Depends(get_db), principal
                  detail={"order_ref": body.order_ref})
     db.commit()
     return {"status": "received"}
+
+
+class SentCopyIn(BaseModel):
+    copy_key: str
+    referral_id: str
+    kind: Literal["package", "response"]
+    version: int = 0
+    content: dict
+
+
+@app.post("/outbound-copies", tags=["inbound (central platform)"])
+def receive_sent_copy(body: SentCopyIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Store our own copy of a referral we sent, or of the response to it (idempotent by key)."""
+    _require_central(principal)
+    existing = db.scalars(select(SentCopy).where(SentCopy.copy_key == body.copy_key)).first()
+    if existing:
+        return {"status": "already_received", "id": existing.id}
+    c = SentCopy(copy_key=body.copy_key, central_referral_id=body.referral_id, kind=body.kind, version=body.version,
+                 content=body.content)
+    db.add(c)
+    record_audit(db, AuditEvent, principal, "sent_copy.store", "referral", body.referral_id, "success",
+                 referral_context=body.referral_id, detail={"kind": body.kind, "version": body.version})
+    db.commit()
+    return {"status": "received", "id": c.id}
+
+
+@app.get("/outbound-copies", tags=["records"])
+def list_sent_copies(referral_id: str, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Our own copies for one referral (doctors and staff here)."""
+    require_own(principal, "clinician", "clinic_staff", what="read our copies of sent referrals")
+    rows = db.scalars(select(SentCopy).where(SentCopy.central_referral_id == referral_id).order_by(SentCopy.id)).all()
+    record_audit(db, AuditEvent, principal, "sent_copy.read", "referral", referral_id, "success", referral_context=referral_id)
+    db.commit()
+    return [{"kind": c.kind, "version": c.version, "received_at": c.received_at, "content": c.content} for c in rows]
 
 
 class IntakeIn(BaseModel):

@@ -16,6 +16,7 @@ from .integration.importer import _parse_time
 from .models import Document, EvidenceItem, EvidenceRevision
 from .referrals.state import ensure_clinical_edit_allowed, mark_clinical_change
 from .security import audit, error, get_principal, load_referral
+from .selection.selection import floor, staff_select
 from .serializers import evidence_out
 from .workflow import after_change
 
@@ -98,17 +99,19 @@ class SelectIn(BaseModel):
 @router.post("/evidence/{evidence_id}/select")
 def select_evidence(evidence_id: int, body: SelectIn, db: Session = Depends(get_db),
                     principal: Principal = Depends(get_principal)):
-    ev = _load(db, evidence_id, principal, "edit")
+    """Staff finalise the packet: their choice overrides the default and the AI recommendation."""
+    ev = _load(db, evidence_id, principal, "edit", roles=("clinic_staff",))
     from .models import Referral
     ensure_clinical_edit_allowed(db.get(Referral, ev.referral_id))
     if body.selected and ev.verification_status in ("invalidated", "access_revoked"):
         raise error(409, "evidence_unusable", "This evidence can no longer be used (link invalidated or access revoked)")
     if body.selected and ev.review_state == "excluded":
         raise error(409, "evidence_excluded", "Restore the excluded field before selecting it")
-    if ev.selected == body.selected:
+    if ev.selected == body.selected and ev.selection_source == "staff":
         return evidence_out(ev)
-    ev.selected = body.selected
-    _revise(db, ev, principal, "select" if body.selected else "deselect", prior_state=ev.review_state)
+    staff_select(ev, body.selected, principal.display_name)
+    _revise(db, ev, principal, "select" if body.selected else "deselect", prior_state=ev.review_state,
+            new={"selected": body.selected, "ai_recommendation": ev.ai_recommendation, "default": floor(ev)})
     return _finish(db, ev, principal, "selection")
 
 

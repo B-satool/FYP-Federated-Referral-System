@@ -257,6 +257,19 @@ class OrderAttachment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class SentCopy(Base):
+    """This institution's own copy of a referral it sent (and the response it received). Delivered by
+    the central platform, whose working copy is temporary; this copy is the sender's lasting record."""
+    __tablename__ = "sent_copies"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    copy_key: Mapped[str] = mapped_column(String(220), unique=True)
+    central_referral_id: Mapped[str] = mapped_column(String(40), index=True)
+    kind: Mapped[str] = mapped_column(String(20))  # package | response
+    version: Mapped[int] = mapped_column(Integer, default=0)
+    content: Mapped[dict] = mapped_column(JSON)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class Outbox(Base):
     """Events for the central platform, written in the same transaction as the change."""
     __tablename__ = "outbox"

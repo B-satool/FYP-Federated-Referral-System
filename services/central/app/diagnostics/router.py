@@ -199,6 +199,9 @@ def apply_order_event(db: Session, r: Referral, dx: DiagnosticRequest, etype: st
         dx.scheduled_for = datetime.fromisoformat(data["scheduled_for"]) if data.get("scheduled_for") else None
         extra["scheduled_for"] = data.get("scheduled_for")
     if status == "reported":
+        from ..lifecycle.working_set import start
+
+        start(r)  # a returned result is part of the temporary working set
         dx.report = {"findings": data.get("findings"), "impression": data.get("impression"),
                      "report_text": data.get("report_text"), "values": data.get("values", []),
                      "reported_by": data.get("reported_by"), "reported_at": data.get("reported_at")}
@@ -228,7 +231,7 @@ def _add_result_evidence(db: Session, r: Referral, dx: DiagnosticRequest, instit
                 original={"test": v.get("test"), "value_text": v.get("value"), "unit": v.get("unit"),
                           "reference_range": v.get("reference"), "panel": dx.test, "order": dx.reference},
                 current={}, clinical_time=utcnow(), review_state="imported", verification_status="source_record",
-                selected=True))
+                selected=True, in_default=True, selection_source="default"))  # ordered for this referral
     else:
         text = rep.get("impression") or rep.get("findings") or rep.get("report_text") or ""
         db.add(EvidenceItem(
@@ -240,4 +243,4 @@ def _add_result_evidence(db: Session, r: Referral, dx: DiagnosticRequest, instit
                       "reporter": rep.get("reported_by"), "order": dx.reference,
                       "attachments": len(dx.attachments or [])},
             current={}, clinical_time=utcnow(), review_state="imported", verification_status="source_record",
-            selected=True))
+            selected=True, in_default=True, selection_source="default"))

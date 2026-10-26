@@ -23,6 +23,7 @@ from ..models import (DiagnosticRequest, EvidenceItem, PatientLink, PatientLinkE
                       ReferralPackage, User)
 from ..notifications import notify
 from ..security import audit, error, get_principal, kc_config, require_roles, service_tokens, verifier
+from . import role_templates
 from .links import link_out, links_for, open_request
 
 router = APIRouter(tags=["patient links"])
@@ -189,9 +190,11 @@ def approve_link(link_id: int, body: ApproveIn, db: Session = Depends(get_db), p
                     "That record is already linked to a different patient at the requesting institution")
     referral = db.get(Referral, link.referral_id) if link.referral_id else None
     if link.kind == "records":
+        # temporary access, tied to the referral it was asked for (closed when that referral finishes)
         sources.call(link.target_institution, "POST", "/sharing/grants", principal, json={
             "grantee_institution": link.requester_institution, "local_patient_id": local_id,
-            "basis": f"Patient link #{link.id} approved by {principal.display_name}: {body.note.strip()}"})
+            "basis": f"Patient link #{link.id} approved by {principal.display_name}: {body.note.strip()}",
+            "referral_ref": referral.reference if referral else None})
     elif referral is not None:
         # the incoming referral and test orders for this patient now point at the confirmed record
         sources.call(link.target_institution, "POST", "/intake/patient", principal, json={
@@ -382,3 +385,61 @@ def enable_user(user_id: str, body: StatusIn, db: Session = Depends(get_db), pri
 def institutions(principal: Principal = Depends(get_principal)):
     return [{"id": k, **{x: y for x, y in v.items() if x != "url_env"}} for k, v in INSTITUTIONS.items()
             if k != "central-platform"]
+
+
+# ------------------------------------------------------------------ role templates
+class ApplyTemplateIn(BaseModel):
+    template_id: str
+    reason: str = Field(min_length=3)
+
+
+def _kc_realm_roles(user_id: str) -> set[str]:
+    resp = httpx.get(f"{kc_config.admin_url}/users/{user_id}/role-mappings/realm", headers=_kc_headers(), timeout=10)
+    resp.raise_for_status()
+    return {r["name"] for r in resp.json()}
+
+
+def _kc_role_reps(names: list[str]) -> list[dict]:
+    reps = []
+    for n in names:
+        resp = httpx.get(f"{kc_config.admin_url}/roles/{n}", headers=_kc_headers(), timeout=10)
+        resp.raise_for_status()
+        reps.append(resp.json())
+    return reps
+
+
+@router.get("/admin/role-templates")
+def list_role_templates(principal: Principal = Depends(get_principal)):
+    """Templates this institution's administrator may apply."""
+    require_roles(principal, "institution_admin", action="admin.role_templates")
+    return [t.as_dict() for t in role_templates.templates_for_institution(principal.institution_id)]
+
+
+@router.post("/admin/users/{user_id}/apply-template")
+def apply_role_template(user_id: str, body: ApplyTemplateIn, db: Session = Depends(get_db),
+                        principal: Principal = Depends(get_principal)):
+    """Replace the user's template-managed realm roles with the template's (never service roles, never oneself)."""
+    require_roles(principal, "institution_admin", action="admin.apply_template")
+    template = role_templates.templates().get(body.template_id)
+    if template is None or template not in role_templates.templates_for_institution(principal.institution_id):
+        raise error(404, "template_not_available", "That template is not available for this institution")
+    kc_user, groups = _kc_user(user_id)
+    if principal.institution_id not in groups:
+        raise error(403, "forbidden", "You can only manage accounts of your own institution")
+    if user_id == principal.subject:
+        raise error(409, "self", "You cannot change your own roles")
+    before = _kc_realm_roles(user_id)
+    add, remove = role_templates.plan_change(before, template)
+    base = kc_config.admin_url
+    if add:
+        httpx.post(f"{base}/users/{user_id}/role-mappings/realm", json=_kc_role_reps(add),
+                   headers=_kc_headers(), timeout=10).raise_for_status()
+    if remove:
+        httpx.request("DELETE", f"{base}/users/{user_id}/role-mappings/realm", json=_kc_role_reps(remove),
+                      headers=_kc_headers(), timeout=10).raise_for_status()
+    verifier.invalidate_cache()  # applies on the user's next request
+    audit(db, principal, "role.assign", "user", kc_user["username"], "success",
+          detail={"template": template.template_id, "added": add, "removed": remove, "reason": body.reason})
+    db.commit()
+    return {"id": user_id, "username": kc_user["username"], "template": template.template_id,
+            "added": add, "removed": remove, "default_grant_days": template.default_grant_days}

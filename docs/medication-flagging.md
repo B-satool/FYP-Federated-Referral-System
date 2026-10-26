@@ -116,9 +116,9 @@ Built on 2026-10-27, at the project lead's request. It is offline and small, and
 - None of these figures is clinical accuracy.
 
 **In the app**
-- Doctors see an **AI suggestions** section, separate from the flags and labelled "AI suggestion, unverified", for pairs among the current medicines with no DDInter entry. A pair that DDInter covers is never suggested, whatever its score.
-- The doctor can mark each suggestion **Relevant** or **Not relevant**. The review is stored with the score and the model and data versions, and audited.
-- Suggestions never block sending and are not in the sent referral.
+- Doctors see an **AI suggestions** section, separate from the flags and labelled "AI suggestion, not verified", for pairs among the current medicines with no DDInter entry. A pair that DDInter covers is never suggested, whatever its score.
+- The doctor can mark each suggestion **Ignore** or **Research**, the same choices as for flags. The review is stored with the score and the model and data versions, and audited.
+- Suggestions never block sending and never remove or downgrade a flag. Since spec v3 (work package D, see `docs/decisions/2026-10-27-data-lifecycle-and-v3.md`), they **are sent in the package**, in their own `ai_suggestions` field and letter section labelled "AI suggestion, not verified", with the doctor's decision. They are part of the package fingerprint. When there is nothing to show, the letter says "No rule or suggestion on file".
 - The evaluator has no input from the model. Unit tests force every score to 0 and to 1 and check that the flags are identical.
 
 ## 7. Pakistani brand data

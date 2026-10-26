@@ -60,6 +60,9 @@ def transition(db: Session, referral: Referral, to: str, actor: str, principal: 
                     f"Cannot move a referral from '{STATUS_LABELS[current]}' to '{STATUS_LABELS.get(to, to)}'")
     referral.status = to
     bump(referral)
+    from ..lifecycle.working_set import on_status
+
+    on_status(referral, to)  # answered or ended: retrieved content is kept only for the grace period
     db.add(ReferralEvent(referral_id=referral.id, event_type="status_change", from_status=current, to_status=to,
                          actor=actor, institution_id=institution or (principal.institution_id if principal else None),
                          detail=detail or {}))

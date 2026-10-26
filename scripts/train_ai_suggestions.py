@@ -277,7 +277,7 @@ def train(folder: Path) -> None:
     (OUT / "evaluation.json").write_text(json.dumps(evaluation, indent=2) + "\n", encoding="utf-8")
     (OUT / "suggestions.json").write_text(json.dumps(
         {"model_version": MODEL_VERSION, "data_version": data_version, "threshold": threshold,
-         "label": "AI suggestion, unverified", "suggestions": suggestions}, indent=2) + "\n", encoding="utf-8")
+         "label": "AI suggestion, not verified", "suggestions": suggestions}, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(evaluation["by_threshold"], indent=2))
     print(f"{len(suggestions)} suggestions among our ingredients (threshold {threshold})")
 

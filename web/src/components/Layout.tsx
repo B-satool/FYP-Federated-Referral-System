@@ -41,7 +41,15 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const queue = useQuery({ queryKey: ["work-queue"], queryFn: () => api.get<Queue>("/work-queue"), enabled: hasQueue, refetchInterval: 30000, staleTime: 15000 });
   const open = actionableCount(queue.data);
 
-  const groups: NavGroup[] = [
+  // The menu comes from the role templates (GET /me); the fixed list below is only the fallback
+  // for an account whose roles match no template.
+  const fromTemplates: NavGroup[] = [];
+  for (const m of me?.menu ?? []) {
+    let g = fromTemplates.find((x) => x.title === m.group);
+    if (!g) fromTemplates.push((g = { title: m.group, items: [] }));
+    g.items.push({ to: m.route, label: m.label, show: true, badge: m.key === "work_queue" ? open : undefined });
+  }
+  const fallback: NavGroup[] = [
     {
       title: "Work",
       items: [
@@ -69,6 +77,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       ],
     },
   ];
+  const groups = fromTemplates.length ? fromTemplates : fallback;
 
   return (
     <Stack className="on-dark" sx={{ height: "100%", color: tokens.navText, p: 2 }}>

@@ -17,13 +17,15 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..config import (CATEGORY_DEPARTMENT_KIND, DEPARTMENTS, INSTITUTIONS, PROCEDURE_STATUSES, PROCEDURE_TAGS, SOURCES,
-                      URGENCIES)
+                      URGENCIES, settings)
 from ..db import get_db
 from ..identity.links import links_for
 from ..identity.router import create_request
 from ..integration import retrieval, sources
 from ..models import Clarification, DiagnosticRequest, Referral, ReferralEvent, ReferralPackage, SourceRetrieval
 from ..notifications import notify_staff
+from ..selection import selection
+from ..tasks import enqueue
 from ..security import CLINIC_ROLES, DOCTOR, audit, bump, check_version, error, get_principal, load_referral, require_roles
 from ..serializers import diagnostic_out, link_summary, referral_out, retrieval_out
 from ..workflow import after_change
@@ -348,8 +350,43 @@ def retrieve_records(referral_id: int, db: Session = Depends(get_db), principal:
     if r.current_package_version and r.status in IN_FLIGHT:
         mark_clinical_change(db, r, principal.display_name, "records retrieved again", principal)
     after_change(db, r, "records_retrieved", principal)
+    queued = _start_recommendation(db, r, principal)
     db.commit()
-    return {"results": [retrieval_out(s) for s in results], "sources": source_overview(db, r)}
+    if queued:
+        enqueue("recommend_selection", r.id, principal.display_name)
+    return {"results": [retrieval_out(s) for s in results], "sources": source_overview(db, r),
+            "selection": {"queued": queued, "run": selection.run_out(selection.latest_run(db, r))}}
+
+
+def _start_recommendation(db: Session, r: Referral, principal: Principal) -> bool:
+    """With a model configured the recommendation runs in the background; without one the run is
+    recorded straight away as unavailable, so the page can say so (the default selection stands)."""
+    if settings.llm_configured:
+        return True
+    selection.recommend(db, r, principal.display_name, principal)
+    return False
+
+
+@router.get("/referrals/{referral_id}/selection")
+def selection_status(referral_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    r = load_referral(db, referral_id, principal, "view")
+    snap = selection.snapshot(db, r)
+    return {"run": selection.run_out(selection.latest_run(db, r)), "counts": snap["counts"],
+            "llm_configured": settings.llm_configured, "prompt_version": selection.PROMPT_VERSION}
+
+
+@router.post("/referrals/{referral_id}/recommend")
+def recommend_selection(referral_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Staff ask for the AI recommendation again (for example after adding papers)."""
+    r = load_referral(db, referral_id, principal, "prepare", roles=("clinic_staff",))
+    if r.status in TERMINAL or r.working_set_purged_at is not None:
+        raise error(409, "not_available", "This referral's records are no longer held")
+    queued = _start_recommendation(db, r, principal)
+    audit(db, principal, "selection.requested", "referral", r.reference, "queued" if queued else "unavailable", r.id)
+    db.commit()
+    if queued:
+        enqueue("recommend_selection", r.id, principal.display_name)
+    return {"queued": queued, "run": selection.run_out(selection.latest_run(db, r))}
 
 
 @router.get("/referrals/{referral_id}/retrievals")

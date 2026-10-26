@@ -30,7 +30,7 @@ def staff_items(db: Session, r: Referral) -> list[dict]:
     targets = retrieval_targets(db, r)
     missing = [INSTITUTIONS[t[0]]["name"] for t in targets if t[0] not in latest]
     problems = [f"{INSTITUTIONS[s.source_institution]['name']} ({s.status})" for s in latest.values()
-                if s.status in ("unavailable", "denied", "invalid")]
+                if s.status in ("unavailable", "denied", "expired", "invalid")]
     items.append(_item("records", "Records retrieved", not missing,
                        ("Retrieve records from: " + ", ".join(missing)) if missing else
                        ("Could not retrieve from " + ", ".join(problems) + ". This is sent as a limitation, not as 'no history'."

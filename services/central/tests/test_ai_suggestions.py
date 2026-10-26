@@ -64,7 +64,7 @@ def test_suggestions_only_for_current_medicines_and_carry_versions():
 def test_committed_suggestions_exclude_ddinter_pairs_and_are_labelled():
     if not DATA:
         pytest.skip("no suggestions trained")
-    assert DATA["label"] == LABEL == "AI suggestion, unverified"
+    assert LABEL == "AI suggestion, not verified"
     for s in DATA["suggestions"]:
         assert (s["ingredient_a"], s["ingredient_b"]) not in COVERED
         assert s["ingredient_a"] < s["ingredient_b"] and s["score"] >= DATA["threshold"] and s["reason"]

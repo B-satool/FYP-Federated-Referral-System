@@ -63,15 +63,15 @@ def test_imported_flags_show_source_and_decisions_are_logged():
     # AI suggestions: separate from flags, only the doctor reviews them, and a review changes no flag
     meds = ok(STAFF.get(f"/referrals/{rid}/medications"))
     sugg = {s["pair_key"]: s for s in meds["ai_suggestions"]}
-    assert "diclofenac|esomeprazole" in sugg and meds["ai_label"] == "AI suggestion, unverified"
+    assert "diclofenac|esomeprazole" in sugg and meds["ai_label"] == "AI suggestion, not verified"
     assert sugg["diclofenac|esomeprazole"]["model_version"] and sugg["diclofenac|esomeprazole"]["data_version"]
     before = sorted((f["flag_key"], f["version"]) for f in meds["flags"])
-    body = {"pair_key": "diclofenac|esomeprazole", "decision": "relevant"}
+    body = {"pair_key": "diclofenac|esomeprazole", "decision": "research"}
     assert STAFF.post(f"/referrals/{rid}/ai-suggestions/review", body).status_code == 403
     ok(doctor.post(f"/referrals/{rid}/ai-suggestions/review", body))
     meds = ok(STAFF.get(f"/referrals/{rid}/medications"))
     assert sorted((f["flag_key"], f["version"]) for f in meds["flags"]) == before
-    assert {s["pair_key"]: s for s in meds["ai_suggestions"]}["diclofenac|esomeprazole"]["review"]["decision"] == "relevant"
+    assert {s["pair_key"]: s for s in meds["ai_suggestions"]}["diclofenac|esomeprazole"]["review"]["decision"] == "research"
 
 
 def test_procedure_without_features_is_not_checked():
@@ -101,9 +101,11 @@ def test_p2_last_visited_hospital_and_stopped_medicine():
     assert res["akuh"]["status"] == "skipped" and "2026-08-30" in res["akuh"]["message"]
     meds = ok(STAFF.get(f"/referrals/{r['id']}/medications"))["entries"]
     assert "diclofenac" not in {m["ingredient"] for m in meds}
-    # lipid profile from 2025 is outside the 6-month window
+    # older results are retrieved for staff to add, but only the last 6 months are selected by default
     ev = ok(STAFF.get(f"/referrals/{r['id']}/evidence", params={"category": "lab"}))
-    assert all("2025" not in (e["clinical_time"] or "") for e in ev)
+    old = [e for e in ev if (e["clinical_time"] or "").startswith("2025")]
+    assert all(not e["selected"] and not e["in_default"] for e in old)
+    assert all(e["selected"] for e in ev if e["in_default"])
 
 
 def test_uploaded_prescription_merges_with_recorded_medicines():

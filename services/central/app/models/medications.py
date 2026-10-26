@@ -125,12 +125,12 @@ class AiSuggestion(Base):
 
 
 class SuggestionReview(Base):
-    """A doctor's view of one AI suggestion for one patient: relevant or not relevant."""
+    """A doctor's decision on one AI suggestion for one patient: ignore or research (logged)."""
     __tablename__ = "suggestion_reviews"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     referral_id: Mapped[int] = mapped_column(ForeignKey("referrals.id"), index=True)
     pair_key: Mapped[str] = mapped_column(String(210))
-    decision: Mapped[str] = mapped_column(String(20))  # relevant | not_relevant
+    decision: Mapped[str] = mapped_column(String(20))  # ignore | research
     note: Mapped[str] = mapped_column(Text, default="")
     score: Mapped[float] = mapped_column(Float)
     model_version: Mapped[str] = mapped_column(String(60))

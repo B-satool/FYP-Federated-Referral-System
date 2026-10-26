@@ -129,7 +129,7 @@ Paths are relative to `services/central/app` unless stated otherwise. Test IDs: 
 
 | NFR | Where |
 |---|---|
-| 10.1 Security & privacy | Authorization at central and sources; TLS and secrets guidance (operations.md); authenticated document endpoints; retention; synthetic data |
+| 10.1 Security & privacy | Authorization at central and sources; TLS and secrets guidance (operations.md); authenticated document endpoints; retention (temporary working set, expiring grants, manifest and fingerprint: `data-lifecycle.md`, `tests/test_v3_lifecycle.py`); synthetic data |
 | 10.2 Reliability | Drafts preserved on failures; immutable versions; optimistic concurrency (409); ordered event timeline; backup and restore check |
 | 10.3 Usability | Original page beside fields; status tags with icon and text (not colour alone); skip link and focus outlines; clear next actions |
 | 10.4 Performance | `scripts/loadtest.py` (10 users, p95 target 2 s); 10 s source timeout; async OCR/LLM with job status |

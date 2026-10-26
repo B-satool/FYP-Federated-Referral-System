@@ -362,7 +362,7 @@ function InteractionRules() {
 
 type AiView = {
   label: string;
-  reviews: { relevant: number; not_relevant: number };
+  reviews: { research: number; ignore: number };
   evaluation: null | {
     model_version: string; trained: string; training_data: string; known_interactions: number; drugs: number; drugs_with_atc: number;
     held_out_interactions: number; held_out_unlabelled_pairs: number; threshold_used: number; caveats: string[];
@@ -417,7 +417,7 @@ function AiModel() {
           </>
         )}
         <Typography variant="body2" sx={{ mt: 1 }}>
-          Doctors' feedback so far: {v.reviews.relevant} relevant, {v.reviews.not_relevant} not relevant.
+          Doctors' feedback so far: {v.reviews.research} marked for research, {v.reviews.ignore} ignored.
         </Typography>
       </Paper>
       <Paper sx={{ p: { xs: 2, md: 2.5 } }}>

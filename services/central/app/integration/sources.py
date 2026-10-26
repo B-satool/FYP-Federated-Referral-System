@@ -81,13 +81,18 @@ def _get(institution_id: str, path: str, principal: Principal, referral_ref: str
         return resp, attempts, ""
 
 
+def _denied_status(resp) -> str:
+    """'expired' when the source says its access grant ran out (shown as access expired, never as no records)."""
+    return "expired" if "access grant expired" in _detail_message(resp) else "denied"
+
+
 def last_activity(institution_id: str, local_id: str, principal: Principal, referral_ref: str) -> tuple[str, str | None, str]:
     """(status, last activity date, message). status: successful | denied | unavailable | empty | invalid."""
     resp, _, err = _get(institution_id, f"/patients/{quote(local_id, safe='')}/activity", principal, referral_ref)
     if resp is None:
         return "unavailable", None, err
     if resp.status_code in (401, 403):
-        return "denied", None, f"{source_name(institution_id)} denied access: {_detail_message(resp)}"
+        return _denied_status(resp), None, f"{source_name(institution_id)} denied access: {_detail_message(resp)}"
     if resp.status_code == 404:
         return "empty", None, f"{source_name(institution_id)} has no matching patient record"
     if resp.status_code != 200:
@@ -105,7 +110,8 @@ def fetch_records(institution_id: str, local_id: str, principal: Principal, refe
                           attempts=attempts, duration_ms=_ms(start))
     duration = _ms(start)
     if resp.status_code in (401, 403):
-        return SourceCall("denied", f"{name} denied access: {_detail_message(resp)}", attempts=attempts, duration_ms=duration)
+        return SourceCall(_denied_status(resp), f"{name} denied access: {_detail_message(resp)}", attempts=attempts,
+                          duration_ms=duration)
     if resp.status_code == 404:
         return SourceCall("empty", f"{name} has no matching patient record ({_detail_message(resp)})",
                           attempts=attempts, duration_ms=duration)

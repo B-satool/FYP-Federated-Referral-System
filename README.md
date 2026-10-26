@@ -191,10 +191,12 @@ Other scenarios: P2 (Ziauddin cardiology, metformin with contrast; Ziauddin staf
 python -m venv .venv
 .\.venv\Scripts\pip install httpx pytest
 
-# API checks: P5 referral, P3 test request with an image, every patient's expected flags, OCR merge (resets demo data first). Expect: 10 passed
+# API checks: P5 referral, P3 test request with an image, every patient's expected flags, OCR merge,
+# temporary grants, role menus, packet selection, the package fingerprint, the clinic's own copy and the purge (resets demo data first). Expect: 18 passed
 .\.venv\Scripts\python -m pytest tests -q
 
-# Medication-rule logic, interactions, label rules and the extraction validator. Expect: 39 passed
+# Medication-rule logic, interactions, label rules, the extraction validator, AI selection checks, grant expiry,
+# working-set timing, manifests and role templates. Expect: 79 passed
 docker compose run --rm --no-deps -v ${PWD}/services/central/tests:/srv/tests central python -m pytest tests -q
 
 # Browser robot: the referral and test-request journeys across 7 accounts in Chrome (reset the demo data first). Expect: 2 passed
@@ -237,7 +239,9 @@ docker-compose.yml      Defines all 11 containers
 ## 8. Known limitations (be upfront in demos)
 
 - **Synthetic data, unreviewed clinical content.** The rules, references, procedure features and brand mappings are plausible but not clinically reviewed. The seed marks the rules as approved by a demo reviewer.
-- **Drug-to-drug interactions are not checked.** Only drug against procedure. See [`docs/v2-changes.md`](docs/v2-changes.md) for the planned approach.
+- **Interactions come from DDInter and US drug labels only** (automatically generated, not clinically reviewed); AI suggestions are labelled "not verified". See [`docs/medication-flagging.md`](docs/medication-flagging.md).
+- **Records are held only temporarily.** After the referral ends (72 hours after the answer, at most 60 days) the platform keeps only the reference, fingerprint and audit; the receiving hospital and the sending clinic keep the content. See [`docs/data-lifecycle.md`](docs/data-lifecycle.md).
+- **AI packet selection needs `ANTHROPIC_API_KEY`.** Without it the rule-based default is used and the Records tab says "AI recommendation unavailable".
 - **Most recent place only:** records held only at an older hospital are not retrieved automatically; they are listed as skipped.
 - **OCR:** printed prescriptions read well. The handwriting-style samples read with small errors, which staff correct when checking.
 - **Not production-hardened:** HTTP on localhost with demo passwords. See [`docs/operations.md`](docs/operations.md).

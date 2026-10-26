@@ -47,6 +47,18 @@ Where this section differs from section 1 (procedure list, tests inside a referr
 | No "New referral" in the sidebar | Removed. **New request** is on the work queue and the request list. |
 | After accepting, go to the response | The response form is at the top of the case and receives focus as soon as the doctor accepts. |
 
+## 1c. Spec v3 and the data-lifecycle change (2026-10-27)
+
+Ported from `architecture-spec-v3.md` and `data-lifecycle.patch` (both written for v1). The approval is recorded in [decisions/2026-10-27-data-lifecycle-and-v3.md](decisions/2026-10-27-data-lifecycle-and-v3.md).
+
+| Work package | What was built |
+|---|---|
+| Temporary access | Grants expire (14 days by default, 30 at most), can be extended with a reason, and are revoked at every institution when the referral finishes. An expired grant shows the source as "expired", never as "no records". The **Source access** screen has an end-date column, Extend, and an "ending within 3 days" filter. |
+| A. Working set | Retrieved content is held until 72 hours after the answer is returned or the referral ends, and at most 60 days. The purge waits for every delivery, including the clinic's own copy, which is now sent to the clinic's system (`sent_copies`). The platform keeps the manifest, fingerprint and audit. The screens show "Held for this referral until …", and after the purge "Content has been removed. Reference and fingerprint kept." with a button to check the clinic's copy. See [data-lifecycle.md](data-lifecycle.md) and [data-inventory.md](data-inventory.md). |
+| B. Packet selection | Three years of history are retrieved. The rule-based default selects what v2 selected (current conditions and medicines, surgery, and the last 6 months). With a model configured, an AI recommendation adds records or marks them low relevance, with a reason. It cannot remove a default item, and what it leaves out is listed under "Not included". **Staff** decide, and each choice is recorded. Without a model the default applies and the screen says "AI recommendation unavailable". |
+| C. Role screens | The menu and home screen come from the role templates through `GET /me`. Administrators change a user's role by applying a template on **Accounts**. |
+| D. AI medication suggestions | Ignore / Research (as for flags). They are sent in the package labelled "AI suggestion, not verified", never as flags. |
+
 ## 2. Decisions the team made
 
 1. **Who refers:** any clinic or hospital can refer to any department of another hospital.
@@ -91,6 +103,6 @@ docker compose up -d --build
 `.env` needs the new settings (`DRALI_*`, `CHUGHTAI_*`, `ZIAUDDIN_*`, `AKUH_*`); see `.env.example`.
 
 Checks on this branch:
-- **API flow:** `tests/` runs the P5 referral, the P3 test request with an image, every patient's expected flags and the OCR merge. 9 tests.
-- **Rule logic:** `services/central/tests` has 17 unit tests.
+- **API flow:** `tests/` runs the P5 referral, the P3 test request with an image, every patient's expected flags, the OCR merge and the spec v3 checks (`test_v3_lifecycle.py`). 18 tests.
+- **Unit tests:** `services/central/tests` has 79.
 - **Browser journeys:** `web/e2e/smoke.spec.ts` runs the referral and the test request across seven accounts in Chrome. 2 tests.

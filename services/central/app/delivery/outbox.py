@@ -25,6 +25,7 @@ ENDPOINTS = {
     "deliver_order": "/inbound/orders",
     "forward_result": "/inbound/results",
     "clarification_answer": "/inbound/clarification-answers",
+    "sender_copy": "/outbound-copies",  # the sending clinic's own copy of what it sent and received
 }
 
 

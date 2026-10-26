@@ -2,7 +2,7 @@
   "model_version": "ddi-suggest-logreg/1.0",
   "data_version": "DDInter 2.0 (2710ca66c8e5), ATC via RxNav 2026-10-27",
   "threshold": 0.8,
-  "label": "AI suggestion, unverified",
+  "label": "AI suggestion, not verified",
   "suggestions": [
     {
       "pair_key": "alendronic acid|dapagliflozin",

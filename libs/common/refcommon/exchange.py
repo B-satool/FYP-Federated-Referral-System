@@ -107,6 +107,10 @@ class PackageEnvelope(BaseModel):
     evidence: list[EvidenceSnapshot]
     limitations: list[str] = Field(default_factory=list)
     diagnostic_requests: list[dict[str, Any]] = Field(default_factory=list)
+    # Possible clashes with no source entry, labelled "AI suggestion, not verified" (never flags)
+    ai_suggestions: list[dict[str, Any]] = Field(default_factory=list)
+    # How the records in this version were chosen: rule-based default, AI recommendation, staff decision
+    selection: dict[str, Any] = Field(default_factory=dict)
     sent_by: str
     sent_by_id: str
     sent_at: datetime
@@ -204,7 +208,7 @@ HASHED_PACKAGE_FIELDS = (
     "referral_id", "package_version", "sender_institution", "sender_department", "destination_institution",
     "destination_department", "destination_doctor", "urgency", "reason", "procedure_status", "planned_procedure",
     "procedure_label", "patient", "requesting_doctor", "brief_sections", "medication_flags", "medication_evaluation",
-    "evidence", "limitations", "diagnostic_requests", "sent_by", "sent_by_id", "sent_at",
+    "evidence", "limitations", "diagnostic_requests", "ai_suggestions", "selection", "sent_by", "sent_by_id", "sent_at",
 )
 
 

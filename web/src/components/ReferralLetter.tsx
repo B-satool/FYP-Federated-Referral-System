@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Alert, Box, Divider, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from "@mui/material";
-import type { BriefSection, BriefStatement, LetterFlag } from "../api/types";
+import type { BriefSection, BriefStatement, LetterFlag, PackageEnvelope } from "../api/types";
 import { tokens } from "../theme";
 import { fmtDate } from "./common";
 
@@ -190,7 +190,7 @@ function FlagsSection({ flags, summary }: { flags: LetterFlag[]; summary?: strin
         planned procedure and recorded conditions. A decision means the referring doctor has seen the flag; it is not advice to
         change a medicine.
       </Typography>
-      {flags.length === 0 && <Typography variant="body2">{summary ?? "No matching rule on file."}</Typography>}
+      {flags.length === 0 && <Typography variant="body2">{summary ?? "No rule or suggestion on file."}</Typography>}
       <Stack spacing={1}>
         {main.map((f) => <FlagLine key={f.flag_id} f={f} />)}
       </Stack>
@@ -208,6 +208,32 @@ function FlagsSection({ flags, summary }: { flags: LetterFlag[]; summary?: strin
   );
 }
 
+type LetterAiSuggestion = NonNullable<PackageEnvelope["ai_suggestions"]>[number];
+
+/** Labelled model suggestions, kept apart from the medication review: never flags, never verified. */
+function AiSuggestionsSection({ items }: { items: LetterAiSuggestion[] }) {
+  return (
+    <Box>
+      <Heading>AI suggestions (not verified)</Heading>
+      <Typography variant="body2" sx={{ color: tokens.muted, mb: 1 }}>
+        Possible clashes between current medicines that have no DDInter entry, suggested by a model. AI suggestion, not
+        verified. They are not medication flags and are not advice.
+      </Typography>
+      <Stack spacing={1}>
+        {items.map((s) => (
+          <Box key={s.pair_key} sx={{ borderLeft: `3px solid ${tokens.field}`, pl: 1.5 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>{s.ingredients.join(" and ")}</Typography>
+            <Typography variant="body2">{s.reason}</Typography>
+            <Muted>
+              {[`Model ${s.model_version}`, s.decision ? `${s.decision.decision === "research" ? "Marked for research" : "Ignored as not relevant"} by ${s.decision.by}` : "No decision recorded"].join(" · ")}
+            </Muted>
+          </Box>
+        ))}
+      </Stack>
+    </Box>
+  );
+}
+
 /**
  * The referral laid out as a letter a practitioner can read top to bottom: who it is to and from,
  * the patient, why, the planned procedure, current medicines, history, investigations, imaging,
@@ -219,6 +245,7 @@ export function ReferralLetter({
   sections,
   flags,
   flagSummary,
+  aiSuggestions,
   footer,
   cite,
 }: {
@@ -226,6 +253,7 @@ export function ReferralLetter({
   sections: BriefSection[];
   flags?: LetterFlag[];
   flagSummary?: string | null;
+  aiSuggestions?: LetterAiSuggestion[];
   footer?: ReactNode;
   cite?: Cite;
 }) {
@@ -297,6 +325,7 @@ export function ReferralLetter({
           ) : null,
         )}
         {flags && <FlagsSection flags={flags} summary={flagSummary} />}
+        {aiSuggestions && aiSuggestions.length > 0 && <AiSuggestionsSection items={aiSuggestions} />}
         {outstanding && (
           <Alert severity="warning" variant="outlined">
             <Typography variant="subtitle2" component="h3">

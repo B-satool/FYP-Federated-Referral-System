@@ -16,7 +16,7 @@ from datetime import date
 from pathlib import Path
 
 from refcommon.db import make_session_factory
-from refcommon.sourcekit import ALL_CATEGORIES, normalize_cnic
+from refcommon.sourcekit import ALL_CATEGORIES, MAX_GRANT_DAYS, grant_expiry, normalize_cnic
 
 from .config import INSTITUTION, INSTITUTION_NAME
 from .models import AccessGrant, Base, Condition, ImagingReport, LabResult, Medication, Patient, Surgery, Visit
@@ -108,7 +108,7 @@ def seed(db) -> int:
         if INSTITUTION != "drali" and INSTITUTION != destination:
             db.add(AccessGrant(grantee_institution="drali", local_patient_id=local_id, categories=list(ALL_CATEGORIES),
                                basis="Seed: patient link confirmed by our staff at an earlier visit (synthetic)",
-                               granted_by="Seed script (synthetic data)"))
+                               granted_by="Seed script (synthetic data)", expires_at=grant_expiry(MAX_GRANT_DAYS)))
     return count
 
 

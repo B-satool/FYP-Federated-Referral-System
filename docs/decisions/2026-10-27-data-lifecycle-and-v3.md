@@ -1,7 +1,7 @@
 # Decision: data lifecycle, AI packet selection and role screens (spec v3)
 
 - **Date:** 2026-10-27
-- **Status:** approved by the project lead (repository owner) in the working session; **pending written confirmation from the supervisor and the module owners** (AGENTS.md, "Module ownership").
+- **Status:** approved by the project lead (repository owner); **the supervisor gave the go-ahead on 2026-10-27** (reported by the project lead), and v2 with this change was merged into `main`. Module owners should still record their agreement for the changes to their modules (AGENTS.md, "Module ownership").
 - **Sources:** `architecture-spec-v3.md` and `data-lifecycle.patch` (both written for v1, ported onto the `v2` branch).
 
 ## What was decided
@@ -31,5 +31,5 @@ After the purge, the platform can show that a package existed, what it referred 
 
 ## Still needed
 
-- Written confirmation from the supervisor and the owners of `libs/common` (sourcekit, exchange), the provider service, the central migrations and the Keycloak role mapping.
+- Agreement from the owners of `libs/common` (sourcekit, exchange), the provider service, the central migrations and the Keycloak role mapping.
 - A decision on sending clinical history to an external model, rather than a self-hosted one, before using any real data.

@@ -1,14 +1,22 @@
-"""What still has to be done before staff can send the referral (one list, no repetition)."""
+"""What still has to be done before staff can send the referral (one list, no repetition).
+
+Order: the doctor submits the request; staff gather records, papers and medicines and mark
+it ready; the doctor then reviews the medication flags; staff send. The receiving institution
+confirms the patient when the referral arrives, so that is not a condition for sending.
+"""
 from __future__ import annotations
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import INSTITUTIONS
-from ..identity.links import links_for, verified_counterparts
+from ..identity.links import verified_counterparts
 from ..integration.retrieval import latest_by_source, retrieval_targets
 from ..medications import service as med
 from ..models import Document, EvidenceItem, Referral
+
+# Staff items that must be done before the doctor is asked to review the flags
+PREPARE_KEYS = ("records", "documents", "meds_checked", "dose_differences", "evaluation")
 
 
 def _item(key: str, label: str, ok: bool, detail: str = "", who: str = "staff", tab: str | None = None,
@@ -16,24 +24,8 @@ def _item(key: str, label: str, ok: bool, detail: str = "", who: str = "staff", 
     return {"key": key, "label": label, "ok": ok, "detail": detail, "who": who, "tab": tab, "blocking": blocking}
 
 
-def readiness(db: Session, r: Referral) -> list[dict]:
+def staff_items(db: Session, r: Referral) -> list[dict]:
     items: list[dict] = []
-    dest = INSTITUTIONS[r.destination_institution]["name"]
-    items.append(_item("request", "Doctor's request submitted", r.status != "draft",
-                       "" if r.status != "draft" else f"{r.requesting_doctor_name} has not submitted the request yet",
-                       who="doctor", tab="request"))
-
-    linked = verified_counterparts(db, r.patient_institution, r.patient_local_id)
-    if r.destination_institution in linked:
-        items.append(_item("destination_link", f"{dest} confirmed the patient", True,
-                           f"Their record: {linked[r.destination_institution][0]}", tab="links"))
-    else:
-        pending = [x for x in links_for(db, r.patient_institution, r.patient_local_id)
-                   if x.target_institution == r.destination_institution and x.status == "requested"]
-        items.append(_item("destination_link", f"{dest} confirmed the patient", False,
-                           f"Waiting for {dest} staff to check the link request" if pending
-                           else f"Send {dest} a patient-link request", tab="links"))
-
     latest = latest_by_source(db, r)
     targets = retrieval_targets(db, r)
     missing = [INSTITUTIONS[t[0]]["name"] for t in targets if t[0] not in latest]
@@ -70,11 +62,32 @@ def readiness(db: Session, r: Referral) -> list[dict]:
     items.append(_item("evaluation", "Medicines checked against the rules", run is not None and run.status == "completed",
                        "" if run is not None and run.status == "completed" else
                        ("Evaluation failed; re-run it" if run else "Not evaluated yet"), tab="medicines"))
+    return items
 
+
+def readiness(db: Session, r: Referral) -> list[dict]:
+    items = [_item("request", "Doctor's request submitted", r.status != "draft",
+                   "" if r.status != "draft" else f"{r.requesting_doctor_name} has not submitted the request yet",
+                   who="doctor", tab="request")]
+    if r.kind == "test":
+        return items
+    items += staff_items(db, r)
+    items.append(_item("prepared", "Marked ready for the doctor's review", r.prepared_at is not None,
+                       f"By {r.prepared_by}" if r.prepared_at else
+                       "When everything above is done, mark it ready so the doctor can review the flags", tab="send"))
     unack = med.unacknowledged_flags(db, r.id)
-    items.append(_item("flags", "Doctor acknowledged the medication flags", not unack,
-                       f"{len(unack)} flag(s) waiting for {r.requesting_doctor_name}" if unack else "",
-                       who="doctor", tab="medicines"))
+    items.append(_item("flags", "Doctor reviewed the medication flags", r.prepared_at is not None and not unack,
+                       (f"{len(unack)} flag(s) waiting for {r.requesting_doctor_name}" if unack else "")
+                       if r.prepared_at else "After staff mark it ready", who="doctor", tab="medicines"))
+
+    dest = INSTITUTIONS[r.destination_institution]["name"]
+    linked = verified_counterparts(db, r.patient_institution, r.patient_local_id)
+    items.append(_item("destination_patient", f"{dest} confirms the patient when the referral arrives", True,
+                       f"Already linked to their record {linked[r.destination_institution][0]}"
+                       if r.destination_institution in linked else
+                       "The referral carries the patient's name, date of birth, sex and CNIC. "
+                       f"{dest} staff match their record, or register the patient as new.",
+                       tab="send", blocking=False))
     return items
 
 

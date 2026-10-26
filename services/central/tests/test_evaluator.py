@@ -1,6 +1,7 @@
 """Table-driven checks for the deterministic medication-against-procedure evaluator.
 
-Uses the real seed rules (rules/medication/seed-rules.json) and procedure tags (app.config).
+Uses the real seed rules (rules/medication/seed-rules.json). A procedure is the doctor's text
+plus the features it involves (procedure tags), which the rules match on.
 Run: docker compose run --rm --no-deps -v ${PWD}/services/central/tests:/srv/tests central python -m pytest tests -q
 """
 from __future__ import annotations
@@ -10,8 +11,18 @@ from pathlib import Path
 
 import pytest
 
-from app.config import DRUG_CLASSES, PROCEDURES
+from app.config import DRUG_CLASSES, PROCEDURE_HINTS
 from app.medications.evaluator import EvalInput, MedInput, Rule, SourceState, evaluate_medications
+
+# what each seed patient's procedure involves (as the doctor ticks it)
+SURGERY = ("major_surgery", "general_anaesthesia", "prolonged_fasting", "bleeding_risk")
+PROCEDURES = {
+    "surgical_tooth_extraction": ("oral_surgery", "bleeding_risk"),
+    "coronary_angiography": ("iodinated_contrast", "arterial_access"),
+    "total_knee_replacement": SURGERY,
+    "upper_gi_endoscopy": ("gi_endoscopy", "sedation"),
+    "laparoscopic_cholecystectomy": SURGERY,
+}
 
 RULES_FILE = Path("/srv/assets/rules/medication/seed-rules.json")
 if not RULES_FILE.exists():  # running from the repository instead of the image
@@ -29,9 +40,11 @@ def med(ingredient: str, cls: str | None, mapping: str = "mapped", name: str | N
                     source_label="Dr Ali's Clinic record", evidence_ids=(eid,))
 
 
-def run(meds, procedure=None, status="known", sources=(OK,), rules=RULES):
-    tags = tuple(PROCEDURES[procedure]["tags"]) if status == "known" and procedure else ()
-    return evaluate_medications(EvalInput(status, procedure, tags, tuple(meds), tuple(sources), tuple(rules), DRUG_CLASSES))
+def run(meds, procedure=None, status="planned", sources=(OK,), rules=RULES, tags=None):
+    if tags is None:
+        tags = PROCEDURES[procedure] if status == "planned" and procedure else ()
+    return evaluate_medications(EvalInput(status, procedure, tuple(tags), tuple(meds), tuple(sources), tuple(rules),
+                                          DRUG_CLASSES))
 
 
 def confirmed(out) -> set[tuple[str, str]]:
@@ -73,6 +86,22 @@ def test_procedure_not_known_is_never_guessed():
     out = run([med("aspirin", "antiplatelet")], status="unknown")
     assert [c.kind for c in out.candidates] == ["procedure_not_checked"]
     assert out.outcome == "no_match"
+
+
+def test_planned_procedure_without_features_is_not_guessed():
+    out = run([med("aspirin", "antiplatelet")], "gallbladder operation", tags=())
+    assert [c.kind for c in out.candidates] == ["procedure_not_checked"]
+    assert "features" in out.candidates[0].message
+
+
+def test_name_hints_cover_the_seed_procedures():
+    """Words in the procedure name pre-tick the features the seed scenarios need."""
+    def hinted(text):
+        return {t for word, tags in PROCEDURE_HINTS.items() if word in text.lower() for t in tags}
+    assert hinted("Laparoscopic cholecystectomy") >= set(SURGERY)
+    assert hinted("Surgical extraction of lower molar") >= {"oral_surgery", "bleeding_risk"}
+    assert hinted("Coronary angiography") >= {"iodinated_contrast"}
+    assert hinted("Upper GI endoscopy") >= {"gi_endoscopy"}
 
 
 def test_consultation_only_has_no_procedure_flags():

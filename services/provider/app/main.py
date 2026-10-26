@@ -2,11 +2,14 @@
 
 It owns this institution's patient records and makes every access decision
 itself (own staff and role, or an access grant created by its own staff when
-they approved a patient-link request). Hospitals also receive referrals here,
-and laboratory/imaging departments receive diagnostic orders here.
+they approved a patient-link request). Clinics and hospitals receive referrals
+here (staff take them in, confirm the patient and assign a doctor), and
+laboratory/imaging departments receive diagnostic orders here.
 """
 from __future__ import annotations
 
+import base64
+import binascii
 import logging
 import os
 import threading
@@ -16,6 +19,7 @@ from typing import Any, Literal
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from refcommon.auth import KeycloakConfig, Principal, ServiceTokenProvider, TokenVerifier, forbid, make_principal_dependency
 from refcommon.db import make_session_factory, session_dependency, utcnow
@@ -48,6 +52,7 @@ from .models import (
     LabResult,
     Medication,
     Order,
+    OrderAttachment,
     Outbox,
     Patient,
     Surgery,
@@ -57,6 +62,10 @@ from .models import (
 log = logging.getLogger("provider")
 OUTBOX_MAX_ATTEMPTS = 12
 STAFF_ROLES = ("clinic_staff", "clinician", "institution_admin")
+INTAKE_ROLES = ("clinic_staff", "institution_admin")  # take in referrals and assign a doctor
+IDENTITY_ROLES = ("clinic_staff", "institution_admin", "diagnostics_staff")  # confirm who an arriving patient is
+MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024
+ATTACHMENT_TYPES = {"image/png", "image/jpeg", "application/pdf"}
 
 engine, SessionLocal = make_session_factory(os.environ["DATABASE_URL"])
 get_db = session_dependency(SessionLocal)
@@ -217,7 +226,7 @@ def identity_lookup(body: LookupIn, request: Request, db: Session = Depends(get_
                     principal: Principal = Depends(get_principal)):
     """Own staff look up who a link request refers to. Candidates are shown to a person,
     with each field compared; nothing is linked automatically."""
-    require_own(principal, *STAFF_ROLES, what="look up a patient for a link request")
+    require_own(principal, *STAFF_ROLES, "diagnostics_staff", what="look up a patient for a link request")
     cnic = normalize_cnic(body.cnic)
     cands: list[Patient] = []
     if cnic:
@@ -252,8 +261,8 @@ class RegisterIn(BaseModel):
 
 @app.post("/identity/register", status_code=201, tags=["identity"])
 def register_patient(body: RegisterIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    """Register a patient who is new to this institution (first referral here)."""
-    require_own(principal, "clinic_staff", "institution_admin", what="register a new patient")
+    """Register a patient who is new to this institution (first referral or test here)."""
+    require_own(principal, *IDENTITY_ROLES, what="register a new patient")
     cnic = normalize_cnic(body.cnic)
     if len(cnic) != 13:
         raise HTTPException(422, {"code": "invalid_cnic", "message": "CNIC must have 13 digits"})
@@ -442,8 +451,9 @@ def receive_order(body: DiagnosticOrder, db: Session = Depends(get_db), principa
               sender_institution=body.sender_institution, sender_name=body.patient.get("sender_name", body.sender_institution),
               department=body.destination_department, category=body.category, test=body.test, body_area=body.body_area,
               clinical_question=body.clinical_question, urgency=body.urgency, patient_name=body.patient.get("name", "Unknown"),
-              patient_birth_date=body.patient.get("birth_date"), local_patient_id=body.patient.get("local_patient_id"),
-              requested_by=body.requested_by,
+              patient_birth_date=body.patient.get("birth_date"), patient_sex=body.patient.get("sex"),
+              patient_cnic=body.patient.get("cnic"), local_patient_id=body.patient.get("local_patient_id"),
+              link_request_id=body.patient.get("link_request_id"), requested_by=body.requested_by,
               history=[{"status": "requested", "by": body.requested_by, "at": body.requested_at.isoformat()}])
     db.add(o)
     record_audit(db, AuditEvent, principal, "order.receive", "order", body.order_ref, "success",
@@ -472,6 +482,28 @@ def receive_result(body: ResultForward, db: Session = Depends(get_db), principal
     return {"status": "received"}
 
 
+class IntakeIn(BaseModel):
+    referral_id: str
+    local_patient_id: str
+
+
+@app.post("/intake/patient", tags=["intake"])
+def intake_patient(body: IntakeIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Staff here confirmed who an arriving patient is (through the central link request): the
+    incoming referral and test orders for that request now point at this record."""
+    require_own(principal, *IDENTITY_ROLES, what="confirm an arriving patient")
+    if db.get(Patient, body.local_patient_id) is None:
+        raise _not_found("No such patient")
+    cases = db.scalars(select(Case).where(Case.central_referral_id == body.referral_id)).all()
+    orders = db.scalars(select(Order).where(Order.central_referral_id == body.referral_id)).all()
+    for item in [*cases, *orders]:
+        item.local_patient_id = body.local_patient_id
+    record_audit(db, AuditEvent, principal, "intake.patient_confirmed", "patient", body.local_patient_id, "success",
+                 referral_context=body.referral_id, detail={"cases": len(cases), "orders": len(orders)})
+    db.commit()
+    return {"cases": len(cases), "orders": len(orders), "local_patient_id": body.local_patient_id}
+
+
 @app.post("/inbound/clarification-answers", tags=["inbound (central platform)"])
 def receive_answer(body: ClarificationAnswer, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     _require_central(principal)
@@ -488,20 +520,28 @@ def receive_answer(body: ClarificationAnswer, db: Session = Depends(get_db), pri
     return {"status": "received", "id": ir.id}
 
 
-# --------------------------------------------------------------------------- receiving doctor workspace
+# --------------------------------------------------------------------------- incoming referrals
+# Staff take every incoming referral in: acknowledge receipt, confirm the patient and assign a
+# doctor. The doctor sees the referrals assigned to them and accepts, declines or responds.
 def _require_doctor(principal: Principal) -> None:
     require_own(principal, "clinician", what="act on incoming referrals")
 
 
+def _is_intake(principal: Principal) -> bool:
+    return principal.institution_id == INSTITUTION and principal.has_any(*INTAKE_ROLES)
+
+
 def _visible(case: Case, principal: Principal) -> bool:
-    return case.department == principal.department or (
-        bool(case.requested_doctor) and _plain(case.requested_doctor) == _plain(principal.display_name))
+    if _is_intake(principal):
+        return True
+    return "clinician" in principal.roles and bool(case.assigned_doctor) and \
+        _plain(case.assigned_doctor) == _plain(principal.display_name)
 
 
 def _get_case(db: Session, case_id: int, principal: Principal) -> Case:
     case = db.get(Case, case_id)
     if case is None or not _visible(case, principal):
-        raise _not_found("Referral not found in your department")
+        raise _not_found("Referral not found, or not assigned to you")
     return case
 
 
@@ -509,9 +549,12 @@ def _case_out(c: Case, db: Session) -> dict:
     return {
         "id": c.id, "central_referral_id": c.central_referral_id, "sender_institution": c.sender_institution,
         "sender_name": c.sender_name, "department": c.department, "requested_doctor": c.requested_doctor,
-        "patient_name": c.patient_name, "patient_birth_date": c.patient_birth_date, "local_patient_id": c.local_patient_id,
+        "patient_name": c.patient_name, "patient_birth_date": c.patient_birth_date, "patient_sex": c.patient_sex,
+        "patient_cnic": c.patient_cnic, "local_patient_id": c.local_patient_id, "link_request_id": c.link_request_id,
         "urgency": c.urgency, "status": c.status, "latest_version": c.latest_version,
-        "acknowledged_by": c.acknowledged_by, "acknowledged_at": c.acknowledged_at, "decision": c.decision,
+        "acknowledged_by": c.acknowledged_by, "acknowledged_at": c.acknowledged_at,
+        "assigned_doctor": c.assigned_doctor, "assigned_by": c.assigned_by, "assigned_at": c.assigned_at,
+        "assign_note": c.assign_note, "decision": c.decision,
         "decision_by": c.decision_by, "decision_at": c.decision_at, "decline_reason": c.decline_reason,
         "received_at": c.received_at, "updated_at": c.updated_at,
         "open_info_requests": db.scalar(select(func.count()).select_from(InfoRequest).where(
@@ -519,16 +562,57 @@ def _case_out(c: Case, db: Session) -> dict:
     }
 
 
-@app.get("/cases", tags=["receiving doctor"])
+@app.get("/cases", tags=["incoming referrals"])
 def list_cases(db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    _require_doctor(principal)
+    require_own(principal, "clinician", *INTAKE_ROLES, what="see incoming referrals")
     cases = [c for c in db.scalars(select(Case).order_by(Case.updated_at.desc())) if _visible(c, principal)]
     return [_case_out(c, db) for c in cases]
 
 
-@app.get("/cases/{case_id}", tags=["receiving doctor"])
+@app.post("/cases/{case_id}/acknowledge", tags=["incoming referrals"])
+def acknowledge(case_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Staff confirm the referral has been received here."""
+    require_own(principal, *INTAKE_ROLES, what="acknowledge a referral")
+    case = _get_case(db, case_id, principal)
+    if case.acknowledged_at is None:
+        case.acknowledged_by, case.acknowledged_at = principal.display_name, utcnow()
+        if case.status == "received":
+            case.status = "acknowledged"
+        _emit(db, f"{INSTITUTION}:{case.central_referral_id}:acknowledged", "acknowledged", case.central_referral_id,
+              principal, case=case)
+        record_audit(db, AuditEvent, principal, "case.acknowledge", "referral", case.central_referral_id, "success")
+        db.commit()
+    return _case_out(case, db)
+
+
+class AssignIn(BaseModel):
+    doctor: str = Field(min_length=3)
+    note: str = ""
+
+
+@app.post("/cases/{case_id}/assign", tags=["incoming referrals"])
+def assign(case_id: int, body: AssignIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Staff send the referral to the doctor who will see the patient (can be changed until they decide)."""
+    require_own(principal, *INTAKE_ROLES, what="assign a referral")
+    case = _get_case(db, case_id, principal)
+    if case.acknowledged_at is None:
+        raise _conflict("not_acknowledged", "Acknowledge the referral first")
+    if not case.local_patient_id:
+        raise _conflict("patient_not_confirmed", "Confirm the patient (match your record or register them) first")
+    if case.decision:
+        raise _conflict("already_decided", f"The doctor has already {case.decision} it")
+    case.assigned_doctor, case.assigned_by, case.assigned_at = body.doctor.strip(), principal.display_name, utcnow()
+    case.assign_note = body.note.strip() or None
+    case.status = "assigned"
+    record_audit(db, AuditEvent, principal, "case.assign", "referral", case.central_referral_id, "success",
+                 detail={"doctor": case.assigned_doctor})
+    db.commit()
+    return _case_out(case, db)
+
+
+@app.get("/cases/{case_id}", tags=["incoming referrals"])
 def get_case(case_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    _require_doctor(principal)
+    require_own(principal, "clinician", *INTAKE_ROLES, what="see incoming referrals")
     case = _get_case(db, case_id, principal)
     packages = db.scalars(select(IncomingPackage).where(IncomingPackage.case_id == case.id)
                           .order_by(IncomingPackage.version.desc())).all()
@@ -552,21 +636,6 @@ def get_case(case_id: int, db: Session = Depends(get_db), principal: Principal =
     }
 
 
-@app.post("/cases/{case_id}/acknowledge", tags=["receiving doctor"])
-def acknowledge(case_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    _require_doctor(principal)
-    case = _get_case(db, case_id, principal)
-    if case.acknowledged_at is None:
-        case.acknowledged_by, case.acknowledged_at = principal.display_name, utcnow()
-        if case.status == "received":
-            case.status = "acknowledged"
-        _emit(db, f"{INSTITUTION}:{case.central_referral_id}:acknowledged", "acknowledged", case.central_referral_id,
-              principal, case=case)
-        record_audit(db, AuditEvent, principal, "case.acknowledge", "referral", case.central_referral_id, "success")
-        db.commit()
-    return _case_out(case, db)
-
-
 class DecisionIn(BaseModel):
     decision: Literal["accept", "decline"]
     reason: str | None = None
@@ -576,8 +645,8 @@ class DecisionIn(BaseModel):
 def decide(case_id: int, body: DecisionIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     _require_doctor(principal)
     case = _get_case(db, case_id, principal)
-    if case.acknowledged_at is None:
-        raise _conflict("not_acknowledged", "Acknowledge the referral before deciding")
+    if case.acknowledged_at is None or not case.assigned_doctor:
+        raise _conflict("not_assigned", "Staff have not assigned this referral yet")
     target = "accepted" if body.decision == "accept" else "declined"
     if case.decision:
         if case.decision == target:
@@ -704,16 +773,21 @@ def _get_order(db: Session, order_id: int, principal: Principal) -> Order:
     return o
 
 
-def _order_out(o: Order) -> dict:
+def _order_out(o: Order, db: Session | None = None) -> dict:
+    files = [] if db is None else [
+        {"id": a.id, "filename": a.filename, "content_type": a.content_type, "size": len(a.data)}
+        for a in db.scalars(select(OrderAttachment).where(OrderAttachment.order_id == o.id).order_by(OrderAttachment.id))]
     return {
         "id": o.id, "order_ref": o.order_ref, "central_referral_id": o.central_referral_id,
         "sender_institution": o.sender_institution, "sender_name": o.sender_name, "department": o.department,
         "category": o.category, "test": o.test, "body_area": o.body_area, "clinical_question": o.clinical_question,
         "urgency": o.urgency, "patient_name": o.patient_name, "patient_birth_date": o.patient_birth_date,
-        "local_patient_id": o.local_patient_id, "requested_by": o.requested_by, "status": o.status,
+        "patient_sex": o.patient_sex, "patient_cnic": o.patient_cnic, "local_patient_id": o.local_patient_id,
+        "link_request_id": o.link_request_id, "requested_by": o.requested_by, "status": o.status,
         "reject_reason": o.reject_reason, "scheduled_for": o.scheduled_for, "report_text": o.report_text,
+        "findings": o.findings, "impression": o.impression,
         "values": o.values, "reported_by": o.reported_by, "reported_at": o.reported_at, "history": o.history,
-        "received_at": o.received_at, "updated_at": o.updated_at,
+        "attachments": files, "received_at": o.received_at, "updated_at": o.updated_at,
     }
 
 
@@ -725,7 +799,7 @@ def _order_step(db: Session, o: Order, principal: Principal, status: str, event:
     record_audit(db, AuditEvent, principal, f"order.{status}", "order", o.order_ref, "success",
                  referral_context=o.central_referral_id)
     db.commit()
-    return _order_out(o)
+    return _order_out(o, db)
 
 
 @app.get("/orders", tags=["laboratory and imaging"])
@@ -738,7 +812,18 @@ def list_orders(db: Session = Depends(get_db), principal: Principal = Depends(ge
 @app.get("/orders/{order_id}", tags=["laboratory and imaging"])
 def get_order(order_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     _require_diagnostics(principal)
-    return _order_out(_get_order(db, order_id, principal))
+    return _order_out(_get_order(db, order_id, principal), db)
+
+
+@app.get("/orders/{order_id}/attachments/{attachment_id}", tags=["laboratory and imaging"])
+def order_attachment(order_id: int, attachment_id: int, db: Session = Depends(get_db),
+                     principal: Principal = Depends(get_principal)):
+    _require_diagnostics(principal)
+    o = _get_order(db, order_id, principal)
+    a = db.get(OrderAttachment, attachment_id)
+    if a is None or a.order_id != o.id:
+        raise _not_found("Attachment not found")
+    return Response(a.data, media_type=a.content_type, headers={"Content-Disposition": f'inline; filename="{a.filename}"'})
 
 
 @app.post("/orders/{order_id}/accept", tags=["laboratory and imaging"])
@@ -748,7 +833,7 @@ def accept_order(order_id: int, db: Session = Depends(get_db), principal: Princi
     if o.status != "requested":
         raise _conflict("invalid_step", f"Order is already {o.status}")
     if not o.local_patient_id or db.get(Patient, o.local_patient_id) is None:
-        raise _conflict("patient_not_linked", "This patient is not linked to a record here yet")
+        raise _conflict("patient_not_linked", "Confirm the patient first: match your record or register them as new")
     return _order_step(db, o, principal, "accepted", "order_accepted", {})
 
 
@@ -798,26 +883,66 @@ class ValueIn(BaseModel):
     flag: str | None = None
 
 
+class AttachmentIn(BaseModel):
+    filename: str = Field(min_length=1, max_length=200)
+    content_type: str
+    data: str  # base64
+
+
 class ReportIn(BaseModel):
     findings: str = ""
     impression: str = ""
     values: list[ValueIn] = Field(default_factory=list)
+    attachments: list[AttachmentIn] = Field(default_factory=list, max_length=6)
+
+
+def _unprocessable(code: str, message: str) -> HTTPException:
+    return HTTPException(422, {"code": code, "message": message})
+
+
+def _check_report(o: Order, body: ReportIn) -> list[tuple[AttachmentIn, bytes]]:
+    """A report must say what was found: every laboratory result with its value; a scan or
+    cardiac test with findings, an impression and the images (or trace) themselves."""
+    if o.category == "laboratory":
+        if not body.values or any(not v.test.strip() or not v.value.strip() for v in body.values):
+            raise _unprocessable("values_required", "Enter every result with its test name and value")
+    else:
+        if len(body.findings.strip()) < 10 or len(body.impression.strip()) < 5:
+            raise _unprocessable("findings_required", "Write the findings and the impression")
+        if not body.attachments:
+            what = "scan images" if o.category == "imaging" else "ECG trace or echo images"
+            raise _unprocessable("images_required", f"Attach the {what} (PNG, JPEG or PDF)")
+    files = []
+    for a in body.attachments:
+        if a.content_type not in ATTACHMENT_TYPES:
+            raise _unprocessable("file_type", f"{a.filename}: only PNG, JPEG or PDF files")
+        try:
+            raw = base64.b64decode(a.data, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise _unprocessable("file_unreadable", f"{a.filename} could not be read") from exc
+        if not raw or len(raw) > MAX_ATTACHMENT_BYTES:
+            raise _unprocessable("file_size", f"{a.filename}: each file must be under 5 MB")
+        files.append((a, raw))
+    return files
 
 
 @app.post("/orders/{order_id}/report", tags=["laboratory and imaging"])
 def report_order(order_id: int, body: ReportIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    """Return the report. It is also filed in this institution's own records."""
+    """Return the report (with images for scans). It is also filed in this institution's own records."""
     _require_diagnostics(principal)
     o = _get_order(db, order_id, principal)
     if o.status not in ("accepted", "scheduled", "done"):
         raise _conflict("invalid_step", "Accept the order before reporting it")
-    if not (body.findings.strip() or body.impression.strip() or body.values):
-        raise HTTPException(422, {"code": "empty_report", "message": "Enter the findings or at least one result"})
+    files = _check_report(o, body)
     now = utcnow()
     values: list[dict[str, Any]] = [v.model_dump() for v in body.values]
+    o.findings, o.impression = body.findings.strip() or None, body.impression.strip() or None
     o.report_text = "\n".join(x for x in [body.findings.strip() and f"Findings: {body.findings.strip()}",
                                           body.impression.strip() and f"Impression: {body.impression.strip()}"] if x)
     o.values, o.reported_by, o.reported_at = values, principal.display_name, now
+    for a, raw in files:
+        db.add(OrderAttachment(order_id=o.id, filename=a.filename, content_type=a.content_type, data=raw,
+                               uploaded_by=principal.display_name))
     n = db.scalar(select(func.count()).select_from(LabResult)) or 0
     if o.category == "laboratory":
         for i, v in enumerate(values):
@@ -835,7 +960,8 @@ def report_order(order_id: int, body: ReportIn, db: Session = Depends(get_db), p
     return _order_step(db, o, principal, "reported", "order_reported", {
         "test": o.test, "report_text": o.report_text, "findings": body.findings.strip(),
         "impression": body.impression.strip(), "values": values, "reported_by": principal.display_name,
-        "reported_at": now.isoformat()})
+        "reported_at": now.isoformat(), "local_patient_id": o.local_patient_id,
+        "attachments": [{"filename": a.filename, "content_type": a.content_type, "data": a.data} for a, _ in files]})
 
 
 @app.post("/outbox/{item_id}/retry", tags=["receiving doctor"])

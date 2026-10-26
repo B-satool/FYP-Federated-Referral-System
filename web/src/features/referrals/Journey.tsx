@@ -2,7 +2,7 @@ import { KeyboardEvent, useRef } from "react";
 import { Box, Button, ButtonBase, Paper, Stack, Typography } from "@mui/material";
 import ArrowBack from "@mui/icons-material/ArrowBack";
 import ArrowForward from "@mui/icons-material/ArrowForward";
-import type { ReferralDetail } from "../../api/types";
+import type { ReferralDetail, RequestKind } from "../../api/types";
 import { tokens } from "../../theme";
 import { computeSteps, layout, NextStep, Role, STATE_LABEL, StepKey, StepState, STEP_LABEL, stepOrder } from "./steps";
 
@@ -52,8 +52,8 @@ function Marker({ n, state }: { n: number; state: StepState }) {
 export function JourneyNav({ r, role, active, onSelect }: { r: ReferralDetail; role: Role; active: StepKey; onSelect: (k: StepKey) => void }) {
   const steps = computeSteps(r, role);
   const refs = useRef<Partial<Record<StepKey, HTMLButtonElement | null>>>({});
-  const PHASES = layout(role).map((p) => ({ title: p.title, steps: p.steps.map((k) => [k, STEP_LABEL[k]] as [StepKey, string]) }));
-  const STEP_ORDER = stepOrder(role);
+  const PHASES = layout(role, r.kind).map((p) => ({ title: p.title, steps: p.steps.map((k) => [k, STEP_LABEL[k]] as [StepKey, string]) }));
+  const STEP_ORDER = stepOrder(role, r.kind);
   const AUDIT_STEP: [StepKey, string] = ["audit", STEP_LABEL.audit];
   let counter = 0;
 
@@ -128,8 +128,8 @@ export function JourneyNav({ r, role, active, onSelect }: { r: ReferralDetail; r
   };
 
   return (
-    <Paper sx={{ p: { xs: 1.5, lg: 0 }, mb: 2, overflow: "hidden" }} component="section" aria-label="Referral journey">
-      <Box role="tablist" aria-label="Referral steps" sx={{ display: "flex", flexWrap: { xs: "wrap", lg: "nowrap" }, gap: { xs: 1.5, md: 2.5, lg: 0 }, alignItems: "stretch" }}>
+    <Paper sx={{ p: { xs: 1.5, lg: 0 }, mb: 2, overflow: "hidden" }} component="section" aria-label="Request journey">
+      <Box role="tablist" aria-label="Steps" sx={{ display: "flex", flexWrap: { xs: "wrap", lg: "nowrap" }, gap: { xs: 1.5, md: 2.5, lg: 0 }, alignItems: "stretch" }}>
         {PHASES.map((p, i) => (
           <Box key={p.title} sx={{ width: { xs: "100%", md: "auto" }, flex: { lg: `${p.steps.length} 1 0` }, minWidth: { lg: 0 }, display: { lg: "flex" }, flexDirection: "column", borderLeft: { lg: i === 0 ? "none" : `1px solid ${tokens.line}` } }}>
             <Typography aria-hidden variant="overline" component="div" sx={{ color: tokens.muted, mb: 0.5, px: { lg: 1 }, pt: { lg: 0.75 }, lineHeight: 1.6 }}>
@@ -177,8 +177,8 @@ export function NextStepBanner({ step, onGo }: { step: NextStep; onGo: (k: StepK
 }
 
 /** Previous and next buttons at the end of each step keep the journey linear. */
-export function StepPager({ role, active, onGo }: { role: Role; active: StepKey; onGo: (k: StepKey) => void }) {
-  const STEP_ORDER = stepOrder(role);
+export function StepPager({ role, kind, active, onGo }: { role: Role; kind: RequestKind; active: StepKey; onGo: (k: StepKey) => void }) {
+  const STEP_ORDER = stepOrder(role, kind);
   const i = STEP_ORDER.indexOf(active);
   const prev = i > 0 ? STEP_ORDER[i - 1] : null;
   const next = i < STEP_ORDER.length - 1 ? STEP_ORDER[i + 1] : null;

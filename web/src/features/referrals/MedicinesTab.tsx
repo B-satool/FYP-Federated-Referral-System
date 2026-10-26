@@ -119,13 +119,24 @@ export function MedicinesTab({ r, role }: { r: ReferralDetail; role: Role }) {
   });
   const ack = useMutation({
     mutationFn: ({ id, version }: { id: number; version: number }) => api.post(`/referrals/${r.id}/flags/${id}/acknowledge`, { flag_version: version }),
-    meta: { success: "Flag acknowledged." },
+    meta: { success: "Marked as reviewed." },
     onSuccess: done,
   });
   if (q.isLoading) return <Loading />;
   if (q.error) return <ErrorAlert error={q.error} />;
   const v = q.data!;
   const locked = LOCKED.includes(r.status);
+  const staff = role === "staff";
+  // the doctor reviews flags once staff have gathered everything
+  const gathering = !r.prepared_at && r.status === "requested";
+  if (role === "doctor" && gathering) {
+    return (
+      <Alert severity="info">
+        Staff are still gathering the records, papers and medicines for this referral. You will be notified when the medication flags are ready for you
+        to review.
+      </Alert>
+    );
+  }
   const reps = v.entries.filter((e) => !e.duplicate_of);
   const dups = (id: number) => v.entries.filter((e) => e.duplicate_of === id);
   const confirmedFlags = v.flags.filter((f) => f.kind === "confirmed");
@@ -136,7 +147,7 @@ export function MedicinesTab({ r, role }: { r: ReferralDetail; role: Role }) {
       <Section
         title={`Current medicines (${reps.length})`}
         description="Only medicines the patient takes now. The same medicine from different places is shown once, with every place that records it."
-        actions={!locked && (
+        actions={!locked && staff && (
           <Button variant="outlined" startIcon={<Add />} onClick={() => setAdding(true)}>
             Add a medicine
           </Button>
@@ -182,10 +193,10 @@ export function MedicinesTab({ r, role }: { r: ReferralDetail; role: Role }) {
                     ))}
                   </TableCell>
                   <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
-                    {!locked && ["unmapped", "ambiguous"].includes(m.mapping_status) && (
+                    {!locked && staff && ["unmapped", "ambiguous"].includes(m.mapping_status) && (
                       <Button size="small" onClick={() => setMatching(m)}>Match</Button>
                     )}
-                    {!locked && (
+                    {!locked && staff && (
                       <Button size="small" onClick={() => setExcluding(m)}>Not current</Button>
                     )}
                   </TableCell>
@@ -209,7 +220,7 @@ export function MedicinesTab({ r, role }: { r: ReferralDetail; role: Role }) {
                 <Typography variant="body2">
                   {m.original_name} ({m.source_label}): {m.excluded_reason}, by {m.excluded_by}
                 </Typography>
-                {!locked && <Button size="small" onClick={() => act.mutate({ path: `/referrals/${r.id}/medications/${m.id}/restore` })}>Restore</Button>}
+                {!locked && staff && <Button size="small" onClick={() => act.mutate({ path: `/referrals/${r.id}/medications/${m.id}/restore` })}>Restore</Button>}
               </Stack>
             ))}
           </details>
@@ -229,7 +240,9 @@ export function MedicinesTab({ r, role }: { r: ReferralDetail; role: Role }) {
 
       <Section
         title="Medication flags"
-        description="Checked automatically: each current medicine against the planned procedure, using reviewer-approved rules."
+        description={staff
+          ? "Checked automatically: each current medicine against the planned procedure, using reviewer-approved rules. The doctor reviews them once you mark the referral ready (Check & send)."
+          : "Checked automatically: each current medicine against the planned procedure, using reviewer-approved rules. Review each one for this patient."}
       >
         <ErrorAlert error={ack.error} />
         {v.evaluation && (
@@ -244,10 +257,10 @@ export function MedicinesTab({ r, role }: { r: ReferralDetail; role: Role }) {
               <FlagCard key={f.id} flag={f} acknowledged={a ? { by: a.by, at: a.created_at } : null}
                 actions={role === "doctor" && !a && !locked ? (
                   <Button variant="contained" size="small" disabled={ack.isPending} onClick={() => ack.mutate({ id: f.id, version: f.version })}>
-                    Acknowledge for this patient
+                    Mark as reviewed
                   </Button>
                 ) : undefined}
-                footer={role === "staff" && !a ? <Tag tone="wait" label={`Waiting for ${r.requesting_doctor_name} to acknowledge`} /> : undefined} />
+                footer={staff && !a ? <Tag tone="wait" label={gathering ? "The doctor reviews this after you mark the referral ready" : `Waiting for ${r.requesting_doctor_name} to review`} /> : undefined} />
             );
           })}
           {v.flags.length === 0 && <Empty>No flags for the planned procedure.</Empty>}

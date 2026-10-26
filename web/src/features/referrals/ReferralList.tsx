@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Link as RouterLink } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Button,
@@ -16,18 +16,29 @@ import {
   Typography,
   Link,
 } from "@mui/material";
-import Add from "@mui/icons-material/Add";
 import { api } from "../../api/client";
 import type { Referral } from "../../api/types";
 import { Empty, ErrorAlert, fmtDate, Loading, PageHeader, ReferralStatus, Tag, UrgencyTag } from "../../components/common";
 import { isDoctor, useMe, useRefData } from "../../hooks";
+import { NewRequestButton } from "./NewReferral";
+
+function Destination({ r }: { r: Referral }) {
+  if (r.kind === "test") return <>Tests and scans</>;
+  return (
+    <>
+      {r.destination_name}
+      <Typography variant="caption" display="block" color="text.secondary">
+        {r.destination_department_name}
+      </Typography>
+    </>
+  );
+}
 
 export function ReferralList() {
-  const nav = useNavigate();
   const ref = useRefData();
   const { data: me } = useMe();
   const doctor = isDoctor(me);
-  const [filters, setFilters] = useState({ patient: "", reference: "", status: "", date_from: "", date_to: "" });
+  const [filters, setFilters] = useState({ kind: "", patient: "", reference: "", status: "", date_from: "", date_to: "" });
   const [applied, setApplied] = useState(filters);
   const params = new URLSearchParams(Object.entries(applied).filter(([, v]) => v) as [string, string][]);
   const q = useQuery({
@@ -38,15 +49,9 @@ export function ReferralList() {
   return (
     <>
       <PageHeader
-        title="Referrals"
-        subtitle={q.data ? `${q.data.length} ${q.data.length === 1 ? "referral" : "referrals"} shown` : "Search and filter your institution's referrals"}
-        actions={
-          doctor && (
-            <Button variant="contained" startIcon={<Add />} onClick={() => nav("/referrals/new")}>
-              New referral
-            </Button>
-          )
-        }
+        title="Requests sent"
+        subtitle={q.data ? `${q.data.length} ${q.data.length === 1 ? "request" : "requests"} shown: referrals to a doctor or department, and test or scan requests` : "Search and filter your institution's requests"}
+        actions={doctor && <NewRequestButton />}
       />
       <Paper component="section" aria-label="Search and filter" sx={{ p: 2, mb: 2 }}>
         <Stack
@@ -59,8 +64,13 @@ export function ReferralList() {
             setApplied(filters);
           }}
         >
+          <TextField size="small" select label="Type" value={filters.kind} onChange={(e) => setFilters({ ...filters, kind: e.target.value })} sx={{ minWidth: 200 }}>
+            <MenuItem value="">Referrals and tests</MenuItem>
+            <MenuItem value="referral">Referrals to a practitioner</MenuItem>
+            <MenuItem value="test">Tests and scans</MenuItem>
+          </TextField>
           <TextField size="small" label="Patient name or ID" value={filters.patient} onChange={(e) => setFilters({ ...filters, patient: e.target.value })} />
-          <TextField size="small" label="Referral ID" value={filters.reference} onChange={(e) => setFilters({ ...filters, reference: e.target.value })} />
+          <TextField size="small" label="Reference" value={filters.reference} onChange={(e) => setFilters({ ...filters, reference: e.target.value })} />
           <TextField size="small" select label="Status" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} sx={{ minWidth: 200 }}>
             <MenuItem value="">Any status</MenuItem>
             {Object.entries(ref.data?.statuses ?? {}).map(([k, v]) => (
@@ -80,12 +90,13 @@ export function ReferralList() {
       <ErrorAlert error={q.error} />
       {q.data && (
         <TableContainer component={Paper}>
-          <Table size="small" aria-label="Referrals">
+          <Table size="small" aria-label="Requests">
             <TableHead>
               <TableRow>
-                <TableCell>Referral</TableCell>
+                <TableCell>Reference</TableCell>
+                <TableCell>Type</TableCell>
                 <TableCell>Patient</TableCell>
-                <TableCell>Referred to</TableCell>
+                <TableCell>To</TableCell>
                 <TableCell>Requested by</TableCell>
                 <TableCell>Urgency</TableCell>
                 <TableCell>Status</TableCell>
@@ -101,6 +112,7 @@ export function ReferralList() {
                       {r.reference}
                     </Link>
                   </TableCell>
+                  <TableCell>{r.kind === "test" ? "Test or scan" : "Referral"}</TableCell>
                   <TableCell>
                     {r.patient.name}
                     <Typography variant="caption" display="block" color="text.secondary">
@@ -108,10 +120,7 @@ export function ReferralList() {
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    {r.destination_name}
-                    <Typography variant="caption" display="block" color="text.secondary">
-                      {r.destination_department_name}
-                    </Typography>
+                    <Destination r={r} />
                   </TableCell>
                   <TableCell>{r.requesting_doctor_name}</TableCell>
                   <TableCell>
@@ -131,12 +140,8 @@ export function ReferralList() {
           </Table>
           {q.data.length === 0 && (
             <Stack spacing={1.5} alignItems="flex-start" sx={{ p: 3 }}>
-              <Empty>No referrals match these filters.</Empty>
-              {doctor && (
-                <Button variant="outlined" startIcon={<Add />} onClick={() => nav("/referrals/new")}>
-                  Start a new referral
-                </Button>
-              )}
+              <Empty>No requests match these filters.</Empty>
+              {doctor && <NewRequestButton />}
             </Stack>
           )}
         </TableContainer>

@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import INSTITUTIONS, SOURCES, settings
-from ..identity.links import verified_counterparts
+from ..identity.links import links_for, verified_counterparts
 from ..models import EvidenceItem, Referral, SourceRetrieval
 from ..security import audit
 from . import importer, sources
@@ -33,10 +33,14 @@ def window_start() -> date:
 
 
 def linked_sources(db: Session, referral: Referral) -> list[tuple[str, str, int | None]]:
-    """Own record plus every verified link: (institution, local id, link id)."""
+    """Own record plus every verified records link: (institution, local id, link id). Intake links
+    (made when a referral or order arrived somewhere) are not record sources: that record is the
+    receiver's own, and a patient registered as new there holds no earlier history."""
     out: list[tuple[str, str, int | None]] = [(referral.patient_institution, referral.patient_local_id, None)]
+    new_records = {x.id for x in links_for(db, referral.patient_institution, referral.patient_local_id, ("verified",))
+                   if x.registered_new or x.kind == "intake"}
     for inst, (local_id, link_id) in verified_counterparts(db, referral.patient_institution, referral.patient_local_id).items():
-        if inst in SOURCES and inst != referral.patient_institution:
+        if inst in SOURCES and inst != referral.patient_institution and link_id not in new_records:
             out.append((inst, local_id, link_id))
     return out
 

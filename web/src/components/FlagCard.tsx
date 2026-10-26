@@ -22,7 +22,7 @@ export type FlagLike = {
 const KIND: Record<string, { severity: "error" | "warning" | "info"; label: string; icon: JSX.Element }> = {
   confirmed: { severity: "error", label: "Medication flag", icon: <Medication /> },
   unrecognised_medicine: { severity: "warning", label: "Medicine not recognised", icon: <HelpOutline /> },
-  procedure_not_checked: { severity: "warning", label: "Procedure not known yet", icon: <HelpOutline /> },
+  procedure_not_checked: { severity: "warning", label: "Procedure not checked", icon: <HelpOutline /> },
   records_incomplete: { severity: "info", label: "Records incomplete", icon: <ReportProblemOutlined /> },
 };
 
@@ -69,7 +69,7 @@ export function FlagCard({
       </Stack>
       {acknowledged && (
         <Typography variant="body2" sx={{ mt: 1 }}>
-          <strong>Acknowledged</strong> by {acknowledged.by}, {fmtDate(acknowledged.at)}
+          <strong>Reviewed</strong> by {acknowledged.by}, {fmtDate(acknowledged.at)}
         </Typography>
       )}
       {footer && <Box sx={{ mt: 1 }}>{footer}</Box>}
@@ -79,7 +79,7 @@ export function FlagCard({
         </Stack>
       )}
       <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
-        Acknowledging means the doctor has seen this for this patient. It is not treatment clearance and never advises changing a medicine.
+        Reviewed means the doctor has seen this for this patient. It is not treatment clearance and never advises changing a medicine.
       </Typography>
     </Alert>
   );

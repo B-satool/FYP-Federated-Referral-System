@@ -6,28 +6,12 @@ from pathlib import Path
 
 import httpx
 import pytest
-from conftest import ROOT, new_referral
+from conftest import ROOT, SURGERY, new_referral
 from helpers import CENTRAL, central, ok, token, wait_for
 
 STAFF = central("staff.ali")
 DOCS = ROOT / "seed-data" / "documents"
-
-
-def _approve_destination(rid: int, staff_user: str, match_existing: bool) -> dict | None:
-    staff = central(staff_user)
-    link = next((x for x in ok(staff.get("/patient-links/incoming")) if x["referral_id"] == rid), None)
-    if link is None:  # confirmed earlier (e.g. by another test): no new request is needed
-        dest = ok(STAFF.get(f"/referrals/{rid}"))["destination_institution"]
-        assert any(s["institution_id"] == dest and s["linked"] for s in ok(STAFF.get(f"/referrals/{rid}"))["sources"])
-        return None
-    cands = ok(staff.post(f"/patient-links/{link['id']}/lookup"))["candidates"]
-    if match_existing:
-        assert len(cands) == 1 and cands[0]["compare"]["cnic"] and cands[0]["compare"]["birth_date"]
-        body = {"local_patient_id": cands[0]["local_patient_id"], "note": "CNIC, name and date of birth match"}
-    else:
-        assert cands == []
-        body = {"register_new": True, "note": "New patient; identity checked"}
-    return ok(staff.post(f"/patient-links/{link['id']}/approve", body))
+ANGIO = ["iodinated_contrast", "arterial_access"]
 
 
 def _flags(rid: int) -> set[tuple[str, str]]:
@@ -35,25 +19,43 @@ def _flags(rid: int) -> set[tuple[str, str]]:
     return {(f["rule_id"], f["medication"].split()[0].lower()) for f in meds["flags"] if f["kind"] == "confirmed"}
 
 
-@pytest.mark.parametrize("patient,dest,dept,procedure,dest_staff,existing,expected", [
-    ("Rubina", "akuh", "dentistry", "surgical_tooth_extraction", "staff.aku", False, {("RULE-010", "alendronate")}),
-    ("Tariq", "ziauddin", "cardiology", "coronary_angiography", "staff.zia", True, {("RULE-005", "metformin")}),
-    ("Gondal", "akuh", "orthopaedics", "total_knee_replacement", "staff.aku", False,
+@pytest.mark.parametrize("patient,dest,dept,procedure,tags,expected", [
+    ("Rubina", "akuh", "dentistry", "Surgical extraction of lower left molar", ["oral_surgery", "bleeding_risk"],
+     {("RULE-010", "alendronate")}),
+    ("Tariq", "ziauddin", "cardiology", "Coronary angiography", ANGIO, {("RULE-005", "metformin")}),
+    ("Gondal", "akuh", "orthopaedics", "Total knee replacement (right)", SURGERY,
      {("RULE-002", "aspirin"), ("RULE-003", "diclofenac")}),
-    ("Shazia", "ziauddin", "gastro_hepatology", "upper_gi_endoscopy", "staff.zia", False, {("RULE-004", "ibuprofen")}),
+    ("Shazia", "ziauddin", "gastro_hepatology", "Upper GI endoscopy", ["gi_endoscopy", "sedation"],
+     {("RULE-004", "ibuprofen")}),
 ])
-def test_scenario_flags(patient, dest, dept, procedure, dest_staff, existing, expected):
-    r = new_referral(patient, dest, dept, procedure)
-    _approve_destination(r["id"], dest_staff, existing)
+def test_scenario_flags(patient, dest, dept, procedure, tags, expected):
+    r = new_referral(patient, dest, dept, procedure, tags)
     ok(STAFF.post(f"/referrals/{r['id']}/retrieve"))
     assert _flags(r["id"]) == expected
+
+
+def test_procedure_without_features_is_not_checked():
+    """A procedure written without saying what it involves: procedure rules are not run, and say so."""
+    r = new_referral("Imtiaz", "akuh", "general_surgery", "Gallbladder operation", [])
+    ok(STAFF.post(f"/referrals/{r['id']}/retrieve"))
+    meds = ok(STAFF.get(f"/referrals/{r['id']}/medications"))
+    kinds = {f["kind"] for f in meds["flags"]}
+    assert "confirmed" not in kinds and "procedure_not_checked" in kinds
 
 
 def test_p2_last_visited_hospital_and_stopped_medicine():
     """P2 was seen at AKUH (Aug 2026) and at Ziauddin radiology (Oct 2026): only Ziauddin is used.
     Diclofenac was stopped and must not appear as a current medicine."""
-    r = new_referral("Tariq", "ziauddin", "cardiology", "coronary_angiography")
-    _approve_destination(r["id"], "staff.zia", True)
+    r = new_referral("Tariq", "ziauddin", "cardiology", "Coronary angiography", ANGIO)
+    # Staff ask Ziauddin for his records there (a records request: match a record or say there is none).
+    link = ok(STAFF.post(f"/referrals/{r['id']}/links", {"target_institution": "ziauddin"}), 201)
+    zia = central("staff.zia")
+    cands = ok(zia.post(f"/patient-links/{link['id']}/lookup"))["candidates"]
+    assert len(cands) == 1 and cands[0]["compare"]["cnic"]
+    assert zia.post(f"/patient-links/{link['id']}/approve",
+                    {"register_new": True, "note": "not allowed for a records request"}).status_code == 422
+    ok(zia.post(f"/patient-links/{link['id']}/approve",
+                {"local_patient_id": cands[0]["local_patient_id"], "note": "CNIC, name and date of birth match"}))
     res = {x["source_institution"]: x for x in ok(STAFF.post(f"/referrals/{r['id']}/retrieve"))["results"]}
     assert res["ziauddin"]["status"] == "successful" and res["ziauddin"]["last_activity"] == "2026-10-10"
     assert res["akuh"]["status"] == "skipped" and "2026-08-30" in res["akuh"]["message"]
@@ -67,9 +69,8 @@ def test_p2_last_visited_hospital_and_stopped_medicine():
 def test_uploaded_prescription_merges_with_recorded_medicines():
     """P5's cardiology prescription (photo) lists the same medicines as the clinic record:
     after staff check the read fields, each medicine is shown once."""
-    r = new_referral("Imtiaz", "akuh", "general_surgery", "laparoscopic_cholecystectomy")
+    r = new_referral("Imtiaz", "akuh", "general_surgery", "Laparoscopic cholecystectomy", SURGERY)
     rid = r["id"]
-    _approve_destination(rid, "staff.aku", False)
     ok(STAFF.post(f"/referrals/{rid}/retrieve"))
     path = DOCS / "P5_prescription_cardiology_2025-06-18.jpg"
     with path.open("rb") as fh:

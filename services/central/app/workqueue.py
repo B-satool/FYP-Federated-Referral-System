@@ -35,7 +35,9 @@ def work_queue(db: Session = Depends(get_db), principal: Principal = Depends(get
     if "clinician" in principal.roles:
         mine = [r for r in referrals if r.requesting_doctor_id == principal.subject]
         out["drafts"] = [_ref(r) for r in mine if r.status == "draft"]
-        out["flags_to_acknowledge"] = [_ref(r, unacknowledged=len(u)) for r in mine if r.status != "draft"
+        out["flags_to_acknowledge"] = [_ref(r, unacknowledged=len(u)) for r in mine
+                                       if r.kind == "referral" and r.prepared_at is not None
+                                       and r.status not in ("draft", "cancelled")
                                        for u in [med.unacknowledged_flags(db, r.id)] if u]
         out["responses_to_review"] = []
         for r in mine:
@@ -54,7 +56,7 @@ def work_queue(db: Session = Depends(get_db), principal: Principal = Depends(get
     if "clinic_staff" in principal.roles:
         prep = []
         for r in referrals:
-            if r.status == "requested" or r.amendment_open:
+            if r.kind == "referral" and (r.status == "requested" or r.amendment_open):
                 items = readiness(db, r)
                 todo = [i for i in items if i["blocking"] and not i["ok"]]
                 prep.append(_ref(r, done=len(items) - len(todo), total=len(items),
@@ -63,13 +65,14 @@ def work_queue(db: Session = Depends(get_db), principal: Principal = Depends(get
         out["link_requests"] = [{"id": x.id, "patient_name": x.patient_name, "requester": x.requester_institution,
                                  "requested_at": x.requested_at, "purpose": x.purpose}
                                 for x in db.scalars(select(PatientLink).where(PatientLink.target_institution == inst,
+                                                                              PatientLink.kind == "records",
                                                                               PatientLink.status == "requested"))]
         ref_ids = {r.id: r for r in referrals if r.status != "draft"}
         out["tests_to_send"] = [{**diagnostic_out(d), "referral_reference": ref_ids[d.referral_id].reference,
                                  "patient_name": ref_ids[d.referral_id].patient_name}
                                 for d in db.scalars(select(DiagnosticRequest).where(
                                     DiagnosticRequest.referral_id.in_(list(ref_ids)),
-                                    DiagnosticRequest.status.in_(("draft", "rejected"))))] if ref_ids else []
+                                    DiagnosticRequest.status == "draft"))] if ref_ids else []
         out["delivery_problems"] = [_ref(r) for r in referrals if r.delivery_status == "failed"]
         out["follow_up"] = []
         for r in referrals:

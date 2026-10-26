@@ -4,8 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Box, Button, Link, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography, useMediaQuery } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { api } from "../../api/client";
+import type { Case, Me } from "../../api/types";
 import { ErrorAlert, fmtDate, Loading, OrderStatus, PageHeader, ReferralStatus, Section, Tag, UrgencyTag } from "../../components/common";
-import { isDoctor, useMe } from "../../hooks";
+import { hasRole, isDoctor, ownService, useMe } from "../../hooks";
+import { NewRequestButton } from "../referrals/NewReferral";
 import { actionableCount, Queue } from "./queue";
 
 type Row = { key: string; reference: string; patient: string; what: ReactNode; status?: ReactNode; when: string | null; to: string; urgency?: { u: string; label: string } };
@@ -34,7 +36,7 @@ function Rows({ rows, heading }: { rows: Row[]; heading: string }) {
       <Table size="small">
         <TableHead>
           <TableRow>
-            <TableCell>Referral</TableCell>
+            <TableCell>Reference</TableCell>
             <TableCell>Patient</TableCell>
             <TableCell>{heading}</TableCell>
             <TableCell>Status</TableCell>
@@ -75,11 +77,24 @@ function Group({ title, rows, heading = "What to do" }: { title: string; rows: R
   );
 }
 
+/** Incoming referrals at this institution that need the signed-in person (staff: take in; doctor: decide or respond). */
+function useIncoming(me: Me | undefined) {
+  const enabled = !!me && me.institution_kind !== "laboratory" && hasRole(me, "clinician", "clinic_staff");
+  return useQuery({ queryKey: ["incoming"], queryFn: () => api.get<Case[]>("/cases", ownService(me)), enabled, refetchInterval: 15000 });
+}
+
+const INTAKE_TODO: Record<string, string> = {
+  received: "Acknowledge, confirm the patient, assign a doctor",
+  acknowledged: "Confirm the patient and assign a doctor",
+};
+const DOCTOR_TODO: Record<string, string> = { assigned: "Accept, decline or ask for information", accepted: "Write and send your response" };
+
 export function WorkQueue() {
   const { data: me } = useMe();
   const nav = useNavigate();
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["work-queue"], queryFn: () => api.get<Queue>("/work-queue"), refetchInterval: 15000 });
+  const incoming = useIncoming(me);
   const readAll = useMutation({
     mutationFn: () => api.post("/notifications/read-all"),
     meta: { silent: true },
@@ -96,6 +111,13 @@ export function WorkQueue() {
     to: `/referrals/${r.id}${tab ? `?tab=${tab}` : ""}`,
   });
 
+  const todo = doctor ? DOCTOR_TODO : INTAKE_TODO;
+  const cases: Row[] = (incoming.data ?? []).filter((c) => todo[c.status] && !(c.status === "accepted" && c.decision !== "accepted")).map((c) => ({
+    key: `case-${c.id}`, reference: c.central_referral_id, patient: c.patient_name, when: c.received_at,
+    what: <>{todo[c.status]} <Typography component="span" variant="caption" color="text.secondary">· from {c.sender_name}</Typography></>,
+    status: <Tag tone="info" label={c.status} />, to: `/incoming/${c.id}`,
+  }));
+
   const info: Row[] = d.info_requests.map((c) => ({
     key: `info-${c.id}`, reference: c.referral_reference, patient: c.patient_name, when: c.asked_at,
     what: <><strong>{c.asked_by}</strong> asks: {c.question}</>, status: <Tag tone="warn" label="question" />,
@@ -106,33 +128,37 @@ export function WorkQueue() {
     <>
       <PageHeader
         title="Work queue"
-        subtitle={total ? `${total} ${total === 1 ? "item needs" : "items need"} you, ${me.name}.` : `Nothing needs you right now, ${me.name}.`}
+        subtitle={total + cases.length ? `${total + cases.length} ${total + cases.length === 1 ? "item needs" : "items need"} you, ${me.name}.` : `Nothing needs you right now, ${me.name}.`}
         actions={doctor && me.institution_kind !== "laboratory" ? (
           <>
-            <Button variant="contained" onClick={() => nav("/referrals/new")}>New referral</Button>
-            <Button variant="outlined" onClick={() => nav("/referrals")}>All referrals</Button>
+            <NewRequestButton />
+            <Button variant="outlined" onClick={() => nav("/referrals")}>All requests</Button>
           </>
-        ) : <Button variant="outlined" onClick={() => nav("/referrals")}>All referrals</Button>}
+        ) : <Button variant="outlined" onClick={() => nav("/referrals")}>All requests</Button>}
       />
       <Stack spacing={2.5}>
+        <Group title={doctor ? "Referrals assigned to you" : "Incoming referrals to take in"} heading="What to do" rows={cases} />
         {doctor ? (
           <>
-            <Group title="Medication flags to acknowledge" rows={(d.flags_to_acknowledge ?? []).map((r) => R(r, `${r.unacknowledged} flag(s) for the planned procedure`, "medicines"))} />
+            <Group title="Medication flags to review" rows={(d.flags_to_acknowledge ?? []).map((r) => R(r, `${r.unacknowledged} flag(s): staff have gathered the records and medicines`, "medicines"))} />
             <Group title="Test results ready" heading="Result" rows={(d.results_to_see ?? []).map((x) => ({
               key: `dx-${x.id}`, reference: x.referral_reference ?? x.reference, patient: x.patient_name ?? "", when: x.updated_at ?? x.created_at,
               what: `${x.test} from ${x.destination_name}`, status: <OrderStatus status={x.status} />, to: `/referrals/${x.referral_id}?tab=tests`,
             }))} />
             <Group title="Specialist responses to review" rows={(d.responses_to_review ?? []).map((r) => R(r, `Response from ${r.specialist_name}`, "response"))} />
-            <Group title="Questions from receiving hospitals" rows={info} />
+            <Group title="Questions from the receiving side" rows={info} />
             <Group title="Your drafts" rows={(d.drafts ?? []).map((r) => R(r, "Finish and submit the request", "request"))} />
-            <Group title="Your referrals in progress" heading="Where it is" rows={(d.in_progress ?? []).map((r) => R(r, r.status === "requested" ? "Staff are preparing it" : `With ${r.destination_name}`))} />
+            <Group title="Your requests in progress" heading="Where it is" rows={(d.in_progress ?? []).map((r) => R(r,
+              r.kind === "test" ? "Tests with the departments"
+                : r.status === "requested" ? (r.prepared_at ? "Flags reviewed; staff will send it" : "Staff are gathering the records")
+                : `With ${r.destination_name}`, r.kind === "test" ? "tests" : undefined))} />
           </>
         ) : (
           <>
             <Group title="Referrals to prepare and send" heading="Next step" rows={(d.to_prepare ?? []).map((r) => R(r,
               r.ready ? <strong>Ready to send</strong> : <>{r.next_step?.label}{r.next_step?.who === "doctor" ? " (doctor)" : ""} <Typography component="span" variant="caption" color="text.secondary">· {r.done} of {r.total} done</Typography></>,
               r.ready ? "send" : (r.next_step?.tab ?? undefined)))} />
-            <Group title="Patient link requests to check" heading="From" rows={(d.link_requests ?? []).map((l) => ({
+            <Group title="Records requests from other places" heading="From" rows={(d.link_requests ?? []).map((l) => ({
               key: `link-${l.id}`, reference: `Link #${l.id}`, patient: l.patient_name, when: l.requested_at, what: l.purpose,
               status: <Tag tone="wait" label="to check" />, to: "/patient-links",
             }))} />
@@ -141,9 +167,9 @@ export function WorkQueue() {
               what: `${x.test} to ${x.destination_name}${x.status === "rejected" ? ` (not accepted: ${x.reject_reason})` : ""}`,
               status: <OrderStatus status={x.status} />, to: `/referrals/${x.referral_id}?tab=tests`,
             }))} />
-            <Group title="Questions from receiving hospitals" rows={info} />
+            <Group title="Questions from the receiving side" rows={info} />
             <Group title="Follow-up" rows={(d.follow_up ?? []).map((r) => R(r,
-              !r.patient_informed ? "Tell the patient the outcome" : r.open_tasks ? `${r.open_tasks} task(s) open` : "Close the referral", "response"))} />
+              !r.patient_informed ? "Tell the patient the outcome" : r.open_tasks ? `${r.open_tasks} task(s) open` : "Close it", r.kind === "test" ? "tests" : "response"))} />
             <Group title="Delivery problems" rows={(d.delivery_problems ?? []).map((r) => R(r, "Sending failed: retry", "send"))} />
           </>
         )}
@@ -162,7 +188,7 @@ export function WorkQueue() {
             </Stack>
           </Section>
         )}
-        {total === 0 && d.notifications.length === 0 && (
+        {total + cases.length === 0 && d.notifications.length === 0 && (
           <Section title="All clear">
             <Typography color="text.secondary">There is nothing for you to do. New requests, flags and results will appear here.</Typography>
           </Section>

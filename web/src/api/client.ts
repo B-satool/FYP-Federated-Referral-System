@@ -68,10 +68,10 @@ export const api = {
   upload: <T,>(path: string, form: FormData) => request<T>("central", path, { method: "POST", body: form }),
 };
 
-/** Fetch a protected binary (document or page image) and return an object URL. */
-export async function fetchBlobUrl(path: string): Promise<string> {
+/** Fetch a protected binary (document, page image or result image) and return an object URL. */
+export async function fetchBlobUrl(path: string, service: Service = "central"): Promise<string> {
   const token = await currentToken();
-  const resp = await fetch(`/api/central${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  const resp = await fetch(`/api/${service}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
   if (!resp.ok) throw await parseError(resp);
   return URL.createObjectURL(await resp.blob());
 }

@@ -79,7 +79,7 @@ INSTITUTIONS: dict[str, dict] = {
     "akuh": {"name": "Aga Khan University Hospital", "kind": "hospital", "url_env": "AKUH_URL",
              "departments": HOSPITAL_CLINICAL + HOSPITAL_DIAGNOSTIC},
     "chughtai": {"name": "Chughtai Lab", "kind": "laboratory", "url_env": "CHUGHTAI_URL",
-                 "departments": ["laboratory"]},
+                 "departments": ["laboratory", "radiology"]},
     "central-platform": {"name": "Central referral platform", "kind": "platform", "departments": []},
 }
 SOURCES = {k for k, v in INSTITUTIONS.items() if v.get("url_env")}
@@ -126,58 +126,41 @@ PROCEDURE_TAGS = {
     "sedation": "Sedation",
     "bleeding_risk": "Procedure with bleeding risk",
 }
-PROCEDURES: dict[str, dict] = {
-    "surgical_tooth_extraction": {"label": "Surgical extraction of a tooth", "departments": ["dentistry"],
-                                  "tags": ["oral_surgery", "bleeding_risk"]},
-    "simple_tooth_extraction": {"label": "Simple tooth extraction", "departments": ["dentistry"],
-                                "tags": ["oral_surgery", "bleeding_risk"]},
-    "dental_implant": {"label": "Dental implant placement", "departments": ["dentistry"], "tags": ["oral_surgery"]},
-    "coronary_angiography": {"label": "Coronary angiography", "departments": ["cardiology"],
-                             "tags": ["iodinated_contrast", "arterial_access"]},
-    "pci": {"label": "Coronary angioplasty and stenting (PCI)", "departments": ["cardiology"],
-            "tags": ["iodinated_contrast", "arterial_access"]},
-    "upper_gi_endoscopy": {"label": "Upper gastrointestinal endoscopy", "departments": ["gastro_hepatology"],
-                           "tags": ["gi_endoscopy", "sedation"]},
-    "colonoscopy": {"label": "Colonoscopy", "departments": ["gastro_hepatology"], "tags": ["gi_endoscopy", "sedation"]},
-    "ercp": {"label": "ERCP", "departments": ["gastro_hepatology"],
-             "tags": ["gi_endoscopy", "sedation", "iodinated_contrast", "bleeding_risk"]},
-    "laparoscopic_cholecystectomy": {"label": "Laparoscopic cholecystectomy", "departments": ["general_surgery"],
-                                     "tags": ["major_surgery", "general_anaesthesia", "prolonged_fasting", "bleeding_risk"]},
-    "hernia_repair": {"label": "Hernia repair", "departments": ["general_surgery"],
-                      "tags": ["major_surgery", "general_anaesthesia", "prolonged_fasting", "bleeding_risk"]},
-    "total_knee_replacement": {"label": "Total knee replacement", "departments": ["orthopaedics"],
-                               "tags": ["major_surgery", "general_anaesthesia", "prolonged_fasting", "bleeding_risk"]},
-    "knee_arthroscopy": {"label": "Knee arthroscopy", "departments": ["orthopaedics"],
-                         "tags": ["minor_surgery", "general_anaesthesia", "prolonged_fasting"]},
-    "joint_injection": {"label": "Joint injection", "departments": ["orthopaedics"], "tags": []},
-    "kidney_biopsy": {"label": "Kidney biopsy", "departments": ["nephrology"], "tags": ["bleeding_risk"]},
-    "cystoscopy": {"label": "Cystoscopy", "departments": ["urology"], "tags": ["sedation"]},
-    "pcnl": {"label": "Percutaneous nephrolithotomy (PCNL)", "departments": ["urology"],
-             "tags": ["major_surgery", "general_anaesthesia", "prolonged_fasting", "bleeding_risk", "iodinated_contrast"]},
-    "lumbar_puncture": {"label": "Lumbar puncture", "departments": ["neurology"], "tags": ["bleeding_risk"]},
-    "bronchoscopy": {"label": "Bronchoscopy", "departments": ["pulmonology"], "tags": ["sedation"]},
-    "hysteroscopy": {"label": "Hysteroscopy", "departments": ["obgyn"], "tags": ["sedation"]},
-    "tonsillectomy": {"label": "Tonsillectomy", "departments": ["ent"],
-                      "tags": ["major_surgery", "general_anaesthesia", "prolonged_fasting", "bleeding_risk"]},
-    "cataract_surgery": {"label": "Cataract surgery", "departments": ["ophthalmology"], "tags": ["minor_surgery"]},
-    "skin_biopsy": {"label": "Skin biopsy", "departments": ["dermatology"], "tags": ["minor_surgery"]},
-    "tissue_biopsy": {"label": "Tissue biopsy", "departments": ["oncology"], "tags": ["bleeding_risk"]},
-    "thyroid_fna": {"label": "Thyroid fine-needle aspiration", "departments": ["endocrinology"], "tags": []},
+# The doctor writes the procedure in their own words and ticks what it involves. Words in
+# the name pre-tick likely features (the doctor can change them); nothing is guessed silently.
+PROCEDURE_HINTS: dict[str, list[str]] = {
+    "ectomy": ["major_surgery", "general_anaesthesia", "prolonged_fasting", "bleeding_risk"],
+    "replacement": ["major_surgery", "general_anaesthesia", "prolonged_fasting", "bleeding_risk"],
+    "repair": ["major_surgery", "general_anaesthesia", "prolonged_fasting", "bleeding_risk"],
+    "surgery": ["major_surgery", "general_anaesthesia", "prolonged_fasting", "bleeding_risk"],
+    "laparoscopic": ["major_surgery", "general_anaesthesia", "prolonged_fasting", "bleeding_risk"],
+    "extraction": ["oral_surgery", "bleeding_risk"],
+    "tooth": ["oral_surgery", "bleeding_risk"],
+    "dental": ["oral_surgery"],
+    "implant": ["oral_surgery"],
+    "endoscopy": ["gi_endoscopy", "sedation"],
+    "colonoscopy": ["gi_endoscopy", "sedation"],
+    "ercp": ["gi_endoscopy", "sedation", "iodinated_contrast", "bleeding_risk"],
+    "angiography": ["iodinated_contrast", "arterial_access"],
+    "angioplasty": ["iodinated_contrast", "arterial_access"],
+    "contrast": ["iodinated_contrast"],
+    "biopsy": ["bleeding_risk"],
+    "arthroscopy": ["minor_surgery", "general_anaesthesia", "prolonged_fasting"],
+    "bronchoscopy": ["sedation"],
+    "cystoscopy": ["sedation"],
+    "puncture": ["bleeding_risk"],
 }
-# none = consultation only (no procedure planned); unknown = the specialist will decide;
-# other = a procedure not in the list (procedure-dependent rules cannot be checked).
-PROCEDURE_STATUSES = {"known", "none", "unknown", "other"}
+# planned = a procedure is planned (name + features); none = consultation only;
+# unknown = the specialist will decide (procedure-dependent rules are not checked).
+PROCEDURE_STATUSES = {"planned", "none", "unknown"}
 
 
-def procedure_label(status: str, code: str | None, other: str | None) -> str:
-    if status == "known" and code:
-        return PROCEDURES.get(code, {}).get("label", code)
-    if status == "other":
-        return f"{other or 'Other procedure'} (not in the procedure list)"
+def procedure_label(status: str, text: str | None) -> str:
+    if status == "planned" and text:
+        return text
     if status == "none":
         return "No procedure planned (consultation only)"
     return "Not known yet (the specialist will decide)"
-
 
 # --------------------------------------------------------------------------- doctor directory
 # Picked in the referral form: the referring doctor (from the clinic's own staff) and,

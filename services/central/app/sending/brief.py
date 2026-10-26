@@ -1,9 +1,11 @@
 """The referral summary sent to the specialist, built from the checked records only.
 
-It is deterministic (no language model): every record-derived line cites the
-record it came from, an unavailable or skipped source is stated as a limitation
-(never as 'no history'), and medication flags are not restated here; they travel
-separately as structured flags from the approved rules.
+It is laid out like a referral letter: reason, planned procedure, current medicines,
+history, recent visits, investigations (grouped by panel) and imaging, then what could
+not be obtained. It is deterministic (no language model): every record-derived line cites
+the record it came from, an unavailable or skipped source is stated as a limitation (never
+as 'no history'), and medication flags are not restated here; they travel separately as
+structured flags from the approved rules.
 """
 from __future__ import annotations
 
@@ -12,20 +14,20 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..config import DIAGNOSTIC_CATEGORIES, INSTITUTIONS, department_name
+from ..config import INSTITUTIONS, procedure_label
 from ..integration.retrieval import latest_by_source
 from ..medications import service as med
-from ..models import DiagnosticRequest, EvidenceItem, MedicationEntry, Referral
+from ..models import EvidenceItem, MedicationEntry, Referral
 
 SECTION_TITLES = {
     "reason": "Reason for referral",
+    "procedure": "Planned procedure",
     "medications": "Current medicines",
-    "conditions": "Conditions",
+    "conditions": "Medical history",
     "surgeries": "Previous surgery",
-    "visits": "Visits in the last 6 months",
-    "results": "Recent test results",
-    "imaging": "Recent imaging",
-    "requests": "Tests and scans requested with this referral",
+    "visits": "Recent visits (last 6 months)",
+    "results": "Investigations",
+    "imaging": "Imaging",
     "outstanding": "Not available or outstanding",
 }
 CATEGORY_SECTION = {"condition": "conditions", "surgery": "surgeries", "visit": "visits", "lab": "results",
@@ -45,8 +47,8 @@ def _source(ev: EvidenceItem) -> str:
     if ev.origin == "source":
         return INSTITUTIONS.get(ev.source_institution, {}).get("name", ev.source_institution)
     if ev.origin == "document":
-        return "paper brought by the patient"
-    return "told by the patient"
+        return "Paper brought by the patient"
+    return "Told by the patient"
 
 
 def system_limitations(db: Session, referral: Referral) -> list[str]:
@@ -63,41 +65,55 @@ def system_limitations(db: Session, referral: Referral) -> list[str]:
     return out
 
 
-def _st(text: str, ids: list[int], kind: str = "template") -> dict:
+def _st(text: str, ids: list[int], kind: str = "template", source: str | None = None, date: str | None = None,
+        group: str | None = None) -> dict:
     return {"id": uuid.uuid4().hex[:10], "text": text, "evidence_ids": ids, "author_kind": kind, "author_name": None,
-            "edited_by": None, "verification": "verified" if ids else "none"}
+            "edited_by": None, "verification": "verified" if ids else "none", "source": source, "date": date,
+            "group": group}
+
+
+def _line(ev: EvidenceItem) -> tuple[str, str | None]:
+    """The text of one record without the source, and its grouping."""
+    o = ev.original or {}
+    if ev.category == "lab":
+        return ev.display, o.get("panel") or o.get("test")
+    if ev.category == "visit":
+        return (": ".join(x for x in (o.get("setting"), o.get("reason")) if x) or ev.display) + \
+            (f". {o['summary']}" if o.get("summary") else ""), None
+    return ev.display, None
 
 
 def build(db: Session, referral: Referral) -> dict:
     secs: dict[str, list[dict]] = {k: [] for k in SECTION_TITLES}
     if referral.reason:
         secs["reason"].append({**_st(referral.reason, [], "clinician"), "author_name": referral.requesting_doctor_name})
+    if referral.kind == "referral":
+        text = procedure_label(referral.procedure_status, referral.planned_procedure)
+        if referral.procedure_status == "planned" and not referral.procedure_tags:
+            text += " (what it involves was not recorded, so procedure-related medicine checks were not run)"
+        secs["procedure"].append({**_st(text, [], "clinician"), "author_name": referral.requesting_doctor_name})
     for e in med.current_entries(db, referral.id):
         members = [e, *db.scalars(select(MedicationEntry).where(MedicationEntry.duplicate_of == e.id))]
         also = sorted({m.source_label for m in members})
         text = f"{e.original_name}" + (f" ({e.brand})" if e.brand and e.brand.lower() not in e.original_name.lower() else "")
-        text += f" - {e.dose or 'dose not recorded'}"
+        text += f" {e.dose or '(dose not recorded)'}"
         if e.over_the_counter:
             text += ", over the counter"
-        text += f". Source: {'; '.join(also)}"
         if e.dose_differs:
-            text += ". Note: a different dose is recorded elsewhere"
-        secs["medications"].append(_st(text, [m.evidence_id for m in members]))
-    by_id: dict[int, EvidenceItem] = {}
+            text += ". A different dose is recorded elsewhere"
+        secs["medications"].append(_st(text, [m.evidence_id for m in members], source="; ".join(also)))
     for ev in permitted_evidence(db, referral):
         sec = CATEGORY_SECTION.get(ev.category)
         if not sec:
             continue
-        by_id[ev.id] = ev
-        date = f" [{ev.clinical_time.date().isoformat()}]" if ev.clinical_time and ev.category in ("lab", "visit", "imaging") else ""
-        secs[sec].append(_st(f"{ev.display}{date} - {_source(ev)}", [ev.id]))
-    for dx in db.scalars(select(DiagnosticRequest).where(DiagnosticRequest.referral_id == referral.id,
-                                                          DiagnosticRequest.status != "cancelled")):
-        where = f"{INSTITUTIONS[dx.destination_institution]['name']}, {department_name(dx.destination_department)}"
-        status = dx.status.replace("_", " ")
-        secs["requests"].append(_st(f"{DIAGNOSTIC_CATEGORIES.get(dx.category, dx.category)}: {dx.test}"
-                                    + (f" ({dx.body_area})" if dx.body_area else "")
-                                    + f" at {where}. Question: {dx.clinical_question}. Status: {status}.", []))
+        text, group = _line(ev)
+        date = ev.clinical_time.date().isoformat() if ev.clinical_time else None
+        secs[sec].append(_st(text, [ev.id], source=_source(ev), date=date, group=group))
+    # investigations: newest panel first, results of one panel together
+    order: dict[str, int] = {}
+    for i, st in enumerate(secs["results"]):
+        order.setdefault(st["group"] or "", i)
+    secs["results"].sort(key=lambda st: (order[st["group"] or ""], st["text"]))
     limitations = system_limitations(db, referral)
     for lim in limitations:
         secs["outstanding"].append(_st(lim, []))

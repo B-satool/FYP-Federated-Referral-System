@@ -7,14 +7,19 @@ from refcommon.auth import Principal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from refcommon.db import utcnow
+
 from ..db import get_db
+from ..medications import service as med
 from ..models import Outbox, ReferralPackage
-from ..security import STAFF, check_version, error, get_principal, load_referral
+from ..notifications import notify_doctor, notify_staff
+from ..referrals.state import event
+from ..security import STAFF, audit, bump, check_version, error, get_principal, load_referral
 from ..serializers import referral_out
 from ..tasks import enqueue
 from . import brief as brief_mod
 from . import packages
-from .readiness import readiness
+from .readiness import blocking, readiness, staff_items
 
 router = APIRouter(tags=["sending"])
 
@@ -34,6 +39,31 @@ def brief_preview(referral_id: int, db: Session = Depends(get_db), principal: Pr
 
 class SendIn(BaseModel):
     expected_version: int
+
+
+@router.post("/referrals/{referral_id}/prepared")
+def mark_prepared(referral_id: int, body: SendIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Staff have gathered the records, papers and medicines; the doctor can now review the flags."""
+    r = load_referral(db, referral_id, principal, "prepare", roles=(STAFF,))
+    check_version(r, body.expected_version)
+    if r.kind != "referral" or r.status != "requested":
+        raise error(409, "not_preparing", "Only a referral being prepared can be marked ready")
+    missing = blocking(staff_items(db, r))
+    if missing:
+        raise error(409, "not_ready", "Some things still need to be done first", blockers=missing)
+    r.prepared_by, r.prepared_at = principal.display_name, utcnow()
+    bump(r)
+    event(db, r, "prepared", principal.display_name, principal.institution_id)
+    audit(db, principal, "referral.prepared", "referral", r.reference, "success", r.id)
+    flags = med.unacknowledged_flags(db, r.id)
+    notify_doctor(db, r, "ready_for_review", f"{r.reference}: ready for your review",
+                  f"{r.patient_name}. Staff have gathered the records and medicines."
+                  + (f" {len(flags)} medication flag(s) to review." if flags else " There are no medication flags."),
+                  tab="medicines")
+    if not flags:
+        notify_staff(db, r, "ready_to_send", f"{r.reference}: ready to send", "No medication flags to review.", tab="send")
+    db.commit()
+    return referral_out(r)
 
 
 @router.post("/referrals/{referral_id}/send")

@@ -6,6 +6,7 @@ import type { Evidence, ReferralDetail } from "../../api/types";
 import { EvidenceRef } from "../../components/EvidenceRef";
 import { Empty, ErrorAlert, fmtDate, Loading, RetrievalStatus, Section } from "../../components/common";
 import { useRefData } from "../../hooks";
+import { OtherPlaces } from "./LinksTab";
 import { useInvalidateReferral } from "./ReferralWorkspace";
 
 const GROUPS: [string, string, string][] = [
@@ -60,6 +61,7 @@ export function RecordsTab({ r }: { r: ReferralDetail }) {
 
   return (
     <Stack spacing={2}>
+      <OtherPlaces r={r} />
       <Section
         title="Where the records come from"
         description={`Your own record, plus the most recently visited hospital, clinic and laboratory among the linked ones. Visits, results and imaging from the last ${window ? Math.round(window / 30.4) : 6} months; current medicines only.`}

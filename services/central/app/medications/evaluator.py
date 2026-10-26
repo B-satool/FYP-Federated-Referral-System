@@ -49,7 +49,7 @@ class SourceState:
 
 @dataclass(frozen=True)
 class EvalInput:
-    procedure_status: str  # known | none | unknown | other
+    procedure_status: str  # planned | none | unknown
     planned_procedure: str | None
     procedure_tags: tuple[str, ...]
     medications: tuple[MedInput, ...]
@@ -95,7 +95,7 @@ def _group(meds: Iterable[MedInput]) -> dict[tuple[str, str], list[MedInput]]:
 
 
 def evaluate_medications(inp: EvalInput) -> EvalOutput:
-    if inp.procedure_status not in {"known", "none", "unknown", "other"}:
+    if inp.procedure_status not in {"planned", "none", "unknown"}:
         raise ValueError(f"invalid procedure_status {inp.procedure_status!r}")
     for r in inp.rules:
         if not r.procedure_tags:
@@ -123,13 +123,15 @@ def evaluate_medications(inp: EvalInput) -> EvalOutput:
         name = ", ".join(sorted({m.original_name for m in meds}))
         src = "; ".join(sorted({m.source_label for m in meds}))
         ev = sorted({e for m in meds for e in m.evidence_ids})
-        if inp.procedure_status in {"unknown", "other"}:
+        if inp.procedure_status == "unknown" or (inp.procedure_status == "planned" and not tags):
             # 2. Missing procedure context is never guessed
+            why = ("which is not known yet" if inp.procedure_status == "unknown"
+                   else "whose features (surgery, anaesthesia, contrast and so on) were not recorded")
             candidates.append(FlagCandidate(
                 flag_key=f"procedure:{ingredient}", kind="procedure_not_checked", title=PROCEDURE_TITLE,
                 message=(f"{name} ({label(drug_class)}) is a current medicine. Some medication rules depend on the "
-                         "planned procedure, which is not known yet, so they have not been checked. They are checked "
-                         "once the procedure is recorded."),
+                         f"planned procedure, {why}, so they have not been checked. They are checked "
+                         "once this is recorded."),
                 medication=name, drug_class=drug_class, source_label=src, evidence_ids=ev))
             continue
         if inp.procedure_status == "none":

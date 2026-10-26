@@ -10,7 +10,6 @@ import { isDoctor, useMe, usePageTitle } from "../../hooks";
 import { DocumentsTab } from "../documents/DocumentsTab";
 import { AuditTab } from "./AuditTab";
 import { JourneyNav, NextStepBanner, StepPager } from "./Journey";
-import { LinksTab } from "./LinksTab";
 import { MedicinesTab } from "./MedicinesTab";
 import { RecordsTab } from "./RecordsTab";
 import { RequestTab } from "./RequestTab";
@@ -19,7 +18,7 @@ import { SendTab, SummaryTab } from "./SendTab";
 import { nextStep, Role, StepKey, stepOrder } from "./steps";
 import { TestsTab } from "./TestsTab";
 
-const WAITING_REMOTE = ["requested", "submitted", "acknowledged", "accepted"];
+const WAITING_REMOTE = ["requested", "submitted", "acknowledged", "accepted", "response_returned"];
 
 export function useReferral(id: number) {
   return useQuery({
@@ -50,7 +49,7 @@ export function ReferralWorkspace() {
   const q = useReferral(id);
   usePageTitle(q.data ? `${q.data.reference} ${q.data.patient.name}` : "Referral");
   const role: Role = isDoctor(me) ? "doctor" : "staff";
-  const order = stepOrder(role);
+  const order = stepOrder(role, q.data?.kind);
   const requested = params.get("tab") as StepKey | null;
   const tab: StepKey = requested && order.includes(requested) ? requested : "request";
   const go = (k: StepKey) => {
@@ -67,7 +66,7 @@ export function ReferralWorkspace() {
     <Box>
       <Link component={RouterLink} to="/referrals" underline="hover" sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, mb: 1, fontSize: "0.875rem" }}>
         <ArrowBack fontSize="inherit" aria-hidden />
-        All referrals
+        All requests
       </Link>
       <Paper sx={{ p: { xs: 2, md: 2.5 }, mb: 2 }}>
         <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.5}>
@@ -75,15 +74,22 @@ export function ReferralWorkspace() {
             <Typography variant="h5" component="h1" sx={{ overflowWrap: "anywhere" }}>
               {r.reference} · {r.patient.name}
             </Typography>
-            <Typography color="text.secondary">
-              To {r.destination_name}, {r.destination_department_name}
-              {r.destination_doctor ? ` (${r.destination_doctor})` : ""} · requested by {r.requesting_doctor_name}
-            </Typography>
+            {r.kind === "test" ? (
+              <Typography color="text.secondary">
+                Tests and scans: {r.diagnostics.filter((d) => d.status !== "cancelled").map((d) => `${d.test} (${d.destination_name})`).join(", ")} · requested by {r.requesting_doctor_name}
+              </Typography>
+            ) : (
+              <Typography color="text.secondary">
+                Referral to {r.destination_name}, {r.destination_department_name}
+                {r.destination_doctor ? ` (${r.destination_doctor})` : ""} · requested by {r.requesting_doctor_name}
+              </Typography>
+            )}
             <Typography color="text.secondary" variant="body2">
-              {r.procedure_label} · born {r.patient.birth_date ?? "not recorded"} · {r.patient.local_patient_id}
+              {r.kind === "referral" ? `${r.procedure_label} · ` : ""}born {r.patient.birth_date ?? "not recorded"} · {r.patient.local_patient_id}
             </Typography>
           </Box>
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+            <Tag tone="neutral" label={r.kind === "test" ? "Test or scan" : "Referral"} />
             <ReferralStatus status={r.status} label={r.status_label} />
             <UrgencyTag urgency={r.urgency} label={`${r.urgency_label}`} />
             {r.submitted_package_version && <Tag tone="info" label={`sent v${r.submitted_package_version}`} />}
@@ -102,7 +108,6 @@ export function ReferralWorkspace() {
       <JourneyNav r={r} role={role} active={tab} onSelect={go} />
       <Box role="tabpanel" id="journey-panel" aria-labelledby={`tab-${tab}`}>
         {tab === "request" && <RequestTab r={r} role={role} />}
-        {tab === "links" && <LinksTab r={r} />}
         {tab === "records" && <RecordsTab r={r} />}
         {tab === "papers" && <DocumentsTab r={r} />}
         {tab === "medicines" && <MedicinesTab r={r} role={role} />}
@@ -111,7 +116,7 @@ export function ReferralWorkspace() {
         {tab === "summary" && <SummaryTab r={r} />}
         {tab === "response" && <ResponseTab r={r} role={role} />}
         {tab === "audit" && <AuditTab r={r} />}
-        <StepPager role={role} active={tab} onGo={go} />
+        <StepPager role={role} kind={r.kind} active={tab} onGo={go} />
       </Box>
     </Box>
   );

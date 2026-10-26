@@ -12,8 +12,8 @@ from .config import (
     DRUG_CLASSES,
     INSTITUTIONS,
     PRACTITIONERS,
+    PROCEDURE_HINTS,
     PROCEDURE_TAGS,
-    PROCEDURES,
     TEST_SUGGESTIONS,
     URGENCIES,
     URGENCY_NOTE,
@@ -22,7 +22,7 @@ from .config import (
 )
 from .db import get_db
 from .models import AuditEvent, Referral, User
-from .referrals.state import STATUS_LABELS
+from .referrals.state import STATUS_LABELS, TEST_STATUS_LABELS
 from .security import get_principal, load_referral, require_roles
 
 router = APIRouter(tags=["audit and reference data"])
@@ -79,9 +79,10 @@ def reference_data(principal: Principal = Depends(get_principal)):
     institutions = {k: {x: y for x, y in v.items() if x != "url_env"} for k, v in INSTITUTIONS.items()
                     if k != "central-platform"}
     return {
-        "institutions": institutions, "departments": DEPARTMENTS, "procedures": PROCEDURES,
+        "institutions": institutions, "departments": DEPARTMENTS, "procedure_hints": PROCEDURE_HINTS,
         "procedure_tags": PROCEDURE_TAGS, "urgencies": URGENCIES, "urgency_note": URGENCY_NOTE,
-        "statuses": STATUS_LABELS, "practitioners": PRACTITIONERS, "test_suggestions": TEST_SUGGESTIONS,
+        "statuses": STATUS_LABELS, "test_statuses": TEST_STATUS_LABELS, "practitioners": PRACTITIONERS,
+        "test_suggestions": TEST_SUGGESTIONS,
         "diagnostic_categories": DIAGNOSTIC_CATEGORIES, "drug_classes": DRUG_CLASSES,
         "referral_window_days": settings.referral_window_days,
         "llm_configured": settings.llm_configured,

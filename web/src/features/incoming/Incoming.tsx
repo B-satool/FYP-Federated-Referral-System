@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { Link as RouterLink, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -6,9 +6,13 @@ import {
   AlertTitle,
   Box,
   Button,
+  FormControlLabel,
   Link,
+  ListSubheader,
+  MenuItem,
   Paper,
   Stack,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -18,18 +22,23 @@ import {
   Typography,
 } from "@mui/material";
 import { api } from "../../api/client";
-import type { Case, CaseDetail, ConsultationResponse } from "../../api/types";
-import { Empty, ErrorAlert, fmtDate, KeyValue, Loading, OrderStatus, PageHeader, ReasonDialog, Section, Tag, UrgencyTag } from "../../components/common";
-import { FlagCard } from "../../components/FlagCard";
-import { ownService, useMe, useRefData } from "../../hooks";
+import type { Case, CaseDetail, ConsultationResponse, Practitioner } from "../../api/types";
+import { Empty, ErrorAlert, fmtDate, KeyValue, Loading, PageHeader, ReasonDialog, Section, Tag, UrgencyTag } from "../../components/common";
+import { ReferralLetter } from "../../components/ReferralLetter";
+import { ResultReport } from "../../components/ResultReport";
+import { hasRole, isDoctor, ownService, useMe, useRefData } from "../../hooks";
+import { ConfirmPatient } from "../identity/ConfirmPatient";
 
 const CASE_STATUS: Record<string, string> = {
   received: "new",
   acknowledged: "acknowledged",
+  assigned: "assigned",
   accepted: "accepted",
   declined: "declined",
   responded: "response sent",
 };
+
+const NEEDS_INTAKE = ["received", "acknowledged"];
 
 function CaseStatusTag({ status }: { status: string }) {
   const tone = status === "received" ? "warn" : status === "declined" ? "off" : status === "responded" ? "ok" : "info";
@@ -40,21 +49,43 @@ export function IncomingList() {
   const { data: me } = useMe();
   const ref = useRefData();
   const service = ownService(me);
+  const staff = hasRole(me, "clinic_staff", "institution_admin");
+  const [intakeOnly, setIntakeOnly] = useState(false);
   const q = useQuery({
     queryKey: ["cases", service],
     queryFn: () => api.get<Case[]>("/cases", service),
     enabled: !!me,
     refetchInterval: 15000,
   });
-  const dept = me?.department_name ?? me?.department ?? "your department";
   const instName = (id: string) => ref.data?.institutions[id]?.name ?? id;
+  const deptName = (code: string) => ref.data?.departments[code]?.name ?? code;
+  const intakeCount = (q.data ?? []).filter((c) => NEEDS_INTAKE.includes(c.status)).length;
+  const rows = (q.data ?? []).filter((c) => !(staff && intakeOnly) || NEEDS_INTAKE.includes(c.status));
   return (
     <>
-      <PageHeader title="Incoming referrals" subtitle={`Referrals sent to ${dept} at ${me?.institution_name ?? "your hospital"}, and referrals that name you.`} />
+      <PageHeader
+        title="Incoming referrals"
+        subtitle={
+          staff
+            ? `All referrals sent to ${me?.institution_name ?? "your institution"}. Acknowledge each one, confirm the patient and assign a doctor.`
+            : `Referrals assigned to you at ${me?.institution_name ?? "your institution"}.`
+        }
+      />
       {q.isLoading && <Loading />}
       <ErrorAlert error={q.error} />
-      {q.data && q.data.length === 0 && <Empty>No referrals have been received for your department yet.</Empty>}
-      {!!q.data?.length && (
+      {staff && q.data && intakeCount > 0 && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          {intakeCount} referral{intakeCount === 1 ? " needs" : "s need"} intake: acknowledge, confirm the patient and assign a doctor.
+        </Alert>
+      )}
+      {staff && !!q.data?.length && (
+        <FormControlLabel sx={{ mb: 1 }} control={<Switch checked={intakeOnly} onChange={(e) => setIntakeOnly(e.target.checked)} />} label="Needs intake only" />
+      )}
+      {q.data && q.data.length === 0 && (
+        <Empty>{staff ? "No referrals have been received yet." : "No referrals have been assigned to you yet."}</Empty>
+      )}
+      {q.data && q.data.length > 0 && rows.length === 0 && <Empty>No referrals need intake.</Empty>}
+      {rows.length > 0 && (
         <Paper>
           <Table size="small" aria-label="Incoming referrals">
             <TableHead>
@@ -62,18 +93,22 @@ export function IncomingList() {
                 <TableCell>Referral</TableCell>
                 <TableCell>Patient</TableCell>
                 <TableCell>From</TableCell>
+                <TableCell>Department</TableCell>
                 <TableCell>Urgency</TableCell>
                 <TableCell>Status</TableCell>
-                <TableCell>Received</TableCell>
+                <TableCell>Doctor</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {q.data.map((c) => (
+              {rows.map((c) => (
                 <TableRow key={c.id} hover>
                   <TableCell>
                     <Link component={RouterLink} to={`/incoming/${c.id}`}>
                       {c.central_referral_id}
                     </Link>
+                    <Typography variant="caption" display="block" color="text.secondary">
+                      {fmtDate(c.received_at)}
+                    </Typography>
                   </TableCell>
                   <TableCell>
                     {c.patient_name}
@@ -84,16 +119,24 @@ export function IncomingList() {
                     )}
                   </TableCell>
                   <TableCell>{c.sender_name || instName(c.sender_institution)}</TableCell>
+                  <TableCell>{deptName(c.department)}</TableCell>
                   <TableCell>
                     <UrgencyTag urgency={c.urgency} label={ref.data?.urgencies[c.urgency]?.label} />
                   </TableCell>
                   <TableCell>
                     <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                       <CaseStatusTag status={c.status} />
+                      {staff && NEEDS_INTAKE.includes(c.status) && <Tag tone="warn" label="needs intake" />}
                       {c.open_info_requests > 0 && <Tag tone="wait" label={`${c.open_info_requests} question(s) open`} />}
                     </Stack>
                   </TableCell>
-                  <TableCell>{fmtDate(c.received_at)}</TableCell>
+                  <TableCell>
+                    {c.assigned_doctor ?? (
+                      <Typography variant="body2" color="text.secondary">
+                        Not assigned
+                      </Typography>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -120,12 +163,96 @@ function ResponseView({ content }: { content: ConsultationResponse["content"] })
   );
 }
 
+/** One numbered intake step with its done / next / waiting state. */
+function Step({ n, title, state, children }: { n: number; title: string; state: "done" | "next" | "waiting"; children?: ReactNode }) {
+  const tag = state === "done" ? <Tag tone="ok" label="done" /> : state === "next" ? <Tag tone="warn" label="next" /> : <Tag tone="wait" label="waiting" />;
+  return (
+    <Paper variant="outlined" component="li" sx={{ p: 1.5, listStyle: "none" }}>
+      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: children ? 1 : 0 }}>
+        <Typography variant="subtitle2">
+          {n}. {title}
+        </Typography>
+        {tag}
+      </Stack>
+      {children}
+    </Paper>
+  );
+}
+
+function AssignForm({ c, onAssigned }: { c: Case; onAssigned: () => void }) {
+  const { data: me } = useMe();
+  const ref = useRefData();
+  const service = ownService(me);
+  const doctors: Practitioner[] = (ref.data?.practitioners ?? []).filter((p) => p.institution === me?.institution_id);
+  const deptName = (code: string) => ref.data?.departments[code]?.name ?? code;
+  const preferred = c.requested_doctor && doctors.some((d) => d.name === c.requested_doctor) ? c.requested_doctor : null;
+  const [doctor, setDoctor] = useState<string>(c.assigned_doctor ?? preferred ?? "");
+  const [note, setNote] = useState(c.assign_note ?? "");
+  useEffect(() => {
+    if (!doctor && (c.assigned_doctor || preferred)) setDoctor(c.assigned_doctor ?? preferred ?? "");
+  }, [preferred]); // eslint-disable-line react-hooks/exhaustive-deps
+  const assign = useMutation({
+    mutationFn: () => api.post(`/cases/${c.id}/assign`, { doctor, note: note.trim() }, service),
+    meta: { success: "Doctor assigned. They will see this referral in their list." },
+    onSuccess: onAssigned,
+  });
+  // the case's department first, then the other departments of this institution
+  const sameDept = doctors.filter((d) => d.department === c.department);
+  const otherDepts = Array.from(new Set(doctors.filter((d) => d.department !== c.department).map((d) => d.department)));
+  const options: ReactNode[] = [];
+  if (sameDept.length) {
+    options.push(<ListSubheader key="h-own">{deptName(c.department)}</ListSubheader>);
+    sameDept.forEach((d) =>
+      options.push(
+        <MenuItem key={`d-${d.name}`} value={d.name}>
+          {d.name}
+        </MenuItem>,
+      ),
+    );
+  }
+  otherDepts.forEach((dept) => {
+    options.push(<ListSubheader key={`h-${dept}`}>{deptName(dept)}</ListSubheader>);
+    doctors
+      .filter((d) => d.department === dept)
+      .forEach((d) =>
+        options.push(
+          <MenuItem key={`d-${d.name}`} value={d.name}>
+            {d.name}
+          </MenuItem>,
+        ),
+      );
+  });
+  return (
+    <Stack spacing={1.5}>
+      {c.requested_doctor && (
+        <Typography variant="body2" color="text.secondary">
+          The referring doctor asked for {c.requested_doctor}
+          {preferred ? "; they are preselected." : ", who is not on this institution's list of doctors."}
+        </Typography>
+      )}
+      <TextField select label="Assign to doctor" value={doctor} onChange={(e) => setDoctor(e.target.value)} sx={{ maxWidth: 420 }}>
+        {options}
+      </TextField>
+      {doctors.length === 0 && <Alert severity="warning">No doctors are listed for this institution.</Alert>}
+      <TextField label="Note for the doctor" value={note} onChange={(e) => setNote(e.target.value)} multiline minRows={2} sx={{ maxWidth: 620 }} />
+      <ErrorAlert error={assign.error} />
+      <Box>
+        <Button variant="contained" onClick={() => assign.mutate()} disabled={!doctor || assign.isPending}>
+          Assign
+        </Button>
+      </Box>
+    </Stack>
+  );
+}
+
 export function IncomingCase() {
   const id = Number(useParams().id);
   const { data: me } = useMe();
   const ref = useRefData();
   const qc = useQueryClient();
   const service = ownService(me);
+  const staff = hasRole(me, "clinic_staff", "institution_admin");
+  const doctor = isDoctor(me);
   const q = useQuery({
     queryKey: ["case", service, id],
     queryFn: () => api.get<CaseDetail>(`/cases/${id}`, service),
@@ -139,22 +266,37 @@ export function IncomingCase() {
   const [declineOpen, setDeclineOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
   const [form, setForm] = useState<ResponseForm>(EMPTY_FORM);
+  const [version, setVersion] = useState<number | null>(null);
+  const [focusResponse, setFocusResponse] = useState(false);
+  const responseRef = useRef<HTMLDivElement>(null);
+  const firstFieldRef = useRef<HTMLTextAreaElement>(null);
 
   const draft = q.data?.responses.length ? q.data.responses[q.data.responses.length - 1] : null;
   useEffect(() => {
     if (draft) setForm({ ...EMPTY_FORM, ...(draft.content as Partial<ResponseForm>) } as ResponseForm);
   }, [draft?.id, draft?.row_version]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const accepted = q.data?.case.decision === "accepted";
+  // after "Accept referral", bring the response form into view and put the cursor in it
+  useEffect(() => {
+    if (focusResponse && accepted && responseRef.current) {
+      responseRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      firstFieldRef.current?.focus({ preventScroll: true });
+      setFocusResponse(false);
+    }
+  }, [focusResponse, accepted]);
+
   const acknowledge = useMutation({
     mutationFn: () => api.post(`/cases/${id}/acknowledge`, {}, service),
-    meta: { success: "Referral acknowledged." },
+    meta: { success: "Receipt acknowledged. The referring clinic is told." },
     onSuccess: refresh,
   });
   const decide = useMutation({
     mutationFn: (body: { decision: "accept" | "decline"; reason?: string }) => api.post(`/cases/${id}/decision`, body, service),
     meta: { success: "Decision recorded and sent to the referring clinic." },
-    onSuccess: () => {
+    onSuccess: (_, body) => {
       setDeclineOpen(false);
+      if (body.decision === "accept") setFocusResponse(true);
       refresh();
     },
   });
@@ -183,11 +325,172 @@ export function IncomingCase() {
   if (q.isLoading || !me) return <Loading />;
   if (q.error) return <ErrorAlert error={q.error} />;
   const { case: c, packages, info_requests, results } = q.data!;
-  const latest = packages[0];
-  const env = latest?.envelope;
+  const shown = packages.find((p) => p.version === version) ?? packages[0];
+  const env = shown?.envelope;
+  const urgency = ref.data?.urgencies[c.urgency];
   const deptName = (code: string | null | undefined) => (code ? ref.data?.departments[code]?.name ?? code : null);
   const sent = draft?.status === "returned";
   const hasContent = Object.values(form).some((v) => v.trim());
+  const from = env ? `${env.requesting_doctor.name}, ${env.requesting_doctor.institution}` : c.sender_name;
+  const decided = !!c.decision;
+  const canDecide = doctor && c.status === "assigned" && !decided;
+  const canAsk = doctor && !!c.assigned_doctor && !["responded", "declined"].includes(c.status);
+
+  // ---- intake steps (staff)
+  const acked = !!c.acknowledged_at;
+  const confirmed = !!c.local_patient_id;
+  const assignedStep = !!c.assigned_doctor;
+
+  const responseSection = accepted && (
+    <Box ref={responseRef} sx={{ scrollMarginTop: 80 }}>
+      <Section
+        title="Your response"
+        description={
+          sent
+            ? `Sent by ${draft?.returned_by} on ${fmtDate(draft?.returned_at)}. It cannot be changed.`
+            : "You accepted this referral. Write your assessment and plan; sending signs it off and returns it to the referring clinic."
+        }
+      >
+        {sent ? (
+          <ResponseView content={draft!.content} />
+        ) : (
+          <Stack spacing={1.5}>
+            <TextField
+              label="Assessment"
+              multiline
+              minRows={3}
+              inputRef={firstFieldRef}
+              value={form.assessment}
+              onChange={(e) => setForm({ ...form, assessment: e.target.value })}
+            />
+            <TextField label="Plan" multiline minRows={2} value={form.plan} onChange={(e) => setForm({ ...form, plan: e.target.value })} />
+            <TextField
+              label="Instructions for the referring clinic"
+              multiline
+              minRows={2}
+              value={form.instructions_for_clinic}
+              onChange={(e) => setForm({ ...form, instructions_for_clinic: e.target.value })}
+            />
+            <TextField label="Appointment" placeholder="For example: surgical clinic in 2 weeks" value={form.appointment} onChange={(e) => setForm({ ...form, appointment: e.target.value })} />
+            <ErrorAlert error={save.error || send.error} />
+            {doctor ? (
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Button variant="outlined" onClick={() => save.mutate()} disabled={save.isPending || !hasContent}>
+                  Save draft
+                </Button>
+                <Button variant="contained" onClick={() => send.mutate()} disabled={send.isPending || !hasContent}>
+                  Send response to the referring clinic
+                </Button>
+              </Stack>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                Only the assigned doctor can write and send the response.
+              </Typography>
+            )}
+            {draft && (
+              <Typography variant="caption" color="text.secondary">
+                Draft saved by {draft.drafted_by}.
+              </Typography>
+            )}
+          </Stack>
+        )}
+      </Section>
+    </Box>
+  );
+
+  const infoRequests = info_requests.length > 0 && (
+    <Section title="Questions to the referring clinic">
+      <Stack spacing={1}>
+        {info_requests.map((ir) => (
+          <Paper key={ir.id} variant="outlined" sx={{ p: 1.5 }}>
+            <Typography variant="body2">
+              <strong>Q:</strong> {ir.question}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {ir.created_by}, {fmtDate(ir.created_at)}
+            </Typography>
+            {ir.answer ? (
+              <Typography variant="body2" sx={{ mt: 0.5 }}>
+                <strong>A:</strong> {ir.answer} <em>({ir.answered_by}, {fmtDate(ir.answered_at)})</em>
+              </Typography>
+            ) : (
+              <Box sx={{ mt: 0.5 }}>
+                <Tag tone="wait" label="waiting for an answer" />
+              </Box>
+            )}
+          </Paper>
+        ))}
+      </Stack>
+    </Section>
+  );
+
+  const letter = env && (
+    <Box>
+      {packages.length > 1 && (
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "center" }} sx={{ mb: 1.5 }}>
+          <TextField select size="small" label="Version" value={shown.version} onChange={(e) => setVersion(Number(e.target.value))} sx={{ minWidth: 220 }}>
+            {packages.map((p, i) => (
+              <MenuItem key={p.version} value={p.version}>
+                Version {p.version}
+                {i === 0 ? " (newest)" : ""}, received {fmtDate(p.received_at)}
+              </MenuItem>
+            ))}
+          </TextField>
+          {shown.version !== packages[0].version && <Alert severity="warning">You are reading an older version. The newest is version {packages[0].version}.</Alert>}
+        </Stack>
+      )}
+      {shown.version > 1 && shown.version === packages[0].version && (
+        <Alert severity="info" sx={{ mb: 1.5 }}>
+          Updated version: this is version {shown.version} of the referral. The referring clinic changed it after the first one was sent.
+        </Alert>
+      )}
+      <ReferralLetter
+        header={{
+          reference: env.referral_id,
+          date: env.sent_at,
+          to: { institution: me.institution_name, department: deptName(env.destination_department), doctor: env.destination_doctor },
+          from: { doctor: env.requesting_doctor.name, department: env.requesting_doctor.department, institution: env.requesting_doctor.institution },
+          patient: { name: env.patient.name, birth_date: env.patient.birth_date, sex: env.patient.sex, cnic: env.patient.cnic ?? c.patient_cnic, id: c.local_patient_id },
+          urgency: ref.data?.urgencies[env.urgency]?.label ?? env.urgency,
+          urgencyDetail: ref.data?.urgencies[env.urgency]?.detail,
+        }}
+        sections={env.brief_sections}
+        flags={env.medication_flags}
+        flagSummary={env.medication_evaluation.summary}
+        footer={`Requested by ${env.requesting_doctor.name}; compiled and sent by ${env.sent_by}, ${fmtDate(env.sent_at)}. Version ${env.package_version}.`}
+      />
+      {env.limitations.length > 0 && !env.brief_sections.some((s) => s.key === "outstanding") && (
+        <Alert severity="info" sx={{ mt: 1.5, maxWidth: 900 }}>
+          <AlertTitle>Not available or outstanding</AlertTitle>
+          <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+            {env.limitations.map((l, i) => (
+              <li key={i}>{l}</li>
+            ))}
+          </Box>
+          Missing information is not a negative finding.
+        </Alert>
+      )}
+    </Box>
+  );
+
+  const resultsSection = results.length > 0 && (
+    <Section title="Results received" description="Test and scan reports for this referral, sent on to you when they are ready.">
+      <Stack spacing={1.5}>
+        {results.map((r) => (
+          <ResultReport
+            key={r.id}
+            title={r.test}
+            subtitle={`${ref.data?.institutions[r.performed_by_institution]?.name ?? r.performed_by_institution} · ${r.order_ref}`}
+            values={r.values}
+            findings={r.report_text || null}
+            reportedBy={r.reported_by}
+            reportedAt={r.reported_at}
+            service={service}
+          />
+        ))}
+      </Stack>
+    </Section>
+  );
 
   return (
     <>
@@ -195,250 +498,121 @@ export function IncomingCase() {
         title={`${c.central_referral_id} · ${c.patient_name}`}
         back={{ to: "/incoming", label: "Incoming referrals" }}
         subtitle={
-          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-            <CaseStatusTag status={c.status} />
-            <UrgencyTag urgency={c.urgency} label={ref.data?.urgencies[c.urgency]?.label} />
-            <span>version {c.latest_version}</span>
+          <Stack spacing={0.75}>
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+              <CaseStatusTag status={c.status} />
+              <UrgencyTag urgency={c.urgency} label={urgency?.label} />
+              {c.latest_version > 1 && <Tag tone="info" label={`updated: version ${c.latest_version}`} />}
+            </Stack>
+            <span>
+              From {from} · to {deptName(c.department)} · received {fmtDate(c.received_at)}
+              {c.assigned_doctor ? ` · assigned to ${c.assigned_doctor}` : ""}
+            </span>
           </Stack>
         }
       />
       <Stack spacing={2}>
-        <Section title="Referral">
-          <KeyValue
-            items={[
-              ["Patient", `${c.patient_name}${c.patient_birth_date ? `, born ${c.patient_birth_date}` : ""}${env?.patient.sex ? `, ${env.patient.sex}` : ""}`],
-              ["Your record", c.local_patient_id ?? "Not linked"],
-              ["From", env ? `${env.requesting_doctor.name}, ${env.requesting_doctor.institution}${env.requesting_doctor.department ? ` (${env.requesting_doctor.department})` : ""}` : c.sender_name],
-              ["To", `${deptName(c.department)}${c.requested_doctor ? `, requested doctor ${c.requested_doctor}` : ""}`],
-              ["Urgency", ref.data?.urgencies[c.urgency] ? `${ref.data.urgencies[c.urgency].label}: ${ref.data.urgencies[c.urgency].detail}` : c.urgency],
-              ["Planned procedure", env?.procedure_label ?? "Not recorded"],
-              ["Received", fmtDate(c.received_at)],
-            ]}
-          />
-          {env && (
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="subtitle2">Reason for referral</Typography>
-              <Typography sx={{ whiteSpace: "pre-wrap" }}>{env.reason || "Not recorded"}</Typography>
-            </Box>
-          )}
-        </Section>
-
-        <Section title="What happens next" description="Acknowledge the referral, then accept it, decline it with a reason, or ask the clinic for more information.">
-          <ErrorAlert error={acknowledge.error || decide.error || ask.error} />
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            {!c.acknowledged_at && (
-              <Button variant="contained" onClick={() => acknowledge.mutate()} disabled={acknowledge.isPending}>
-                Acknowledge receipt
-              </Button>
-            )}
-            {c.acknowledged_at && !c.decision && (
-              <>
-                <Button variant="contained" onClick={() => decide.mutate({ decision: "accept" })} disabled={decide.isPending}>
-                  Accept referral
-                </Button>
-                <Button variant="outlined" color="error" onClick={() => setDeclineOpen(true)}>
-                  Decline
-                </Button>
-              </>
-            )}
-            {c.acknowledged_at && c.status !== "responded" && (
-              <Button variant="outlined" onClick={() => setAskOpen(true)}>
-                Ask for more information
-              </Button>
-            )}
-          </Stack>
-          <Box sx={{ mt: 1.5 }}>
-            <KeyValue
-              items={[
-                ["Acknowledged", c.acknowledged_at ? `${c.acknowledged_by}, ${fmtDate(c.acknowledged_at)}` : "Not yet"],
-                ["Decision", c.decision ? `${c.decision} by ${c.decision_by}, ${fmtDate(c.decision_at)}${c.decline_reason ? `. Reason: ${c.decline_reason}` : ""}` : "Not yet"],
-              ]}
-            />
-          </Box>
-          {info_requests.length > 0 && (
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="subtitle2">Questions to the referring clinic</Typography>
-              {info_requests.map((ir) => (
-                <Paper key={ir.id} variant="outlined" sx={{ p: 1.5, mt: 1 }}>
-                  <Typography variant="body2">
-                    <strong>Q:</strong> {ir.question}
+        {staff && (
+          <Section title="Intake" description="Take the referral in: acknowledge receipt, confirm who the patient is here, then assign a doctor.">
+            <Stack component="ol" spacing={1.5} sx={{ m: 0, p: 0 }}>
+              <Step n={1} title="Acknowledge receipt" state={acked ? "done" : "next"}>
+                {acked ? (
+                  <Typography variant="body2" color="text.secondary">
+                    {c.acknowledged_by}, {fmtDate(c.acknowledged_at)}
                   </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {ir.created_by}, {fmtDate(ir.created_at)}
+                ) : (
+                  <>
+                    <ErrorAlert error={acknowledge.error} />
+                    <Button variant="contained" onClick={() => acknowledge.mutate()} disabled={acknowledge.isPending}>
+                      Acknowledge receipt
+                    </Button>
+                  </>
+                )}
+              </Step>
+              <Step n={2} title="Confirm the patient" state={confirmed ? "done" : acked ? "next" : "waiting"}>
+                <ConfirmPatient
+                  linkId={c.link_request_id}
+                  localPatientId={c.local_patient_id}
+                  patient={{ name: c.patient_name, birth_date: c.patient_birth_date, sex: c.patient_sex, cnic: c.patient_cnic }}
+                  requester={c.sender_name}
+                  onDone={refresh}
+                />
+              </Step>
+              <Step n={3} title="Assign to a doctor" state={assignedStep ? "done" : acked && confirmed ? "next" : "waiting"}>
+                {assignedStep && (
+                  <Typography variant="body2" sx={{ mb: decided ? 0 : 1.5 }}>
+                    Assigned to <strong>{c.assigned_doctor}</strong> by {c.assigned_by}, {fmtDate(c.assigned_at)}
+                    {c.assign_note ? `. Note: ${c.assign_note}` : ""}
                   </Typography>
-                  {ir.answer ? (
-                    <Typography variant="body2" sx={{ mt: 0.5 }}>
-                      <strong>A:</strong> {ir.answer} <em>({ir.answered_by}, {fmtDate(ir.answered_at)})</em>
-                    </Typography>
-                  ) : (
-                    <Box sx={{ mt: 0.5 }}>
-                      <Tag tone="wait" label="waiting for an answer" />
-                    </Box>
-                  )}
-                </Paper>
-              ))}
-            </Box>
-          )}
-        </Section>
-
-        {env && (
-          <Section title="Referral summary" description={`Version ${latest.version}, sent by ${env.sent_by} on ${fmtDate(env.sent_at)}. Built from the records checked at the referring clinic.`}>
-            <Stack spacing={2}>
-              {env.brief_sections
-                .filter((s) => s.key !== "reason")
-                .map((s) => (
-                  <Box key={s.key}>
-                    <Typography variant="subtitle2">{s.title}</Typography>
-                    {s.statements.length === 0 && <Typography color="text.secondary">None recorded.</Typography>}
-                    <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
-                      {s.statements.map((st) => (
-                        <li key={st.id}>
-                          <Typography variant="body2">
-                            {st.text}
-                            {st.evidence_ids.length > 0 && (
-                              <Typography component="span" variant="caption" color="text.secondary">
-                                {" "}
-                                (from the records)
-                              </Typography>
-                            )}
-                          </Typography>
-                        </li>
-                      ))}
-                    </Box>
-                  </Box>
-                ))}
+                )}
+                {!decided && acked && confirmed && <AssignForm key={c.assigned_doctor ?? "none"} c={c} onAssigned={refresh} />}
+                {!decided && !(acked && confirmed) && (
+                  <Typography variant="body2" color="text.secondary">
+                    Acknowledge receipt and confirm the patient first.
+                  </Typography>
+                )}
+                {decided && (
+                  <Typography variant="body2" color="text.secondary">
+                    {c.decision === "accepted" ? "Accepted" : "Declined"} by {c.decision_by}, {fmtDate(c.decision_at)}
+                    {c.decline_reason ? `. Reason: ${c.decline_reason}` : ""}
+                  </Typography>
+                )}
+              </Step>
             </Stack>
           </Section>
         )}
 
-        {env && (
-          <Section title="Medication flags" description={env.medication_evaluation.summary ?? "Checked against the approved medication rules."}>
-            {env.medication_flags.length === 0 ? (
-              <Empty>No medication flags for this referral.</Empty>
-            ) : (
-              <Stack spacing={1.5}>
-                {env.medication_flags.map((f) => (
-                  <FlagCard key={`${f.flag_id}-${f.version}`} flag={{ ...f, rule_version: null }} acknowledged={f.acknowledged} />
-                ))}
-              </Stack>
-            )}
-          </Section>
-        )}
+        {doctor && !sent && responseSection}
 
-        {env && env.limitations.length > 0 && (
-          <Alert severity="info">
-            <AlertTitle>Not available or outstanding</AlertTitle>
-            <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
-              {env.limitations.map((l, i) => (
-                <li key={i}>{l}</li>
-              ))}
-            </Box>
-          </Alert>
-        )}
-
-        {env && env.diagnostic_requests.length > 0 && (
-          <Section title="Tests and scans requested with this referral">
-            <Table size="small" aria-label="Tests and scans">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Test or scan</TableCell>
-                  <TableCell>Where</TableCell>
-                  <TableCell>Question</TableCell>
-                  <TableCell>Status when sent</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {env.diagnostic_requests.map((d) => (
-                  <TableRow key={d.reference}>
-                    <TableCell>{d.test}</TableCell>
-                    <TableCell>{d.where}</TableCell>
-                    <TableCell>{d.clinical_question}</TableCell>
-                    <TableCell>
-                      <OrderStatus status={d.status} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Section>
-        )}
-
-        <Section title="Results received" description="Test and scan reports for this referral, sent on to you when they are ready.">
-          {results.length === 0 && <Empty>No results received yet.</Empty>}
-          <Stack spacing={1.5}>
-            {results.map((r) => (
-              <Paper key={r.id} variant="outlined" sx={{ p: 1.5 }}>
-                <Typography variant="subtitle2">{r.test}</Typography>
-                <Typography variant="caption" color="text.secondary" display="block">
-                  {ref.data?.institutions[r.performed_by_institution]?.name ?? r.performed_by_institution} · reported by {r.reported_by}, {fmtDate(r.reported_at)}
-                </Typography>
-                {r.report_text && <Typography sx={{ whiteSpace: "pre-wrap", mt: 1 }}>{r.report_text}</Typography>}
-                {r.values.length > 0 && (
-                  <Table size="small" sx={{ mt: 1 }} aria-label={`${r.test} results`}>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Test</TableCell>
-                        <TableCell>Value</TableCell>
-                        <TableCell>Reference</TableCell>
-                        <TableCell>Flag</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {r.values.map((v, i) => (
-                        <TableRow key={i}>
-                          <TableCell>{v.test}</TableCell>
-                          <TableCell>
-                            {v.value} {v.unit ?? ""}
-                          </TableCell>
-                          <TableCell>{v.reference ?? ""}</TableCell>
-                          <TableCell>{v.flag ?? ""}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </Paper>
-            ))}
-          </Stack>
-        </Section>
-
-        {c.decision === "accepted" && (
+        {doctor && (canDecide || canAsk || decided) && (
           <Section
-            title="Your response"
-            description={sent ? `Sent by ${draft?.returned_by} on ${fmtDate(draft?.returned_at)}. It cannot be changed.` : "Write your assessment and plan. Sending signs it off and returns it to the referring clinic."}
+            title="Decision"
+            description={canDecide ? "Accept the referral and write your response, decline it with a reason, or ask the referring clinic for more information." : undefined}
           >
-            {sent ? (
-              <ResponseView content={draft!.content} />
-            ) : (
-              <Stack spacing={1.5}>
-                <TextField label="Assessment" multiline minRows={3} value={form.assessment} onChange={(e) => setForm({ ...form, assessment: e.target.value })} />
-                <TextField label="Plan" multiline minRows={2} value={form.plan} onChange={(e) => setForm({ ...form, plan: e.target.value })} />
-                <TextField
-                  label="Instructions for the referring clinic"
-                  multiline
-                  minRows={2}
-                  value={form.instructions_for_clinic}
-                  onChange={(e) => setForm({ ...form, instructions_for_clinic: e.target.value })}
-                />
-                <TextField label="Appointment" placeholder="For example: surgical clinic in 2 weeks" value={form.appointment} onChange={(e) => setForm({ ...form, appointment: e.target.value })} />
-                <ErrorAlert error={save.error || send.error} />
-                <Stack direction="row" spacing={1}>
-                  <Button variant="outlined" onClick={() => save.mutate()} disabled={save.isPending || !hasContent}>
-                    Save draft
+            <ErrorAlert error={decide.error || ask.error} />
+            {c.assign_note && !decided && (
+              <Alert severity="info" sx={{ mb: 1.5 }}>
+                Note from {c.assigned_by}: {c.assign_note}
+              </Alert>
+            )}
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {canDecide && (
+                <>
+                  <Button variant="contained" onClick={() => decide.mutate({ decision: "accept" })} disabled={decide.isPending}>
+                    Accept referral
                   </Button>
-                  <Button variant="contained" onClick={() => send.mutate()} disabled={send.isPending || !hasContent}>
-                    Send response to the referring clinic
+                  <Button variant="outlined" color="error" onClick={() => setDeclineOpen(true)}>
+                    Decline
                   </Button>
-                </Stack>
-                {draft && (
-                  <Typography variant="caption" color="text.secondary">
-                    Draft saved by {draft.drafted_by}.
-                  </Typography>
-                )}
-              </Stack>
+                </>
+              )}
+              {canAsk && (
+                <Button variant="outlined" onClick={() => setAskOpen(true)}>
+                  Ask for more information
+                </Button>
+              )}
+            </Stack>
+            {decided && (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: canAsk ? 1.5 : 0 }}>
+                {c.decision === "accepted" ? "Accepted" : "Declined"} by {c.decision_by}, {fmtDate(c.decision_at)}
+                {c.decline_reason ? `. Reason: ${c.decline_reason}` : ""}
+              </Typography>
             )}
           </Section>
         )}
+
+        {doctor && !c.assigned_doctor && (
+          <Alert severity="info">This referral has not been assigned to a doctor yet. Staff assign it after intake.</Alert>
+        )}
+
+        {infoRequests}
+
+        {(!doctor || sent) && responseSection}
+
+        {letter}
+        {!env && <Empty>The referral letter has not been received yet.</Empty>}
+
+        {resultsSection}
 
         {packages.length > 0 && (
           <Section title="Versions received">

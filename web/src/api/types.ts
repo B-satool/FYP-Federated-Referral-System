@@ -14,17 +14,19 @@ export type Me = {
 
 export type Department = { name: string; kind: "clinical" | "laboratory" | "imaging" | "cardiac" };
 export type Institution = { name: string; kind: "clinic" | "hospital" | "laboratory"; departments: string[] };
-export type Procedure = { label: string; departments: string[]; tags: string[] };
 export type Practitioner = { name: string; institution: string; department: string; username?: string };
+export type RequestKind = "referral" | "test";
 
 export type ReferenceData = {
   institutions: Record<string, Institution>;
   departments: Record<string, Department>;
-  procedures: Record<string, Procedure>;
+  /** words in a procedure name -> features to pre-tick */
+  procedure_hints: Record<string, string[]>;
   procedure_tags: Record<string, string>;
   urgencies: Record<string, { label: string; detail: string }>;
   urgency_note: string;
   statuses: Record<string, string>;
+  test_statuses: Record<string, string>;
   practitioners: Practitioner[];
   test_suggestions: { test: string; category: string; body_area?: string }[];
   diagnostic_categories: Record<string, string>;
@@ -50,9 +52,14 @@ export type PatientIndexEntry = {
 export type Referral = {
   id: number;
   reference: string;
+  /** referral = to a doctor or department; test = tests or scans only */
+  kind: RequestKind;
   status: string;
   status_label: string;
   row_version: number;
+  /** staff gathered records, papers and medicines; the doctor can now review the flags */
+  prepared_by: string | null;
+  prepared_at: string | null;
   patient: { institution_id: string; local_patient_id: string; name: string; birth_date: string | null; sex: string | null; cnic: string | null };
   source_institution: string;
   source_institution_name: string;
@@ -60,18 +67,20 @@ export type Referral = {
   source_department_name: string | null;
   requesting_doctor_id: string | null;
   requesting_doctor_name: string;
-  destination_institution: string;
-  destination_name: string;
-  destination_department: string;
-  destination_department_name: string;
+  /** null for a test request */
+  destination_institution: string | null;
+  destination_name: string | null;
+  destination_department: string | null;
+  destination_department_name: string | null;
   destination_doctor: string | null;
   reason: string;
   urgency: string;
   urgency_label: string;
   urgency_detail: string | null;
-  procedure_status: "known" | "none" | "unknown" | "other";
+  procedure_status: "planned" | "none" | "unknown";
   planned_procedure: string | null;
-  procedure_other: string | null;
+  procedure_tags: string[];
+  procedure_tag_labels: string[];
   procedure_label: string;
   requested_at: string | null;
   created_by: string;
@@ -145,6 +154,8 @@ export type PatientLink = {
   patient_cnic: string | null;
   referral_id: number | null;
   purpose: string;
+  /** records = asking for records (match or "no record here"); intake = arriving with a referral or order (match or register new) */
+  kind: "records" | "intake";
   status: "requested" | "verified" | "rejected" | "invalidated";
   requested_by: string;
   requested_at: string;
@@ -159,6 +170,8 @@ export type PatientLink = {
 };
 
 export type LookupCandidate = PatientIndexEntry & { compare: { cnic: boolean; name: boolean; birth_date: boolean; sex: boolean } };
+
+export type ResultValue = { test: string; value: string; unit?: string | null; reference?: string | null; flag?: string | null };
 
 export type Diagnostic = {
   id: number;
@@ -181,7 +194,10 @@ export type Diagnostic = {
   sent_at: string | null;
   reject_reason: string | null;
   scheduled_for: string | null;
-  report: { findings?: string; impression?: string; report_text?: string; values?: { test: string; value: string; unit?: string; reference?: string; flag?: string }[]; reported_by?: string; reported_at?: string } | null;
+  report: { findings?: string; impression?: string; report_text?: string; values?: ResultValue[]; reported_by?: string; reported_at?: string } | null;
+  local_patient_id: string | null;
+  /** images or files returned with the report; fetch /diagnostics/{id}/attachments/{n} */
+  attachments: { n: number; filename: string; content_type: string; size: number }[];
   seen_by: string | null;
   seen_at: string | null;
   history: { status: string; by: string; at: string; reason?: string; scheduled_for?: string }[];
@@ -339,7 +355,18 @@ export type MedicationView = {
   flag_history: Flag[];
 };
 
-export type BriefStatement = { id: string; text: string; evidence_ids: number[]; author_kind: string; author_name: string | null; verification: string };
+export type BriefStatement = {
+  id: string;
+  text: string;
+  evidence_ids: number[];
+  author_kind: string;
+  author_name: string | null;
+  verification: string;
+  /** where it is recorded, when, and grouping (a lab panel) */
+  source?: string | null;
+  date?: string | null;
+  group?: string | null;
+};
 export type BriefSection = { key: string; title: string; statements: BriefStatement[] };
 export type BriefPreview = { sections: BriefSection[]; limitations: string[]; evidence_ids: number[] };
 
@@ -463,12 +490,22 @@ export type Case = {
   requested_doctor: string | null;
   patient_name: string;
   patient_birth_date: string | null;
+  patient_sex: string | null;
+  patient_cnic: string | null;
+  /** set once staff here confirm the patient */
   local_patient_id: string | null;
+  /** central intake link request to confirm the patient (null if already known here) */
+  link_request_id: number | null;
   urgency: string;
+  /** received -> acknowledged -> assigned -> accepted | declined -> responded */
   status: string;
   latest_version: number;
   acknowledged_by: string | null;
   acknowledged_at: string | null;
+  assigned_doctor: string | null;
+  assigned_by: string | null;
+  assigned_at: string | null;
+  assign_note: string | null;
   decision: string | null;
   decision_by: string | null;
   decision_at: string | null;
@@ -489,16 +526,36 @@ export type PackageEnvelope = {
   reason: string;
   procedure_status: string;
   procedure_label: string | null;
-  patient: { name: string; birth_date: string | null; sex: string | null };
+  patient: {
+    name: string;
+    birth_date: string | null;
+    sex: string | null;
+    cnic?: string | null;
+    sender_name?: string;
+    identifier?: { institution_id: string; local_patient_id: string };
+    local_patient_id?: string | null;
+    link_request_id?: number | null;
+  };
   requesting_doctor: { name: string; institution: string; department: string | null; requested_at: string | null };
   brief_sections: BriefSection[];
-  medication_flags: { flag_id: number; version: number; kind: string; title: string; message: string; medication: string | null; source_label: string | null; rule_id: string | null; acknowledged: { by: string; at: string } | null }[];
+  medication_flags: LetterFlag[];
   medication_evaluation: { status: string; outcome: string | null; summary: string | null };
   limitations: string[];
-  diagnostic_requests: { reference: string; test: string; status: string; where: string; clinical_question: string }[];
   sent_by: string;
   sent_at: string;
   content_hash: string;
+};
+
+export type LetterFlag = {
+  flag_id: number;
+  version: number;
+  kind: string;
+  title: string;
+  message: string;
+  medication: string | null;
+  source_label: string | null;
+  rule_id: string | null;
+  acknowledged: { by: string; at: string } | null;
 };
 
 export type CaseDetail = {
@@ -523,16 +580,24 @@ export type Order = {
   urgency: string;
   patient_name: string;
   patient_birth_date: string | null;
+  patient_sex: string | null;
+  patient_cnic: string | null;
   local_patient_id: string | null;
+  /** central intake link request to confirm the patient (null if already known here) */
+  link_request_id: number | null;
   requested_by: string;
   status: string;
   reject_reason: string | null;
   scheduled_for: string | null;
   report_text: string | null;
-  values: { test: string; value: string; unit?: string; reference?: string; flag?: string }[];
+  findings: string | null;
+  impression: string | null;
+  values: ResultValue[];
   reported_by: string | null;
   reported_at: string | null;
   history: { status: string; by: string; at: string; reason?: string; scheduled_for?: string }[];
+  /** only on GET /orders/{id}; fetch /orders/{id}/attachments/{attachment id} */
+  attachments: { id: number; filename: string; content_type: string; size: number }[];
   received_at: string;
   updated_at: string;
 };

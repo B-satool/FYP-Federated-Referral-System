@@ -43,6 +43,9 @@ class PatientLink(Base):
     patient_cnic: Mapped[str | None] = mapped_column(String(15), nullable=True)
     referral_id: Mapped[int | None] = mapped_column(ForeignKey("referrals.id"), nullable=True)
     purpose: Mapped[str] = mapped_column(Text, default="")
+    # records = asking a place the patient visited for their records (it matches a record or says it has none);
+    # intake = sent with a referral or test order, so the receiver matches the patient or registers them as new
+    kind: Mapped[str] = mapped_column(String(20), default="records")
     # requested | verified | rejected | invalidated
     status: Mapped[str] = mapped_column(String(20), default="requested", index=True)
     # lets a rejected/invalidated pair be requested again without violating uniqueness

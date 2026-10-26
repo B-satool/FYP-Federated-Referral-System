@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models import Clarification, ConsultationResponse, FollowupTask, Outbox
+from ..models import Clarification, ConsultationResponse, DiagnosticRequest, FollowupTask, Outbox
 from ..referrals.state import TERMINAL, event, transition
 from ..security import DOCTOR, STAFF, audit, check_version, error, get_principal, load_referral
 from ..serializers import referral_out, response_out, task_out
@@ -150,10 +150,17 @@ def close(referral_id: int, body: CloseIn, db: Session = Depends(get_db), princi
     check_version(r, body.expected_version)
     if r.status in TERMINAL:
         raise error(409, "already_closed", "This referral is already closed")
-    reviewed = db.scalars(select(ConsultationResponse).where(ConsultationResponse.referral_id == r.id,
-                                                             ConsultationResponse.reviewed_at.is_not(None))).first()
-    if reviewed is None:
-        raise error(409, "outcome_not_seen", "The referring doctor must review the specialist's response before closing")
+    if r.kind == "test":
+        unseen = db.scalars(select(DiagnosticRequest).where(DiagnosticRequest.referral_id == r.id,
+                                                            DiagnosticRequest.status == "reported",
+                                                            DiagnosticRequest.seen_at.is_(None))).all()
+        if r.status != "response_returned" or unseen:
+            raise error(409, "outcome_not_seen", "The doctor must see every result before closing")
+    else:
+        reviewed = db.scalars(select(ConsultationResponse).where(ConsultationResponse.referral_id == r.id,
+                                                                 ConsultationResponse.reviewed_at.is_not(None))).first()
+        if reviewed is None:
+            raise error(409, "outcome_not_seen", "The referring doctor must review the specialist's response before closing")
     if r.patient_informed_at is None:
         raise error(409, "patient_not_informed", "Record that the patient has been told the outcome before closing")
     open_tasks = db.scalars(select(FollowupTask).where(FollowupTask.referral_id == r.id, FollowupTask.status == "open")).all()

@@ -198,10 +198,10 @@ def translate_package(inst: str, raw: dict[str, Any]) -> tuple[PackageEnvelope, 
         raise PackageRejected("invalid ServiceRequest: " + "; ".join(problems))
     if service_requests[0].get("status") != "active":
         raise PackageRejected("ServiceRequest is not active")
-    local_id = None
+    local_id = env.patient.get("local_patient_id")
     for ident in env.patient.get("verified_links", []):
         if ident.get("institution_id") == inst:
-            local_id = ident.get("local_patient_id")
+            local_id = local_id or ident.get("local_patient_id")
     fields = {
         "central_referral_id": env.referral_id,
         "sender_institution": env.sender_institution,
@@ -210,7 +210,10 @@ def translate_package(inst: str, raw: dict[str, Any]) -> tuple[PackageEnvelope, 
         "requested_doctor": env.destination_doctor,
         "patient_name": env.patient.get("name", "Unknown"),
         "patient_birth_date": env.patient.get("birth_date"),
+        "patient_sex": env.patient.get("sex"),
+        "patient_cnic": env.patient.get("cnic"),
         "local_patient_id": local_id,
+        "link_request_id": env.patient.get("link_request_id"),
         "urgency": env.urgency,
     }
     return env, fields

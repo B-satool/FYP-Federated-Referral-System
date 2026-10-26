@@ -29,6 +29,10 @@ class BriefStatement(BaseModel):
     author_name: str | None = None
     edited_by: str | None = None
     verification: Literal["verified", "unresolved", "unverified", "mixed", "none"] = "none"
+    # For laying the summary out as a report: where it is recorded, when, and grouping (e.g. a lab panel)
+    source: str | None = None
+    date: str | None = None
+    group: str | None = None
 
 
 class BriefSection(BaseModel):

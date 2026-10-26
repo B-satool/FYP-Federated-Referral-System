@@ -16,7 +16,7 @@ from refcommon.exchange import content_hash
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..config import DRUG_CLASSES, INSTITUTIONS, PROCEDURES, institution_name
+from ..config import DRUG_CLASSES, INSTITUTIONS, institution_name
 from ..integration.retrieval import latest_by_source, linked_sources
 from ..models import EvaluationRun, EvidenceItem, FlagReview, MedicationEntry, MedicationFlag, Referral
 from ..security import audit
@@ -134,8 +134,7 @@ def build_input(db: Session, referral: Referral) -> tuple[EvalInput, dict[str, i
                           drug_class=e.drug_class, mapping_status=e.mapping_status, source_label=e.source_label,
                           evidence_ids=tuple(x.evidence_id for x in _group_members(db, e)))
                  for e in current_entries(db, referral.id))
-    tags = tuple(PROCEDURES.get(referral.planned_procedure or "", {}).get("tags", [])) \
-        if referral.procedure_status == "known" else ()
+    tags = tuple(sorted(referral.procedure_tags or [])) if referral.procedure_status == "planned" else ()
     inp = EvalInput(procedure_status=referral.procedure_status, planned_procedure=referral.planned_procedure,
                     procedure_tags=tags, medications=meds, sources=tuple(source_states(db, referral)),
                     rules=tuple(rule_list), class_labels=DRUG_CLASSES)
@@ -155,7 +154,8 @@ def reevaluate(db: Session, referral: Referral, trigger: str, actor: str, princi
     sync_entries(db, referral)
     inp, rule_versions = build_input(db, referral)
     input_hash = content_hash({"meds": [m.__dict__ for m in inp.medications], "sources": [s.__dict__ for s in inp.sources],
-                               "rules": rule_versions, "procedure": [inp.procedure_status, inp.planned_procedure]})
+                               "rules": rule_versions,
+                               "procedure": [inp.procedure_status, inp.planned_procedure, list(inp.procedure_tags)]})
     run = EvaluationRun(referral_id=referral.id, trigger=trigger, status="completed", input_hash=input_hash,
                         rule_versions=rule_versions, triggered_by=actor,
                         context={"procedure_status": inp.procedure_status, "planned_procedure": inp.planned_procedure,
@@ -205,7 +205,8 @@ def reevaluate(db: Session, referral: Referral, trigger: str, actor: str, princi
     audit(db, principal, "medications.evaluate", "referral", referral.reference, "success", referral.id,
           {"trigger": trigger, "outcome": out.outcome, "changed_flags": changed, "rule_versions": rule_versions},
           actor=None if principal else ("system", actor, None))
-    if changed and referral.status not in ("draft",) and unacknowledged_flags(db, referral.id):
+    # The doctor reviews flags once staff have gathered everything (prepared), not while records still arrive.
+    if changed and referral.prepared_at is not None and unacknowledged_flags(db, referral.id):
         notify_doctor(db, referral, "flags_to_acknowledge", f"{referral.reference}: medication flags to acknowledge",
                       f"{referral.patient_name}. Flags changed after: {trigger.replace('_', ' ')}.", tab="medicines")
     if changed and referral.current_package_version and referral.status not in CLINICAL_LOCKED:

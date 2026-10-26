@@ -29,20 +29,25 @@ class Referral(Base):
     requesting_doctor_name: Mapped[str] = mapped_column(String(200))
     created_by_id: Mapped[str] = mapped_column(String(64))
     created_by_name: Mapped[str] = mapped_column(String(200))
-    # Referring to
-    destination_institution: Mapped[str] = mapped_column(String(50), index=True)
-    destination_department: Mapped[str] = mapped_column(String(60))
+    # referral = to a doctor or department; test = a test or scan only (its orders carry the destinations)
+    kind: Mapped[str] = mapped_column(String(20), default="referral", index=True)
+    # Referring to (referrals only)
+    destination_institution: Mapped[str | None] = mapped_column(String(50), index=True, nullable=True)
+    destination_department: Mapped[str | None] = mapped_column(String(60), nullable=True)
     destination_doctor: Mapped[str | None] = mapped_column(String(200), nullable=True)
     # Clinical
     reason: Mapped[str] = mapped_column(Text, default="")
     urgency: Mapped[str] = mapped_column(String(20), default="routine")
-    procedure_status: Mapped[str] = mapped_column(String(20), default="unknown")  # known | none | unknown | other
-    planned_procedure: Mapped[str | None] = mapped_column(String(60), nullable=True)
-    procedure_other: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    procedure_status: Mapped[str] = mapped_column(String(20), default="unknown")  # planned | none | unknown
+    planned_procedure: Mapped[str | None] = mapped_column(String(300), nullable=True)  # in the doctor's words
+    procedure_tags: Mapped[list[str]] = mapped_column(JSON, default=list)  # what the procedure involves
     # Workflow
     status: Mapped[str] = mapped_column(String(30), default="draft", index=True)
     row_version: Mapped[int] = mapped_column(Integer, default=1)
     requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Staff checkpoint: records, papers and medicines gathered; the doctor can now review the flags
+    prepared_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    prepared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     amendment_open: Mapped[bool] = mapped_column(Boolean, default=False)
     current_package_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     submitted_package_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -213,6 +218,9 @@ class DiagnosticRequest(Base):
     reject_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     report: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Images or report files returned with the result: [{"n", "filename", "content_type", "storage_key", "size"}]
+    attachments: Mapped[list] = mapped_column(JSON, default=list)
+    local_patient_id: Mapped[str | None] = mapped_column(String(50), nullable=True)  # at the destination, once confirmed
     seen_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
     seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     history: Mapped[list] = mapped_column(JSON, default=list)

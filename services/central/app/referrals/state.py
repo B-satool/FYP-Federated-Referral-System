@@ -10,7 +10,7 @@ from ..security import audit, bump, error
 
 STATUS_LABELS = {
     "draft": "Draft (doctor)",
-    "requested": "Preparing",
+    "requested": "In progress",
     "submitted": "Sent",
     "acknowledged": "Acknowledged",
     "accepted": "Accepted",
@@ -20,11 +20,21 @@ STATUS_LABELS = {
     "declined": "Declined",
     "cancelled": "Cancelled",
 }
+# A test request: in progress (staff check and send) -> sent -> results received -> closed
+TEST_STATUS_LABELS = {**STATUS_LABELS, "submitted": "Tests sent", "response_returned": "Results received"}
+
+
+def status_label(referral: Referral) -> str:
+    labels = TEST_STATUS_LABELS if referral.kind == "test" else STATUS_LABELS
+    if referral.kind == "referral" and referral.status == "requested":
+        return "Ready to send" if referral.prepared_at else "In progress"
+    return labels.get(referral.status, referral.status)
+
 
 TRANSITIONS: dict[str, set[str]] = {
     "draft": {"requested", "cancelled"},
     "requested": {"submitted", "draft", "cancelled"},
-    "submitted": {"acknowledged", "declined", "cancelled"},
+    "submitted": {"acknowledged", "declined", "cancelled", "response_returned"},  # tests go straight to results
     "acknowledged": {"accepted", "declined", "cancelled"},
     "accepted": {"response_returned", "cancelled"},
     "response_returned": {"followup_pending", "closed"},

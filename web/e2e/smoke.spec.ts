@@ -1,8 +1,13 @@
+import path from "node:path";
 import { expect, Page, test } from "@playwright/test";
 import { asUser, closeContexts, shot } from "./helpers";
 
-// v2 journey for P5 (Imtiaz Ali Soomro): Dr Ali's Clinic -> Aga Khan University Hospital, General Surgery.
-// Run on a fresh seed: scripts/reset-and-seed.ps1 -Force
+// v2 journeys. Run on a fresh seed: scripts/reset-and-seed.ps1 -Force
+// 1. Referral for P5 (Imtiaz Ali Soomro): Dr Ali's Clinic -> Aga Khan University Hospital, General Surgery.
+// 2. Test request for P3 (Abdul Rehman Gondal): MRI knee at Aga Khan radiology, with a report image.
+
+// tests run from web/
+const SCAN = path.resolve("../seed-data/documents/imaging/synthetic_mri-knee-coronal.png");
 
 test.afterEach(async () => {
   await closeContexts();
@@ -26,42 +31,46 @@ async function openTab(page: Page, name: string) {
   await page.waitForLoadState("networkidle");
 }
 
-test("doctor requests, staff prepare and send, hospital responds, clinic closes", async ({ browser }) => {
-  // 1. The doctor fills in the form.
+async function pickPatient(page: Page, name: string) {
+  await page.getByLabel("Find the patient").fill(name);
+  await page.getByRole("button", { name: new RegExp(name) }).first().click();
+}
+
+/** Staff at the receiving side confirm who the patient is (new to them). */
+async function registerNew(page: Page, note: string) {
+  await page.getByRole("button", { name: "Confirm the patient" }).click();
+  await page.getByLabel("How you checked (required)").fill(note);
+  await page.getByRole("button", { name: "Register as a new patient" }).click();
+  await expect(page.getByText(/Patient confirmed/).first()).toBeVisible({ timeout: 30_000 });
+}
+
+test("referral: doctor requests, staff prepare, doctor reviews flags, staff send, hospital takes it in and responds", async ({ browser }) => {
+  // 1. The doctor chooses what they need, then fills in the referral.
   const dr = await asUser(browser, "dr.ali");
   await go(dr, "/referrals/new");
-  await dr.getByLabel("Find the patient").fill("Imtiaz");
-  await dr.getByRole("button", { name: /Imtiaz Ali Soomro/ }).click();
-  await choose(dr, "Hospital", "Aga Khan University Hospital");
+  await dr.getByRole("button", { name: /Refer to a doctor or department/ }).click();
+  await pickPatient(dr, "Imtiaz");
+  await choose(dr, "Clinic or hospital", "Aga Khan University Hospital");
   await choose(dr, "Department", "General Surgery");
   await dr.getByLabel("Reason for referral").fill("Repeated right upper abdominal pain after fatty meals; gallstones on ultrasound. Please assess for gallbladder removal.");
-  await dr.getByLabel("From the list").check();
-  await choose(dr, "Procedure", "Laparoscopic cholecystectomy");
-  await dr.getByRole("button", { name: "Add a test or scan" }).click();
-  await choose(dr, "Type", "Imaging or scan");
-  await dr.getByLabel("Test or scan").fill("MRCP");
-  await dr.getByLabel("Clinical question").fill("Liver enzymes mildly raised; exclude a common bile duct stone");
-  await choose(dr, "Where", /Ziauddin Hospital/);
+  await dr.getByLabel("A procedure is planned").check();
+  await dr.getByRole("textbox", { name: /^Procedure/ }).fill("Laparoscopic cholecystectomy");
+  await expect(dr.getByLabel(/Major or elective surgery/)).toBeChecked();
   await shot(dr, "v2-new-referral");
   await dr.getByRole("button", { name: "Submit request" }).click();
   await dr.waitForURL(/\/referrals\/\d+/);
   const url = new URL(dr.url()).pathname;
   const reference = (await dr.locator("h1").innerText()).split(" · ")[0];
+  await expect(dr.getByText("In progress").first()).toBeVisible();
+  await openTab(dr, "Medicines & flags");
+  await expect(dr.getByText(/Staff are still gathering/)).toBeVisible();
 
-  // 2. Aga Khan staff confirm the patient (new to them).
-  const aku = await asUser(browser, "staff.aku");
-  await go(aku, "/patient-links");
-  await aku.getByRole("button", { name: "Check" }).first().click();
-  await aku.getByLabel("How you checked (required)").fill("New patient; CNIC and date of birth checked");
-  await shot(aku, "v2-link-check");
-  await aku.getByRole("button", { name: "Not registered here: register as a new patient" }).click();
-  await expect(aku.getByRole("dialog")).toBeHidden();
-
-  // 3. Clinic staff gather the records and confirm medicines with the patient.
+  // 2. Clinic staff gather the records and medicines, then mark it ready for the doctor.
   const staff = await asUser(browser, "staff.ali");
   await go(staff, `${url}?tab=records`);
   await staff.getByRole("button", { name: /Retrieve records/ }).click();
-  await expect(staff.getByText("not the most recent").first()).toBeVisible({ timeout: 30_000 });
+  await expect(staff.getByRole("cell", { name: "Ziauddin Hospital" })).toBeVisible({ timeout: 30_000 });
+  await expect(staff.getByText("retrieved", { exact: true }).first()).toBeVisible();
   await shot(staff, "v2-records");
   await openTab(staff, "Medicines & flags");
   await staff.getByRole("button", { name: "Add a medicine" }).click();
@@ -72,13 +81,16 @@ test("doctor requests, staff prepare and send, hospital responds, clinic closes"
   await expect(staff.getByRole("cell", { name: /Panadol/ })).toBeVisible();
   await staff.getByRole("button", { name: "I asked the patient about all their medicines" }).click();
   await expect(staff.getByText(/Patient asked about all medicines: /)).toBeVisible();
-  await shot(staff, "v2-medicines-staff");
+  await openTab(staff, "Check & send");
+  await staff.getByRole("button", { name: "Ready for the doctor's review" }).click();
+  await expect(staff.getByText(/Marked ready by/)).toBeVisible({ timeout: 30_000 });
 
-  // 4. The doctor acknowledges the flags.
+  // 3. The doctor reviews the flags (no "Add a medicine" for doctors).
   await go(dr, `${url}?tab=medicines`);
   await expect(dr.getByText("Medication requires review: antiplatelet agent before surgery").first()).toBeVisible();
+  await expect(dr.getByRole("button", { name: "Add a medicine" })).toHaveCount(0);
   for (let i = 0; i < 10; i++) {
-    const btn = dr.getByRole("button", { name: "Acknowledge for this patient" });
+    const btn = dr.getByRole("button", { name: "Mark as reviewed" });
     const n = await btn.count();
     if (n === 0) break;
     await btn.first().click();
@@ -86,37 +98,37 @@ test("doctor requests, staff prepare and send, hospital responds, clinic closes"
   }
   await shot(dr, "v2-flags-doctor");
 
-  // 5. Staff send; then send the MRCP order.
+  // 4. Staff read the letter and send it (staff cannot withdraw a request).
   await go(staff, `${url}?tab=send`);
-  await expect(staff.getByRole("button", { name: "Send to Aga Khan University Hospital" })).toBeEnabled();
+  await expect(staff.getByRole("button", { name: "Send to Aga Khan University Hospital" })).toBeEnabled({ timeout: 30_000 });
+  await expect(staff.getByRole("article", { name: /Referral letter/ })).toBeVisible();
   await staff.waitForLoadState("networkidle");
   await shot(staff, "v2-check-and-send");
   await staff.getByRole("button", { name: "Send to Aga Khan University Hospital" }).click();
   await expect(staff.getByText("Sent", { exact: true }).first()).toBeVisible({ timeout: 60_000 });
-  await openTab(staff, "Tests & scans");
-  await staff.getByRole("button", { name: "Send to Ziauddin Hospital" }).click();
-  await expect(staff.getByText("requested", { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+  await openTab(staff, "Request");
+  await expect(staff.getByRole("button", { name: "Withdraw request" })).toHaveCount(0);
 
-  // 6. Ziauddin radiology accepts and reports.
-  const rad = await asUser(browser, "rad.zia");
-  await go(rad, "/orders");
-  await rad.getByRole("row", { name: /MRCP/ }).getByRole("link").first().click();
-  await rad.getByRole("button", { name: "Accept order" }).click();
-  await rad.getByLabel("Findings").fill("No common bile duct stone. Multiple gallbladder stones.");
-  await rad.getByLabel("Impression").fill("Cholelithiasis without choledocholithiasis.");
-  await rad.getByRole("button", { name: "Send report" }).click();
-  await expect(rad.getByText("result ready").first()).toBeVisible({ timeout: 30_000 });
-  await shot(rad, "v2-order-reported");
+  // 5. Aga Khan staff take it in: acknowledge, confirm the patient (new to them), assign the surgeon.
+  const aku = await asUser(browser, "staff.aku");
+  await go(aku, "/incoming");
+  await expect(async () => {
+    await aku.reload();
+    await aku.getByRole("link", { name: reference }).click({ timeout: 3_000 });
+  }).toPass({ timeout: 60_000 });
+  await aku.getByRole("button", { name: "Acknowledge receipt" }).click();
+  await registerNew(aku, "New patient; CNIC and date of birth checked");
+  await choose(aku, "Assign to doctor", "Dr Naveed Baig");
+  await aku.getByRole("button", { name: "Assign", exact: true }).click();
+  await expect(aku.getByText(/Dr Naveed Baig/).first()).toBeVisible();
+  await shot(aku, "v2-incoming-intake");
 
-  // 7. The Aga Khan surgeon (department inbox) responds.
+  // 6. The surgeon accepts; the response form comes first.
   const surgeon = await asUser(browser, "dr.naveed");
   await go(surgeon, "/incoming");
-  await expect(async () => {
-    await surgeon.reload();
-    await surgeon.getByRole("link", { name: reference }).click({ timeout: 3_000 });
-  }).toPass({ timeout: 60_000 });
-  await surgeon.getByRole("button", { name: "Acknowledge receipt" }).click();
+  await surgeon.getByRole("link", { name: reference }).click();
   await surgeon.getByRole("button", { name: "Accept referral" }).click();
+  await expect(surgeon.getByLabel("Assessment")).toBeFocused({ timeout: 15_000 });
   await surgeon.getByLabel("Assessment").fill("Symptomatic gallstones.");
   await surgeon.getByLabel("Plan").fill("Laparoscopic cholecystectomy on the elective list.");
   await surgeon.getByLabel("Instructions for the referring clinic").fill("Cardiology input on antiplatelets before surgery.");
@@ -124,7 +136,7 @@ test("doctor requests, staff prepare and send, hospital responds, clinic closes"
   await surgeon.getByRole("button", { name: "Send response to the referring clinic" }).click();
   await expect(surgeon.getByRole("button", { name: "Send response to the referring clinic" })).toHaveCount(0, { timeout: 30_000 });
 
-  // 8. Doctor reviews; staff inform the patient and close.
+  // 7. The clinic learns the patient was new there; doctor reviews; staff inform the patient and close.
   await go(dr, `${url}?tab=response`);
   await expect(async () => {
     await dr.reload();
@@ -138,4 +150,59 @@ test("doctor requests, staff prepare and send, hospital responds, clinic closes"
   await staff.getByRole("button", { name: "Close referral" }).click();
   await expect(staff.getByText(/Closed by/)).toBeVisible();
   await shot(staff, "v2-closed");
+});
+
+test("test request: MRI at Aga Khan radiology with images, result back to the doctor", async ({ browser }) => {
+  const dr = await asUser(browser, "dr.ali");
+  await go(dr, "/referrals/new");
+  await dr.getByRole("button", { name: /Request a test or scan/ }).click();
+  await pickPatient(dr, "Gondal");
+  await choose(dr, "Type", "Imaging or scan");
+  await dr.getByLabel("Test or scan").fill("MRI knee");
+  await dr.getByLabel("Body area").fill("Right knee");
+  await dr.getByLabel("Clinical question").fill("Worsening knee pain; assess cartilage and menisci");
+  await choose(dr, "Where", /Aga Khan University Hospital/);
+  await shot(dr, "v2-new-test-request");
+  await dr.getByRole("button", { name: "Submit request" }).click();
+  await dr.waitForURL(/\/referrals\/\d+/);
+  const url = new URL(dr.url()).pathname;
+
+  // Staff send the order.
+  const staff = await asUser(browser, "staff.ali");
+  await go(staff, `${url}?tab=tests`);
+  await staff.getByRole("button", { name: "Send to Aga Khan University Hospital" }).click();
+  await expect(staff.getByText("requested", { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+
+  // Radiology confirms the patient, accepts, and reports with an image.
+  const rad = await asUser(browser, "rad.aku");
+  await go(rad, "/orders");
+  await expect(async () => {
+    await rad.reload();
+    await rad.getByRole("row", { name: /MRI knee/ }).getByRole("link").first().click({ timeout: 3_000 });
+  }).toPass({ timeout: 60_000 });
+  await registerNew(rad, "New patient; CNIC checked at the desk");
+  await rad.getByRole("button", { name: "Accept order" }).click();
+  await rad.getByLabel("Findings").fill("Medial compartment cartilage thinning; degenerate tear of the medial meniscus.");
+  await rad.getByLabel("Impression").fill("Medial compartment osteoarthritis.");
+  await rad.getByLabel("Add images or files").setInputFiles(SCAN);
+  await rad.getByRole("button", { name: "Send report" }).click();
+  await expect(rad.getByRole("article", { name: /Report/ })).toBeVisible({ timeout: 30_000 });
+  await shot(rad, "v2-order-reported");
+
+  // The doctor sees the report with the image.
+  await go(dr, `${url}?tab=tests`);
+  await expect(async () => {
+    await dr.reload();
+    await expect(dr.getByRole("img", { name: /synthetic_mri-knee-coronal/ })).toBeVisible({ timeout: 3_000 });
+  }).toPass({ timeout: 60_000 });
+  await shot(dr, "v2-test-result-doctor");
+  await dr.getByRole("button", { name: "I have seen the result" }).click();
+
+  // Staff tell the patient and close.
+  await go(staff, `${url}?tab=tests`);
+  await staff.getByRole("button", { name: "Record that the patient was told" }).click();
+  await staff.getByLabel("How and what (e.g. phoned, clinic date given)").fill("Phoned the patient with the MRI result");
+  await staff.getByRole("button", { name: "Record", exact: true }).click();
+  await staff.getByRole("button", { name: "Close request" }).click();
+  await expect(staff.getByText(/Closed by/)).toBeVisible();
 });

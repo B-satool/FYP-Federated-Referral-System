@@ -48,7 +48,7 @@ def link_out(link: PatientLink) -> dict:
         "target_institution": link.target_institution, "target_name": institution_name(link.target_institution),
         "target_local_id": link.target_local_id, "patient_name": link.patient_name,
         "patient_birth_date": link.patient_birth_date, "patient_sex": link.patient_sex, "patient_cnic": link.patient_cnic,
-        "referral_id": link.referral_id, "purpose": link.purpose, "status": link.status,
+        "referral_id": link.referral_id, "purpose": link.purpose, "kind": link.kind, "status": link.status,
         "requested_by": link.requested_by, "requested_at": link.requested_at, "decided_by": link.decided_by,
         "decided_at": link.decided_at, "decision_note": link.decision_note, "match_check": link.match_check,
         "registered_new": link.registered_new, "invalidated_by": link.invalidated_by,

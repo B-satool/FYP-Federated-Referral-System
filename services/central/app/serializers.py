@@ -1,7 +1,8 @@
 """Response shapes shared by the routers."""
 from __future__ import annotations
 
-from .config import DIAGNOSTIC_CATEGORIES, DRUG_CLASSES, URGENCIES, department_name, institution_name, procedure_label
+from .config import (DIAGNOSTIC_CATEGORIES, DRUG_CLASSES, PROCEDURE_TAGS, URGENCIES, department_name, institution_name,
+                     procedure_label)
 from .integration.sources import source_name
 from .models import (
     ConsultationResponse,
@@ -16,13 +17,13 @@ from .models import (
     Referral,
     SourceRetrieval,
 )
-from .referrals.state import STATUS_LABELS
+from .referrals.state import status_label
 
 
 def referral_out(r: Referral) -> dict:
     return {
-        "id": r.id, "reference": r.reference, "status": r.status, "status_label": STATUS_LABELS.get(r.status, r.status),
-        "row_version": r.row_version,
+        "id": r.id, "reference": r.reference, "kind": r.kind, "status": r.status, "status_label": status_label(r),
+        "row_version": r.row_version, "prepared_by": r.prepared_by, "prepared_at": r.prepared_at,
         "patient": {"institution_id": r.patient_institution, "local_patient_id": r.patient_local_id,
                     "name": r.patient_name, "birth_date": r.patient_birth_date, "sex": r.patient_sex, "cnic": r.patient_cnic},
         "source_institution": r.source_institution, "source_institution_name": institution_name(r.source_institution),
@@ -34,8 +35,10 @@ def referral_out(r: Referral) -> dict:
         "destination_doctor": r.destination_doctor, "reason": r.reason, "urgency": r.urgency,
         "urgency_label": URGENCIES.get(r.urgency, {}).get("label", r.urgency),
         "urgency_detail": URGENCIES.get(r.urgency, {}).get("detail"),
-        "procedure_status": r.procedure_status, "planned_procedure": r.planned_procedure, "procedure_other": r.procedure_other,
-        "procedure_label": procedure_label(r.procedure_status, r.planned_procedure, r.procedure_other),
+        "procedure_status": r.procedure_status, "planned_procedure": r.planned_procedure,
+        "procedure_tags": r.procedure_tags or [],
+        "procedure_tag_labels": [PROCEDURE_TAGS.get(t, t) for t in r.procedure_tags or []],
+        "procedure_label": procedure_label(r.procedure_status, r.planned_procedure),
         "requested_at": r.requested_at, "created_by": r.created_by_name,
         "amendment_open": r.amendment_open, "current_package_version": r.current_package_version,
         "submitted_package_version": r.submitted_package_version, "delivery_status": r.delivery_status,
@@ -141,7 +144,9 @@ def diagnostic_out(d: DiagnosticRequest) -> dict:
             "destination_department": d.destination_department,
             "destination_department_name": department_name(d.destination_department), "status": d.status,
             "requested_by": d.requested_by, "sent_by": d.sent_by, "sent_at": d.sent_at, "reject_reason": d.reject_reason,
-            "scheduled_for": d.scheduled_for, "report": d.report, "seen_by": d.seen_by, "seen_at": d.seen_at,
+            "scheduled_for": d.scheduled_for, "report": d.report, "local_patient_id": d.local_patient_id,
+            "attachments": [{k: v for k, v in a.items() if k != "storage_key"} for a in d.attachments or []],
+            "seen_by": d.seen_by, "seen_at": d.seen_at,
             "history": d.history, "created_at": d.created_at, "updated_at": d.updated_at}
 
 

@@ -29,13 +29,11 @@ ENDPOINTS = {
 
 
 def _on_success(db: Session, box: Outbox, result: dict) -> None:
-    from ..diagnostics.router import forward_reported_results
     from ..notifications import notify_doctor
 
     referral = db.get(Referral, box.referral_id)
     if box.kind == "deliver_package":
         version = box.payload["package_version"]
-        first = referral.submitted_package_version is None
         referral.submitted_package_version = version
         referral.delivery_status = "delivered"
         was_amendment = referral.amendment_open
@@ -46,9 +44,7 @@ def _on_success(db: Session, box: Outbox, result: dict) -> None:
             transition(db, referral, "submitted", "system (delivery confirmed)", None, {"version": version},
                        institution="central-platform")
             notify_doctor(db, referral, "referral_sent", f"{referral.reference} was sent",
-                          f"{referral.patient_name}: delivered to the receiving hospital.")
-        if first:
-            forward_reported_results(db, referral)
+                          f"{referral.patient_name}: delivered to the receiving institution.")
         audit(db, None, "delivery.confirmed", "referral_package", f"{referral.reference}v{version}", "success",
               referral.id, result, actor=("system", "delivery worker", "central-platform"))
     else:

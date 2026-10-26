@@ -46,10 +46,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       title: "Work",
       items: [
         { to: "/work-queue", label: "Work queue", show: hasQueue, badge: open },
-        { to: "/referrals/new", label: "New referral", show: doctor && kind !== "laboratory" },
-        { to: "/referrals", label: "Referrals", show: refers },
-        { to: "/incoming", label: "Incoming referrals", show: doctor && kind === "hospital" },
-        { to: "/patient-links", label: "Patient link requests", show: hasRole(me, "clinic_staff", "institution_admin") },
+        { to: "/referrals", label: "Requests sent", show: refers },
+        { to: "/incoming", label: "Incoming referrals", show: (doctor || hasRole(me, "clinic_staff", "institution_admin")) && kind !== "laboratory" },
+        { to: "/patient-links", label: "Records requests", show: hasRole(me, "clinic_staff", "institution_admin") },
         { to: "/orders", label: "Test and scan orders", show: hasRole(me, "diagnostics_staff") },
       ],
     },

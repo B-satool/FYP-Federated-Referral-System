@@ -38,11 +38,24 @@ def find_patient(name: str, user: str = "dr.ali") -> dict:
     return hits[0]
 
 
-def new_referral(patient_name: str, dest: str, dept: str, procedure: str | None, *, submit: bool = True,
-                 reason: str = "Synthetic test referral: please assess and advise on management.",
-                 diagnostics: list[dict] | None = None, user: str = "dr.ali") -> dict:
+def new_referral(patient_name: str, dest: str, dept: str, procedure: str | None, tags: list[str] | None = None, *,
+                 submit: bool = True, reason: str = "Synthetic test referral: please assess and advise on management.",
+                 user: str = "dr.ali") -> dict:
+    """A referral to a doctor or department; the procedure is written in the doctor's words."""
     p = find_patient(patient_name, user)
-    body = {"patient_local_id": p["local_patient_id"], "destination_institution": dest, "destination_department": dept,
-            "reason": reason, "urgency": "routine", "procedure_status": "known" if procedure else "unknown",
-            "planned_procedure": procedure, "diagnostic_requests": diagnostics or [], "submit": submit}
+    body = {"kind": "referral", "patient_local_id": p["local_patient_id"], "destination_institution": dest,
+            "destination_department": dept, "reason": reason, "urgency": "routine",
+            "procedure_status": "planned" if procedure else "unknown", "planned_procedure": procedure,
+            "procedure_tags": tags or [], "submit": submit}
     return ok(central(user).post("/referrals", body), 201)
+
+
+def new_test_request(patient_name: str, tests: list[dict], *, user: str = "dr.ali") -> dict:
+    p = find_patient(patient_name, user)
+    body = {"kind": "test", "patient_local_id": p["local_patient_id"], "reason": "Synthetic test request",
+            "diagnostic_requests": tests, "submit": True}
+    return ok(central(user).post("/referrals", body), 201)
+
+
+SURGERY = ["major_surgery", "general_anaesthesia", "prolonged_fasting", "bleeding_risk"]
+TINY_PNG = ("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGNgAAAAAgABSK+kcQAAAABJRU5ErkJggg==")

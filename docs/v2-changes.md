@@ -26,6 +26,27 @@ This branch (`v2`) is not merged into `main`. It changes database schemas, the e
 | Specialist response | Acknowledge → accept, decline (with a reason) or ask for more information → write and send the response (assessment, plan, instructions for the clinic, appointment). |
 | Follow-through | Staff record that the patient was told. Tasks are tracked to an outcome. The referral closes once the doctor has reviewed the outcome. |
 
+## 1b. Second round of feedback (after testing v2)
+
+Where this section differs from section 1 (procedure list, tests inside a referral, confirming the patient before sending, the doctor acknowledging flags while staff still gather records), this section applies.
+
+| Feedback | What changed |
+|---|---|
+| Procedures do not need a list | The doctor writes the procedure in their own words and ticks what it involves (major surgery, general anaesthesia, fasting, contrast, endoscopy, bleeding risk and so on). Words in the name pre-tick likely features, e.g. "laparoscopic ... ectomy" ticks surgery, anaesthesia, fasting and bleeding risk. The rules match on these features. If a procedure is written but nothing is ticked, procedure checks are shown as not run; nothing is guessed. |
+| A doctor may only need a test or scan | **New request** first asks: *Refer to a doctor or department* or *Request a test or scan*. A test request has no hospital-referral part. It is a list of tests, each sent as its own order. Requests are labelled *Referral* or *Test or scan*, with a filter. References are `REF-…` and `TST-…`. |
+| Chughtai Lab in the scan options | Chughtai Lab now has a radiology department (account `rad.chughtai`) as well as its laboratory. |
+| Doctor's role: request, then review flags | After submitting, the request shows **In progress**. Staff gather records, papers and medicines, then press **Ready for the doctor's review**. Only then does the doctor see the medication flags and mark each as reviewed. Doctors do not add medicines; staff do. |
+| Reports need real content | A laboratory report needs every result with its value. A scan or cardiac report needs findings, an impression and at least one image or file (PNG, JPEG or PDF). Images are stored with the result, shown to the requesting doctor, and the result is filed in the department's own records. |
+| Tests removed from the referral steps | A referral no longer carries tests. Tests are always a separate test request. |
+| Order of events; link confirmation not needed before sending | Sending no longer waits for the receiving hospital to confirm the patient. The referral (or test order) carries the patient's name, date of birth, sex and CNIC with a request to confirm. When it arrives, their staff match their record or register the patient as new. Before sending, staff only contact other places to ask for records. |
+| Staff must not stop a referral | Only the requesting doctor can withdraw a request. |
+| "Patient does not exist" yet records retrieved | Two kinds of patient-link request now exist. A **records request** (staff ask a place for records): that place matches a record or answers *No record here*, and it cannot register the patient. An **arriving patient** (sent with a referral or order): the receiver matches or registers the patient as new. A patient registered as new is never treated as a source of earlier records. The referring clinic is told which happened. |
+| Read like a medical report | The summary is laid out as a referral letter: To/From, patient (with CNIC), urgency, reason, planned procedure, a medicines table, history, recent visits, investigations grouped by panel with date and place, imaging, the medication review (who reviewed each flag) and what could not be obtained. The receiving side sees the same letter. |
+| Hospital staff should see referrals, not only the doctor | Incoming referrals go to the receiving institution's staff. They acknowledge receipt, confirm the patient and assign a doctor. A doctor sees only the referrals assigned to them. The referrer's preferred doctor is shown as a suggestion. |
+| Clinics and hospitals both receive referrals | Any clinic or hospital can refer to any other, and every one of them has **Incoming referrals**. Any of them can send a test request to any laboratory or radiology department. |
+| No "New referral" in the sidebar | Removed. **New request** is on the work queue and the request list. |
+| After accepting, go to the response | The response form is at the top of the case and receives focus as soon as the doctor accepts. |
+
 ## 2. Decisions the team made
 
 1. **Who refers:** any clinic or hospital can refer to any department of another hospital.
@@ -51,6 +72,10 @@ This branch (`v2`) is not merged into `main`. It changes database schemas, the e
 - **Documents not updated:** `docs/architecture.md`, `docs/traceability.md` and `docs/demo-script.md` sections that describe v1 in detail. The integration examples in `contracts/` were not regenerated either, because they belong to their owner (`scripts/export_contract_examples.py` and `scripts/export_fhir_samples.py` need updating for v2).
 - **The shared Neon copy** still holds v1 data. Republish it with `scripts/publish-shared-db.ps1` after setting it up for the new databases.
 - A test order carries the sending institution's name inside the patient block (`patient.sender_name`), because the order envelope has no field for it. Add one if the format is revised.
+- Round two also put the CNIC, a known local record and the intake link request id in the `patient` block of the referral and order envelopes. It added optional `source`, `date` and `group` fields to `BriefStatement` in `exchange.py`, so the letter can be laid out. The contract owner should review these. `ResultForward` and `/inbound/results` are no longer used, because tests are no longer part of a referral.
+- Test requests are not checked against the medication rules. For example, metformin before contrast at a scan is left to the radiology department.
+- Report images are stored inside the institution database, and in the central file store under `results/`. A real deployment would use the institutions' imaging systems (PACS).
+- Keycloak imports accounts only on first start. After pulling, delete the `referral` realm and restart Keycloak to get `rad.chughtai` (see the README troubleshooting). The realm file is generated by `scripts/make_keycloak_realm.py`.
 
 ## 5. Running v2
 
@@ -66,6 +91,6 @@ docker compose up -d --build
 `.env` needs the new settings (`DRALI_*`, `CHUGHTAI_*`, `ZIAUDDIN_*`, `AKUH_*`); see `.env.example`.
 
 Checks on this branch:
-- **API flow:** `tests/` runs the full P5 flow and every patient's expected flags. 7 tests.
-- **Rule logic:** `services/central/tests` has 15 unit tests.
-- **Browser journey:** `web/e2e/smoke.spec.ts` runs the whole journey across six accounts in Chrome.
+- **API flow:** `tests/` runs the P5 referral, the P3 test request with an image, every patient's expected flags and the OCR merge. 9 tests.
+- **Rule logic:** `services/central/tests` has 17 unit tests.
+- **Browser journeys:** `web/e2e/smoke.spec.ts` runs the referral and the test request across seven accounts in Chrome. 2 tests.

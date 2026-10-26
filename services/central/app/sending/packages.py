@@ -10,8 +10,9 @@ from sqlalchemy.orm import Session
 
 from ..config import INSTITUTIONS, department_name, institution_name, procedure_label
 from ..identity.links import verified_counterparts
+from ..identity.router import create_request
 from ..medications import service as med
-from ..models import Brief, DiagnosticRequest, EvidenceItem, MedicationEntry, Outbox, Referral, ReferralPackage
+from ..models import Brief, EvidenceItem, MedicationEntry, Outbox, Referral, ReferralPackage
 from ..referrals.state import IN_FLIGHT, event
 from ..security import audit, bump, error
 from . import brief as brief_mod
@@ -59,8 +60,7 @@ def _fhir_bundle(r: Referral, evidence: list[EvidenceItem], sent_at, requester: 
           "status": fhir.REFERRAL_STATUS_TO_SERVICE_REQUEST["submitted"], "intent": "order",
           "category": [{"text": "Referral"}], "priority": URGENCY_TO_FHIR.get(r.urgency, "routine"),
           "code": {"text": f"Referral to {department_name(r.destination_department)}"
-                           + (f" - {procedure_label(r.procedure_status, r.planned_procedure, r.procedure_other)}"
-                              if r.procedure_status in ("known", "other") else "")},
+                           + (f" - {r.planned_procedure}" if r.procedure_status == "planned" else "")},
           "subject": subject, "authoredOn": sent_at.isoformat(), "requester": {"display": requester},
           "performer": [{"display": f"{dest}, {department_name(r.destination_department)}"
                                     + (f", {r.destination_doctor}" if r.destination_doctor else "")}],
@@ -81,10 +81,27 @@ def _fhir_bundle(r: Referral, evidence: list[EvidenceItem], sent_at, requester: 
     return fhir.bundle(resources, "collection", bundle_id=f"{r.reference}-bundle", institution_id=r.source_institution)
 
 
+def intake_details(db: Session, r: Referral, institution: str, principal: Principal, purpose: str) -> dict:
+    """Identity details sent with a referral or test order. If the receiver has not confirmed this
+    patient yet, an intake link request goes with it: they match their record or register the
+    patient as new when it arrives."""
+    linked = verified_counterparts(db, r.patient_institution, r.patient_local_id)
+    out = {"cnic": r.patient_cnic, "sender_name": institution_name(r.source_institution),
+           "local_patient_id": linked[institution][0] if institution in linked else None, "link_request_id": None}
+    if out["local_patient_id"] is None:
+        link = create_request(db, principal, local_id=r.patient_local_id, target=institution, name=r.patient_name,
+                              birth_date=r.patient_birth_date, sex=r.patient_sex, cnic=r.patient_cnic, referral=r,
+                              purpose=purpose, kind="intake")
+        out["link_request_id"] = link.id
+    return out
+
+
 def send(db: Session, r: Referral, principal: Principal) -> ReferralPackage:
     """Staff send after checking. Builds the brief and an immutable, hashed version and
     writes the outbox record in the same transaction."""
     amendment = r.amendment_open and r.status in IN_FLIGHT
+    if r.kind != "referral":
+        raise error(409, "test_request", "A test request is sent order by order")
     if r.status != "requested" and not amendment:
         raise error(409, "not_ready", "Only a referral being prepared (or an open amendment) can be sent")
     missing = blocking(readiness(db, r))
@@ -105,18 +122,18 @@ def send(db: Session, r: Referral, principal: Principal) -> ReferralPackage:
         evidence += list(db.scalars(select(EvidenceItem).where(EvidenceItem.id.in_(extra))))
     run = med.latest_run(db, r.id)
     links = verified_counterparts(db, r.patient_institution, r.patient_local_id)
-    dxs = db.scalars(select(DiagnosticRequest).where(DiagnosticRequest.referral_id == r.id,
-                                                      DiagnosticRequest.status != "cancelled"))
+    intake = intake_details(db, r, r.destination_institution, principal,
+                            f"Referral {r.reference} to {department_name(r.destination_department)}")
     env = PackageEnvelope(
         delivery_key=f"{r.source_institution}:{r.reference}:v{version}", referral_id=r.reference, package_version=version,
         sender_institution=r.source_institution, sender_department=r.source_department,
         destination_institution=r.destination_institution, destination_department=r.destination_department,
         destination_doctor=r.destination_doctor, urgency=r.urgency, reason=r.reason, procedure_status=r.procedure_status,
-        planned_procedure=r.planned_procedure, procedure_label=procedure_label(r.procedure_status, r.planned_procedure,
-                                                                               r.procedure_other),
+        planned_procedure=r.planned_procedure, procedure_label=procedure_label(r.procedure_status, r.planned_procedure),
         patient={"name": r.patient_name, "birth_date": r.patient_birth_date, "sex": r.patient_sex,
                  "identifier": {"institution_id": r.patient_institution, "local_patient_id": r.patient_local_id},
-                 "verified_links": [{"institution_id": i, "local_patient_id": lid} for i, (lid, _) in sorted(links.items())]},
+                 "verified_links": [{"institution_id": i, "local_patient_id": lid} for i, (lid, _) in sorted(links.items())],
+                 **intake},
         requesting_doctor={"name": r.requesting_doctor_name, "id": r.requesting_doctor_id,
                            "institution": institution_name(r.source_institution),
                            "department": department_name(r.source_department),
@@ -128,10 +145,7 @@ def send(db: Session, r: Referral, principal: Principal) -> ReferralPackage:
                                "evaluated_at": run.created_at.isoformat() if run else None},
         evidence=[_evidence_snapshot(db, e) for e in sorted(evidence, key=lambda e: e.id)],
         limitations=content["limitations"],
-        diagnostic_requests=[{"reference": d.reference, "category": d.category, "test": d.test, "body_area": d.body_area,
-                              "clinical_question": d.clinical_question, "status": d.status,
-                              "where": f"{institution_name(d.destination_institution)}, {department_name(d.destination_department)}"}
-                             for d in dxs],
+        diagnostic_requests=[],
         sent_by=principal.display_name, sent_by_id=principal.subject, sent_at=sent_at, content_hash="",
         fhir_bundle=_fhir_bundle(r, evidence, sent_at, r.requesting_doctor_name),
         supersedes_version=r.current_package_version,

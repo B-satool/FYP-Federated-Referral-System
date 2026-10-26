@@ -98,6 +98,9 @@
       "subGroups": [
         {
           "name": "laboratory"
+        },
+        {
+          "name": "radiology"
         }
       ]
     }
@@ -905,6 +908,27 @@
       ],
       "groups": [
         "/chughtai/laboratory"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_USER_PASSWORD}",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "rad.chughtai",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Dr Zainab",
+      "lastName": "Ali",
+      "email": "rad.chughtai@chughtai.example",
+      "realmRoles": [
+        "diagnostics_staff"
+      ],
+      "groups": [
+        "/chughtai/radiology"
       ],
       "credentials": [
         {

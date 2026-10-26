@@ -1,18 +1,19 @@
 # FYP Federated Referral System
 ### Referral Preparation and Follow-through Platform (version 2)
 
-A web application for referring a patient from a clinic or hospital to a department at another hospital in Karachi.
-- **Doctor:** fills in the referral request.
-- **Staff:**
-  - have the receiving hospital confirm the patient
+A web application for referring a patient from one clinic or hospital in Karachi to a doctor or department at another, or for requesting a test or scan from a laboratory or radiology department elsewhere.
+- **Doctor:** chooses a referral or a test/scan request and fills it in. For a referral, the doctor later reviews the medication flags.
+- **Referring staff:**
   - gather the patient's records from the most recently visited hospital, clinic and laboratory
   - check the papers the patient brought (OCR)
   - confirm the current medicines, including over-the-counter ones
-  - send the referral
+  - mark the referral ready for the doctor, then send it once the doctor has reviewed the flags
+  - send test and scan orders
+- **Receiving staff:** take the referral in, confirm the patient (match their record or register them as new) and assign a doctor. Laboratory and radiology staff confirm the patient on orders the same way.
 - **Platform:**
-  - checks every current medicine against the planned procedure using reviewer-approved rules, and the doctor acknowledges each flag
-  - sends tests and scans as separate orders to a laboratory or radiology department, with the results coming back into the referral
-  - tracks the referral through the specialist's response and follow-up until closure
+  - checks every current medicine against the planned procedure using reviewer-approved rules
+  - sends the referral as a readable letter, and results back with their report and images
+  - tracks each request through the response or results and follow-up until closure
 
 > **Synthetic (fake) patient data only. Not for clinical use.** The institution names are used only as source-system names; nothing comes from those organisations.
 
@@ -100,26 +101,27 @@ Open **http://localhost:3000**, click **Sign in with your institution account**,
 
 | Username | Person | Institution, department | What they do |
 |---|---|---|---|
-| `dr.ali` | Dr Ali Raza | Dr Ali's Clinic, General practice | **Doctor**: fills in referrals, acknowledges medication flags, sees results, reviews the response |
-| `staff.ali` | Hina Raza | Dr Ali's Clinic | **Staff**: links patients, retrieves records, checks papers and medicines, sends referrals and test orders, follow-up |
+| `dr.ali` | Dr Ali Raza | Dr Ali's Clinic, General practice | **Doctor**: makes referrals and test requests, reviews medication flags, sees results, reviews the response |
+| `staff.ali` | Hina Raza | Dr Ali's Clinic | **Staff**: retrieves records, checks papers and medicines, sends referrals and test orders, follow-up; takes in referrals sent to the clinic |
 | `tech.ali` | Bilal Ahmed | Dr Ali's Clinic, in-clinic tests (ECG) | Test orders done at the clinic |
 | `admin.ali` | Adeel Shah | Dr Ali's Clinic | Administrator: accounts, record sharing, audit (no patient records) |
 | `dr.asma` | Dr Asma Rauf | Ziauddin, Cardiology | Receives cardiology referrals; can also refer |
 | `dr.irfan` | Dr Irfan Siddiqui | Ziauddin, Gastroenterology and Hepatology | Receives GI and liver referrals |
-| `staff.zia` | Kiran Shah | Ziauddin | Confirms patient-link requests; prepares Ziauddin's own referrals |
+| `staff.zia` | Kiran Shah | Ziauddin | Takes in incoming referrals and assigns a doctor; answers records requests; prepares Ziauddin's own referrals |
 | `rad.zia` | Dr Hira Anwar | Ziauddin, Radiology | Imaging orders: accept or reject, schedule, report |
 | `tech.zia` | Usman Ali | Ziauddin, Cardiac diagnostics | ECG and echo orders |
 | `lab.zia` | Rabia Qureshi | Ziauddin, Laboratory | Laboratory orders |
 | `dr.faisal` | Dr Faisal Haider | Aga Khan, Dentistry | Receives dental and oral surgery referrals |
 | `dr.salman` | Dr Salman Akhtar | Aga Khan, Orthopaedics | Receives orthopaedic referrals |
 | `dr.naveed` | Dr Naveed Baig | Aga Khan, General Surgery | Receives general surgery referrals |
-| `staff.aku` | Mariam Noor | Aga Khan | Confirms patient-link requests |
+| `staff.aku` | Mariam Noor | Aga Khan | Takes in incoming referrals, confirms the patient, assigns a doctor; answers records requests |
 | `rad.aku` | Dr Sana Javed | Aga Khan, Radiology | Imaging orders |
 | `lab.aku` | Kamran Butt | Aga Khan, Laboratory | Laboratory orders |
 | `admin.aku` | Rabia Javed | Aga Khan | Administrator |
 | `dr.reviewer` | Dr Nadia Hassan | Aga Khan | Clinical rule reviewer: approves medication rules and medicine names |
 | `lab.chughtai` | Imran Butt | Chughtai Lab, Laboratory | Laboratory orders |
-| `staff.chughtai` | Ayesha Malik | Chughtai Lab | Confirms patient-link requests |
+| `rad.chughtai` | Dr Zainab Ali | Chughtai Lab, Radiology | Imaging orders |
+| `staff.chughtai` | Ayesha Malik | Chughtai Lab | Answers records requests |
 
 ### Addresses
 
@@ -158,19 +160,25 @@ Uploaded papers are read with Tesseract OCR and a rule-based reader. If you add 
 
 Each seed patient has a referral scenario in [`seed-data/README.md`](seed-data/README.md). Example, **P5 Imtiaz Ali Soomro → Aga Khan, General Surgery, laparoscopic cholecystectomy**:
 
-1. **Dr Ali** (`dr.ali`): **New referral** → find *Imtiaz* → Aga Khan University Hospital, General Surgery → reason → procedure *Laparoscopic cholecystectomy* → add a test: MRCP at Ziauddin, Radiology → **Submit request**.
-2. **Mariam** (`staff.aku`): **Patient link requests** → **Check** → he is not registered at Aga Khan → **register as a new patient** (note: how you checked).
-3. **Hina** (`staff.ali`) opens the referral from her **Work queue**:
-   - **Records** → **Retrieve records**. Ziauddin (seen 15 Oct) is used. Aga Khan is shown as *not the most recent*.
+1. **Dr Ali** (`dr.ali`): **Work queue** → **New request** → **Refer to a doctor or department** → find *Imtiaz* → Aga Khan University Hospital, General Surgery → reason → **A procedure is planned** → type *Laparoscopic cholecystectomy* (the features it involves tick themselves; correct them if needed) → **Submit request**. It now shows **In progress**; Medicines & flags says staff are still gathering.
+2. **Hina** (`staff.ali`) opens it from her **Work queue**:
+   - **Records** → **Retrieve records** (own clinic, Ziauddin, Chughtai Lab). If the patient says he was seen elsewhere, **Ask for records** there.
    - **Papers** → upload `seed-data/documents/P5_prescription_cardiology_2025-06-18.jpg`. Open it and confirm each medicine against the photo; each one merges with the clinic's record.
    - **Medicines & flags** → **Add a medicine** (e.g. Panadol, over the counter) → **I asked the patient about all their medicines**.
-4. **Dr Ali**: **Medicines & flags** → acknowledge the 4 flags (aspirin and clopidogrel before surgery, insulin and metformin around fasting).
-5. **Hina**: **Check & send** → **Send to Aga Khan University Hospital**. Then **Tests & scans** → **Send to Ziauddin Hospital**.
-6. **Dr Hira** (`rad.zia`): **Test and scan orders** → open MRCP → **Accept order** → findings and impression → **Send report**. The result returns to the referral and is forwarded to Aga Khan.
-7. **Dr Naveed** (`dr.naveed`): **Incoming referrals** → **Acknowledge receipt** → **Accept referral** → write the response → **Send response to the referring clinic**.
-8. **Dr Ali**: **Response & follow-up** → **I have reviewed the outcome**. **Hina**: **Record that the patient was told** → add any task → **Close referral**. **History** shows every step.
+   - **Check & send** → **Ready for the doctor's review**.
+3. **Dr Ali**: **Medicines & flags** → **Mark as reviewed** on the 4 flags (aspirin and clopidogrel before surgery, insulin and metformin around fasting).
+4. **Hina**: **Check & send** → read the referral letter → **Send to Aga Khan University Hospital**. It carries his name, date of birth, sex and CNIC; Aga Khan has not been asked anything before this.
+5. **Mariam** (`staff.aku`): **Incoming referrals** → open it → **Acknowledge receipt** → **Confirm the patient** (he is not registered there: write how you checked → **Register as a new patient**) → **Assign to doctor**: Dr Naveed Baig → **Assign**. Dr Ali's Clinic is told he was registered as new.
+6. **Dr Naveed** (`dr.naveed`): **Incoming referrals** (only referrals assigned to him) → **Accept referral** → the response form opens at the top → **Send response to the referring clinic**.
+7. **Dr Ali**: **Response & follow-up** → **I have reviewed the outcome**. **Hina**: **Record that the patient was told** → add any task → **Close referral**. **History** shows every step.
 
-Other scenarios to try: P2 (Ziauddin cardiology, *matches an existing record* at Ziauddin, metformin with contrast); P1 (Aga Khan dentistry, alendronate with oral surgery); P3 (Aga Khan orthopaedics); P4 (Ziauddin gastroenterology).
+**A test or scan request**, e.g. P3 *Abdul Rehman Gondal*:
+1. **Dr Ali**: **New request** → **Request a test or scan** → *Gondal* → Imaging or scan, *MRI knee*, Where: Aga Khan University Hospital → **Submit request**.
+2. **Hina**: **Tests & results** → **Send to Aga Khan University Hospital**.
+3. **Dr Sana** (`rad.aku`): **Test and scan orders** → open it → **Confirm the patient** (register as new) → **Accept order** → findings, impression, and **Choose files**: `seed-data/documents/imaging/synthetic_mri-knee-coronal.png` → **Send report**. A report needs findings, an impression and the images; a laboratory report needs each result with its value.
+4. **Dr Ali**: **Tests & results** shows the report with the image → **I have seen the result**. **Hina**: **Record that the patient was told** → **Close request**.
+
+Other scenarios: P2 (Ziauddin cardiology, metformin with contrast; Ziauddin staff match their existing record when it arrives); P1 (Aga Khan dentistry, alendronate with oral surgery); P3 (Aga Khan orthopaedics); P4 (Ziauddin gastroenterology). Any clinic or hospital can refer to another, and receive referrals: try `dr.asma` (Ziauddin) referring to Aga Khan.
 
 **Rules:** sign in as `dr.reviewer` → **Medication rules** to see, edit (a change is a new draft) and approve rules, and **Medicine names** to add a brand name.
 
@@ -182,13 +190,13 @@ Other scenarios to try: P2 (Ziauddin cardiology, *matches an existing record* at
 python -m venv .venv
 .\.venv\Scripts\pip install httpx pytest
 
-# API checks: the full P5 flow, every patient's expected flags, OCR merge (resets demo data first). Expect: 7 passed
+# API checks: P5 referral, P3 test request with an image, every patient's expected flags, OCR merge (resets demo data first). Expect: 9 passed
 .\.venv\Scripts\python -m pytest tests -q
 
-# Medication-rule logic. Expect: 15 passed
+# Medication-rule logic. Expect: 17 passed
 docker compose run --rm --no-deps -v ${PWD}/services/central/tests:/srv/tests central python -m pytest tests -q
 
-# Browser robot: the whole journey across 6 accounts in Chrome (reset the demo data first). Expect: 1 passed
+# Browser robot: the referral and test-request journeys across 7 accounts in Chrome (reset the demo data first). Expect: 2 passed
 cd web; npm ci; npx playwright install chromium; npx playwright test e2e/smoke.spec.ts; cd ..
 ```
 
@@ -199,6 +207,7 @@ cd web; npm ci; npx playwright install chromium; npx playwright test e2e/smoke.s
 | Problem | Fix |
 |---|---|
 | Login page says **"We are sorry… An internal server error has occurred"** | Run `docker compose restart keycloak`, wait about 1 minute, refresh. |
+| `rad.chughtai` cannot sign in after pulling | The login accounts are imported only once. Delete the realm and restart Keycloak: `docker compose exec keycloak sh -c '/opt/keycloak/bin/kcadm.sh config credentials --server http://localhost:8080 --realm master --user admin --password "$KC_BOOTSTRAP_ADMIN_PASSWORD" && /opt/keycloak/bin/kcadm.sh delete realms/referral'` then `docker compose restart keycloak` and reseed. |
 | Login works but every page errors after switching from version 1 | The old database volume is still there. Run `docker compose down -v`, then the first-time steps. |
 | `docker compose` can't connect, or hangs | Docker Desktop isn't running, or its WSL backend froze. Quit Docker Desktop, run `wsl --shutdown`, start Docker Desktop again. |
 | Port already in use (3000, 8000-8004, 8080, 5432) | Close the other program, or change the left-hand port in `docker-compose.yml`. |

@@ -1,4 +1,4 @@
-import { Alert, Autocomplete, Box, Button, FormControlLabel, IconButton, MenuItem, Paper, Radio, RadioGroup, Stack, TextField, Typography } from "@mui/material";
+import { Alert, Autocomplete, Box, Button, Checkbox, FormControlLabel, FormGroup, IconButton, MenuItem, Paper, Radio, RadioGroup, Stack, TextField, Typography } from "@mui/material";
 import DeleteOutline from "@mui/icons-material/DeleteOutline";
 import Add from "@mui/icons-material/Add";
 import type { ReferenceData } from "../../api/types";
@@ -20,9 +20,11 @@ export type FormValues = {
   destination_doctor: string;
   reason: string;
   urgency: string;
-  procedure_status: "known" | "none" | "unknown" | "other";
+  procedure_status: "planned" | "none" | "unknown";
   planned_procedure: string;
-  procedure_other: string;
+  procedure_tags: string[];
+  /** once the doctor ticks or unticks a feature, the name no longer pre-ticks features */
+  tags_touched?: boolean;
 };
 
 export const emptyDiagnostic = (): DiagnosticDraft => ({
@@ -32,7 +34,21 @@ export const emptyDiagnostic = (): DiagnosticDraft => ({
 
 const KIND_FOR_CATEGORY: Record<string, string> = { laboratory: "laboratory", imaging: "imaging", cardiac: "cardiac" };
 
-/** The clinical part of the referral form (shared by "New referral" and editing a request). */
+/** Features suggested by words in the procedure name (the doctor can change them). */
+export function hintedTags(rd: ReferenceData, text: string): string[] {
+  const low = text.toLowerCase();
+  const out = new Set<string>();
+  for (const [word, tags] of Object.entries(rd.procedure_hints)) if (word && low.includes(word)) tags.forEach((t) => out.add(t));
+  return [...out];
+}
+
+/** What is sent to the server for the procedure part of the form. */
+export function procedurePayload(v: FormValues) {
+  const planned = v.procedure_status === "planned";
+  return { procedure_status: v.procedure_status, planned_procedure: planned ? v.planned_procedure.trim() : null, procedure_tags: planned ? v.procedure_tags : [] };
+}
+
+/** The clinical part of a referral request (shared by the new request and editing it). */
 export function ReferralFields({ rd, me, values, onChange, disabled }: {
   rd: ReferenceData;
   me: { institution_id: string | null; department: string | null };
@@ -42,11 +58,19 @@ export function ReferralFields({ rd, me, values, onChange, disabled }: {
 }) {
   const set = (patch: Partial<FormValues>) => onChange({ ...values, ...patch });
   const own = me.institution_id ?? "";
-  const ownDepts = (rd.institutions[own]?.departments ?? []).filter((d) => rd.departments[d]?.kind === "clinical");
-  const hospitals = Object.entries(rd.institutions).filter(([id, i]) => i.kind === "hospital" && id !== own);
-  const destDepts = (rd.institutions[values.destination_institution]?.departments ?? []).filter((d) => rd.departments[d]?.kind === "clinical");
+  const clinical = (inst: string) => (rd.institutions[inst]?.departments ?? []).filter((d) => rd.departments[d]?.kind === "clinical");
+  const ownDepts = clinical(own);
+  // any other clinic or hospital that sees patients
+  const places = Object.entries(rd.institutions).filter(([id]) => id !== own && clinical(id).length > 0);
+  const destDepts = clinical(values.destination_institution);
   const doctors = rd.practitioners.filter((p) => p.institution === values.destination_institution && p.department === values.destination_department);
-  const procedures = Object.entries(rd.procedures).filter(([, p]) => !values.destination_department || p.departments.includes(values.destination_department));
+  const suggested = hintedTags(rd, values.planned_procedure);
+  const setProcedure = (text: string) => {
+    const hinted = hintedTags(rd, text);
+    set({ planned_procedure: text, procedure_tags: values.tags_touched ? values.procedure_tags : hinted });
+  };
+  const toggle = (tag: string, on: boolean) =>
+    set({ tags_touched: true, procedure_tags: on ? [...new Set([...values.procedure_tags, tag])] : values.procedure_tags.filter((t) => t !== tag) });
 
   return (
     <Stack spacing={2.5}>
@@ -54,15 +78,13 @@ export function ReferralFields({ rd, me, values, onChange, disabled }: {
         <Typography variant="subtitle1" component="h2" gutterBottom>
           Referring from
         </Typography>
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-          <TextField select label="Your department" value={values.source_department} onChange={(e) => set({ source_department: e.target.value })} disabled={disabled} sx={{ minWidth: 260 }}>
-            {ownDepts.map((d) => (
-              <MenuItem key={d} value={d}>
-                {rd.departments[d].name}
-              </MenuItem>
-            ))}
-          </TextField>
-        </Stack>
+        <TextField select label="Your department" value={values.source_department} onChange={(e) => set({ source_department: e.target.value })} disabled={disabled} sx={{ minWidth: 260 }}>
+          {ownDepts.map((d) => (
+            <MenuItem key={d} value={d}>
+              {rd.departments[d].name}
+            </MenuItem>
+          ))}
+        </TextField>
       </Box>
 
       <Box>
@@ -70,16 +92,19 @@ export function ReferralFields({ rd, me, values, onChange, disabled }: {
           Referring to
         </Typography>
         <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-          <TextField select required label="Hospital" value={values.destination_institution} disabled={disabled}
-            onChange={(e) => set({ destination_institution: e.target.value, destination_department: "", destination_doctor: "", planned_procedure: "" })} sx={{ minWidth: 260 }}>
-            {hospitals.map(([id, i]) => (
+          <TextField select required label="Clinic or hospital" value={values.destination_institution} disabled={disabled}
+            onChange={(e) => {
+              const only = clinical(e.target.value);
+              set({ destination_institution: e.target.value, destination_department: only.length === 1 ? only[0] : "", destination_doctor: "" });
+            }} sx={{ minWidth: 280 }}>
+            {places.map(([id, i]) => (
               <MenuItem key={id} value={id}>
                 {i.name}
               </MenuItem>
             ))}
           </TextField>
           <TextField select required label="Department" value={values.destination_department} disabled={disabled || !values.destination_institution}
-            onChange={(e) => set({ destination_department: e.target.value, destination_doctor: "", planned_procedure: "" })} sx={{ minWidth: 300 }}>
+            onChange={(e) => set({ destination_department: e.target.value, destination_doctor: "" })} sx={{ minWidth: 300 }}>
             {destDepts.map((d) => (
               <MenuItem key={d} value={d}>
                 {rd.departments[d].name}
@@ -88,7 +113,7 @@ export function ReferralFields({ rd, me, values, onChange, disabled }: {
           </TextField>
           <TextField select label="Doctor (optional)" value={values.destination_doctor} disabled={disabled || !values.destination_department}
             onChange={(e) => set({ destination_doctor: e.target.value })} sx={{ minWidth: 240 }}
-            helperText={doctors.length ? " " : "Any doctor in the department"}>
+            helperText="Their staff assign the doctor; this is your preference">
             <MenuItem value="">Any doctor in the department</MenuItem>
             {doctors.map((p) => (
               <MenuItem key={p.name} value={p.name}>
@@ -127,29 +152,39 @@ export function ReferralFields({ rd, me, values, onChange, disabled }: {
             </Typography>
             <RadioGroup row aria-labelledby="procedure-label" value={values.procedure_status}
               onChange={(e) => set({ procedure_status: e.target.value as FormValues["procedure_status"] })}>
-              <FormControlLabel value="known" control={<Radio />} label="From the list" disabled={disabled} />
+              <FormControlLabel value="planned" control={<Radio />} label="A procedure is planned" disabled={disabled} />
               <FormControlLabel value="none" control={<Radio />} label="None (consultation only)" disabled={disabled} />
               <FormControlLabel value="unknown" control={<Radio />} label="Not known yet" disabled={disabled} />
-              <FormControlLabel value="other" control={<Radio />} label="Other" disabled={disabled} />
             </RadioGroup>
-            {values.procedure_status === "known" && (
-              <TextField select fullWidth label="Procedure" value={values.planned_procedure} disabled={disabled}
-                onChange={(e) => set({ planned_procedure: e.target.value })}
-                helperText={values.destination_department ? "Procedures for the chosen department" : "Choose the department first to narrow the list"}>
-                {procedures.map(([code, p]) => (
-                  <MenuItem key={code} value={code}>
-                    {p.label}
-                  </MenuItem>
-                ))}
-              </TextField>
+            {values.procedure_status === "planned" && (
+              <Stack spacing={1.5} sx={{ mt: 1 }}>
+                <TextField fullWidth required label="Procedure" value={values.planned_procedure} disabled={disabled}
+                  onChange={(e) => setProcedure(e.target.value)} placeholder="For example: laparoscopic cholecystectomy"
+                  helperText="In your own words." />
+                <Box>
+                  <Typography id="features-label" variant="body2" sx={{ fontWeight: 600 }}>
+                    What it involves
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" component="div">
+                    The medicines are checked against these. Words in the name tick likely ones; correct them if needed.
+                  </Typography>
+                  <FormGroup row aria-labelledby="features-label">
+                    {Object.entries(rd.procedure_tags).map(([tag, label]) => (
+                      <FormControlLabel key={tag} disabled={disabled} label={label + (suggested.includes(tag) && !values.tags_touched ? " (suggested)" : "")}
+                        control={<Checkbox checked={values.procedure_tags.includes(tag)} onChange={(e) => toggle(tag, e.target.checked)} />} />
+                    ))}
+                  </FormGroup>
+                </Box>
+                {values.planned_procedure.trim() && values.procedure_tags.length === 0 && (
+                  <Alert severity="warning">
+                    Nothing is ticked, so procedure-related medicine checks will not run. Tick what the procedure involves.
+                  </Alert>
+                )}
+              </Stack>
             )}
-            {values.procedure_status === "other" && (
-              <TextField fullWidth label="Describe the procedure" value={values.procedure_other} disabled={disabled}
-                onChange={(e) => set({ procedure_other: e.target.value })} />
-            )}
-            {["unknown", "other"].includes(values.procedure_status) && (
+            {values.procedure_status === "unknown" && (
               <Alert severity="info" sx={{ mt: 1 }}>
-                Medicines can only be checked against a procedure from the list. Until then the check is shown as not done; nothing is guessed.
+                Medicines are checked against the procedure once it is known. Until then the check is shown as not done; nothing is guessed.
               </Alert>
             )}
           </Box>
@@ -159,7 +194,7 @@ export function ReferralFields({ rd, me, values, onChange, disabled }: {
   );
 }
 
-/** Tests, scans or equipment the clinic does not have, sent as separate orders with the referral. */
+/** Tests and scans: each is a separate order to a laboratory, radiology or cardiac department. */
 export function DiagnosticFields({ rd, items, onChange, ownInstitution }: {
   rd: ReferenceData;
   items: DiagnosticDraft[];
@@ -171,17 +206,19 @@ export function DiagnosticFields({ rd, items, onChange, ownInstitution }: {
     <Stack spacing={2}>
       {items.map((d, i) => {
         const kind = KIND_FOR_CATEGORY[d.category];
-        const places = Object.entries(rd.institutions).filter(([, inst]) => inst.departments.some((dep) => rd.departments[dep]?.kind === kind));
+        const places = Object.entries(rd.institutions).filter(([id, inst]) => id !== ownInstitution && inst.departments.some((dep) => rd.departments[dep]?.kind === kind));
         const depts = (rd.institutions[d.destination_institution]?.departments ?? []).filter((dep) => rd.departments[dep]?.kind === kind);
         const suggestions = rd.test_suggestions.filter((t) => t.category === d.category).map((t) => t.test);
         return (
           <Paper key={i} variant="outlined" sx={{ p: 2 }}>
             <Stack spacing={1.5}>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="subtitle2">Request {i + 1}</Typography>
-                <IconButton aria-label={`Remove request ${i + 1}`} onClick={() => onChange(items.filter((_, j) => j !== i))}>
-                  <DeleteOutline />
-                </IconButton>
+                <Typography variant="subtitle2">Test {i + 1}</Typography>
+                {items.length > 1 && (
+                  <IconButton aria-label={`Remove test ${i + 1}`} onClick={() => onChange(items.filter((_, j) => j !== i))}>
+                    <DeleteOutline />
+                  </IconButton>
+                )}
               </Stack>
               <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
                 <TextField select size="small" label="Type" value={d.category} sx={{ minWidth: 180 }}
@@ -210,7 +247,6 @@ export function DiagnosticFields({ rd, items, onChange, ownInstitution }: {
                   {places.map(([id, inst]) => (
                     <MenuItem key={id} value={id}>
                       {inst.name}
-                      {id === ownInstitution ? " (here)" : ""}
                     </MenuItem>
                   ))}
                 </TextField>
@@ -235,12 +271,12 @@ export function DiagnosticFields({ rd, items, onChange, ownInstitution }: {
         );
       })}
       <Button startIcon={<Add />} variant="outlined" onClick={() => onChange([...items, emptyDiagnostic()])} sx={{ alignSelf: "start" }}>
-        Add a test or scan
+        Add another test or scan
       </Button>
     </Stack>
   );
 }
 
 export function diagnosticComplete(d: DiagnosticDraft) {
-  return d.test.trim().length > 1 && d.clinical_question.trim().length > 2 && d.destination_institution && d.destination_department;
+  return d.test.trim().length > 1 && d.clinical_question.trim().length > 2 && !!d.destination_institution && !!d.destination_department;
 }

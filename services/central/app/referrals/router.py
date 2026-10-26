@@ -1,7 +1,10 @@
-"""The doctor's referral request, search, retrieval and lifecycle.
+"""The doctor's request, search, retrieval and lifecycle.
 
-Doctors fill in and submit the request (the form). Staff then prepare it: patient
-links, records, papers and medicines, and send it once everything is checked.
+Two kinds of request:
+* referral: to a doctor or department at another clinic or hospital. Staff gather records,
+  papers and medicines, mark it ready, the doctor reviews the medication flags, staff send.
+* test: one or more tests or scans at a laboratory, radiology or cardiac department. Staff
+  check and send the orders; results come back to the doctor.
 """
 from __future__ import annotations
 
@@ -13,9 +16,10 @@ from refcommon.auth import Principal
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from ..config import CATEGORY_DEPARTMENT_KIND, DEPARTMENTS, INSTITUTIONS, PROCEDURE_STATUSES, PROCEDURES, URGENCIES
+from ..config import (CATEGORY_DEPARTMENT_KIND, DEPARTMENTS, INSTITUTIONS, PROCEDURE_STATUSES, PROCEDURE_TAGS, SOURCES,
+                      URGENCIES)
 from ..db import get_db
-from ..identity.links import links_for, verified_counterparts
+from ..identity.links import links_for
 from ..identity.router import create_request
 from ..integration import retrieval, sources
 from ..models import Clarification, DiagnosticRequest, Referral, ReferralEvent, ReferralPackage, SourceRetrieval
@@ -26,6 +30,7 @@ from ..workflow import after_change
 from .state import CLINICAL_LOCKED, IN_FLIGHT, PRE_SUBMISSION, TERMINAL, mark_clinical_change, transition
 
 router = APIRouter(tags=["referrals"])
+KINDS = ("referral", "test")
 
 
 class DiagnosticIn(BaseModel):
@@ -40,23 +45,26 @@ class DiagnosticIn(BaseModel):
 
 class ReferralForm(BaseModel):
     patient_local_id: str
+    kind: str = "referral"
     source_department: str | None = None
-    destination_institution: str
-    destination_department: str
+    destination_institution: str | None = None
+    destination_department: str | None = None
     destination_doctor: str | None = None
     reason: str = ""
     urgency: str = "routine"
     procedure_status: str = "unknown"
     planned_procedure: str | None = None
-    procedure_other: str | None = None
+    procedure_tags: list[str] = Field(default_factory=list)
     diagnostic_requests: list[DiagnosticIn] = Field(default_factory=list)
     submit: bool = False
 
 
-def validate_diagnostic(d: DiagnosticIn) -> None:
+def validate_diagnostic(d: DiagnosticIn, principal: Principal) -> None:
     inst = INSTITUTIONS.get(d.destination_institution)
-    if inst is None or d.destination_department not in inst["departments"]:
+    if inst is None or d.destination_institution not in SOURCES or d.destination_department not in inst["departments"]:
         raise error(422, "invalid_destination", "Choose where the test or scan should be done")
+    if d.destination_institution == principal.institution_id:
+        raise error(422, "same_institution", "Tests done here are ordered in your own system, not sent")
     if DEPARTMENTS[d.destination_department]["kind"] != CATEGORY_DEPARTMENT_KIND.get(d.category):
         raise error(422, "invalid_department", "That department does not do this kind of test")
     if d.urgency not in URGENCIES:
@@ -64,25 +72,40 @@ def validate_diagnostic(d: DiagnosticIn) -> None:
 
 
 def _validate(body: ReferralForm, principal: Principal, for_submit: bool) -> None:
-    dest = INSTITUTIONS.get(body.destination_institution)
-    if dest is None or dest["kind"] != "hospital":
-        raise error(422, "invalid_destination", "Choose the hospital the patient is being referred to")
+    if body.kind not in KINDS:
+        raise error(422, "invalid_kind", "Choose a referral or a test/scan request")
+    if body.kind == "test":
+        if for_submit and not body.diagnostic_requests:
+            raise error(422, "tests_required", "Add at least one test or scan")
+        for d in body.diagnostic_requests:
+            validate_diagnostic(d, principal)
+        return
+    dest = INSTITUTIONS.get(body.destination_institution or "")
+    if dest is None or body.destination_institution not in SOURCES:
+        raise error(422, "invalid_destination", "Choose the clinic or hospital the patient is being referred to")
     if body.destination_institution == principal.institution_id:
         raise error(422, "same_institution", "A referral goes to another institution")
     if body.destination_department not in dest["departments"] or DEPARTMENTS[body.destination_department]["kind"] != "clinical":
-        raise error(422, "invalid_department", "Choose a department at that hospital")
+        raise error(422, "invalid_department", "Choose a department there")
     if body.urgency not in URGENCIES:
         raise error(422, "invalid_urgency", f"Urgency must be one of {', '.join(URGENCIES)}")
     if body.procedure_status not in PROCEDURE_STATUSES:
         raise error(422, "invalid_procedure_status", "Choose whether a procedure is planned")
-    if body.procedure_status == "known" and body.planned_procedure not in PROCEDURES:
-        raise error(422, "invalid_procedure", "Choose the planned procedure from the list, or describe it under 'Other'")
-    if body.procedure_status == "other" and not (body.procedure_other or "").strip():
-        raise error(422, "procedure_other_required", "Describe the planned procedure")
+    if body.procedure_status == "planned" and len((body.planned_procedure or "").strip()) < 3:
+        raise error(422, "procedure_required", "Write the planned procedure")
+    bad = set(body.procedure_tags) - set(PROCEDURE_TAGS)
+    if bad:
+        raise error(422, "invalid_tags", f"Unknown procedure features: {sorted(bad)}")
     if for_submit and len(body.reason.strip()) < 10:
         raise error(422, "reason_required", "Write the reason for referral (what you want the specialist to address)")
-    for d in body.diagnostic_requests:
-        validate_diagnostic(d)
+    if body.diagnostic_requests:
+        raise error(422, "tests_separate", "Request tests and scans separately (New request, then Test or scan)")
+
+
+def _procedure(body: ReferralForm) -> tuple[str | None, list[str]]:
+    if body.kind != "referral" or body.procedure_status != "planned":
+        return None, []
+    return (body.planned_procedure or "").strip(), sorted(set(body.procedure_tags))
 
 
 def add_diagnostic(db: Session, r: Referral, d: DiagnosticIn, principal: Principal) -> DiagnosticRequest:
@@ -100,40 +123,44 @@ def add_diagnostic(db: Session, r: Referral, d: DiagnosticIn, principal: Princip
 
 
 def _submit(db: Session, r: Referral, principal: Principal) -> None:
-    """Doctor submits the request; staff are asked to prepare it and the destination
-    hospital is asked to confirm the patient."""
+    """Doctor submits the request; staff are asked to prepare it. The destination is asked to
+    confirm the patient only when the referral (or test order) is sent."""
     transition(db, r, "requested", principal.display_name, principal)
     r.requested_at = datetime.now(timezone.utc)
-    if r.destination_institution not in verified_counterparts(db, r.patient_institution, r.patient_local_id):
-        create_request(db, principal, local_id=r.patient_local_id, target=r.destination_institution, name=r.patient_name,
-                       birth_date=r.patient_birth_date, sex=r.patient_sex, cnic=r.patient_cnic, referral=r,
-                       purpose=f"Referral {r.reference} to {INSTITUTIONS[r.destination_institution]['name']}")
-    notify_staff(db, r, "referral_requested", f"New referral to prepare: {r.reference}",
-                 f"{r.patient_name}, requested by {r.requesting_doctor_name}.")
-    after_change(db, r, "referral_requested", principal)
+    if r.kind == "test":
+        notify_staff(db, r, "test_requested", f"Tests to send: {r.reference}",
+                     f"{r.patient_name}, requested by {r.requesting_doctor_name}.", tab="tests")
+    else:
+        notify_staff(db, r, "referral_requested", f"New referral to prepare: {r.reference}",
+                     f"{r.patient_name}, requested by {r.requesting_doctor_name}.", tab="records")
+        after_change(db, r, "referral_requested", principal)
 
 
 @router.post("/referrals", status_code=201)
 def create_referral(body: ReferralForm, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    """Only a doctor applies for a referral."""
-    require_roles(principal, DOCTOR, action="referral.create", message="Only a doctor can request a referral")
+    """Only a doctor applies for a referral or a test."""
+    require_roles(principal, DOCTOR, action="referral.create", message="Only a doctor can make a request")
     _validate(body, principal, body.submit)
     p = sources.call(principal.institution_id, "GET", f"/patients/{body.patient_local_id}", principal)
+    planned, tags = _procedure(body)
+    is_referral = body.kind == "referral"
     r = Referral(
-        reference="pending", patient_institution=principal.institution_id, patient_local_id=body.patient_local_id,
+        reference="pending", kind=body.kind, patient_institution=principal.institution_id,
+        patient_local_id=body.patient_local_id,
         patient_name=p["name"], patient_birth_date=p["birth_date"], patient_sex=p["sex"], patient_cnic=p.get("cnic"),
         source_institution=principal.institution_id, source_department=body.source_department or principal.department,
         requesting_doctor_id=principal.subject, requesting_doctor_name=principal.display_name,
         created_by_id=principal.subject, created_by_name=principal.display_name,
-        destination_institution=body.destination_institution, destination_department=body.destination_department,
-        destination_doctor=(body.destination_doctor or None), reason=body.reason.strip(), urgency=body.urgency,
-        procedure_status=body.procedure_status,
-        planned_procedure=body.planned_procedure if body.procedure_status == "known" else None,
-        procedure_other=body.procedure_other.strip() if body.procedure_status == "other" and body.procedure_other else None,
+        destination_institution=body.destination_institution if is_referral else None,
+        destination_department=body.destination_department if is_referral else None,
+        destination_doctor=(body.destination_doctor or None) if is_referral else None,
+        reason=body.reason.strip(), urgency=body.urgency,
+        procedure_status=body.procedure_status if is_referral else "none",
+        planned_procedure=planned, procedure_tags=tags,
     )
     db.add(r)
     db.flush()
-    r.reference = f"REF-{datetime.now(timezone.utc).year}-{r.id:05d}"
+    r.reference = f"{'REF' if is_referral else 'TST'}-{datetime.now(timezone.utc).year}-{r.id:05d}"
     db.add(ReferralEvent(referral_id=r.id, event_type="created", to_status="draft", actor=principal.display_name,
                          institution_id=principal.institution_id))
     for d in body.diagnostic_requests:
@@ -147,11 +174,13 @@ def create_referral(body: ReferralForm, db: Session = Depends(get_db), principal
 
 @router.get("/referrals")
 def list_referrals(patient: str | None = None, reference: str | None = None, status: str | None = None,
-                   destination: str | None = None, mine: bool = False, date_from: date | None = None,
-                   date_to: date | None = None, limit: int = Query(100, le=500), db: Session = Depends(get_db),
-                   principal: Principal = Depends(get_principal)):
+                   destination: str | None = None, kind: str | None = None, mine: bool = False,
+                   date_from: date | None = None, date_to: date | None = None, limit: int = Query(100, le=500),
+                   db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     require_roles(principal, *CLINIC_ROLES, action="referral.search")
     stmt = select(Referral).where(Referral.source_institution == principal.institution_id)
+    if kind:
+        stmt = stmt.where(Referral.kind == kind)
     if mine:
         stmt = stmt.where(Referral.requesting_doctor_id == principal.subject)
     if patient:
@@ -241,19 +270,19 @@ def update_referral(referral_id: int, body: ReferralUpdate, db: Session = Depend
     check_version(r, body.expected_version)
     if r.status in CLINICAL_LOCKED:
         raise error(409, "clinical_content_locked", "This referral can no longer be changed")
+    if r.kind == "test":
+        raise error(409, "test_request", "Change a test request on its Tests tab")
+    body.kind = r.kind
     _validate(body, principal, body.submit or r.status != "draft")
     if r.status not in PRE_SUBMISSION and body.destination_institution != r.destination_institution:
         raise error(409, "destination_locked", "The destination cannot change after the referral was sent; cancel and refer again")
+    planned, tags = _procedure(body)
     changes = {}
     for field in ("source_department", "destination_department", "destination_doctor", "reason", "urgency",
-                  "procedure_status", "planned_procedure", "procedure_other", "destination_institution"):
-        new = getattr(body, field)
+                  "procedure_status", "planned_procedure", "procedure_tags", "destination_institution"):
+        new = {"planned_procedure": planned, "procedure_tags": tags}.get(field, getattr(body, field))
         if isinstance(new, str):
             new = new.strip() or None
-        if field == "planned_procedure" and body.procedure_status != "known":
-            new = None
-        if field == "procedure_other" and body.procedure_status != "other":
-            new = None
         if field == "reason":
             new = new or ""
         if new != getattr(r, field):
@@ -283,8 +312,10 @@ def submit_request(referral_id: int, body: VersionIn, db: Session = Depends(get_
     check_version(r, body.expected_version)
     if r.status != "draft":
         raise error(409, "not_draft", "Only a draft request can be submitted")
-    if len(r.reason.strip()) < 10:
+    if r.kind == "referral" and len(r.reason.strip()) < 10:
         raise error(422, "reason_required", "Write the reason for referral before submitting")
+    if r.kind == "test" and not db.scalars(select(DiagnosticRequest).where(DiagnosticRequest.referral_id == r.id)).first():
+        raise error(422, "tests_required", "Add at least one test or scan")
     _submit(db, r, principal)
     db.commit()
     return referral_out(r)
@@ -335,7 +366,8 @@ class CancelIn(BaseModel):
 
 @router.post("/referrals/{referral_id}/cancel")
 def cancel(referral_id: int, body: CancelIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    r = load_referral(db, referral_id, principal, "cancel")
+    """Only a doctor withdraws a request; staff cannot stop it."""
+    r = load_referral(db, referral_id, principal, "cancel", roles=(DOCTOR,))
     check_version(r, body.expected_version)
     r.cancel_reason = body.reason.strip()
     transition(db, r, "cancelled", principal.display_name, principal, {"reason": r.cancel_reason})

@@ -19,14 +19,15 @@ from sqlalchemy.orm import Session
 from ..config import INSTITUTIONS, SOURCES, institution_name
 from ..db import get_db
 from ..integration import sources
-from ..models import EvidenceItem, PatientLink, PatientLinkEvent, Referral, ReferralEvent, ReferralPackage, User
+from ..models import (DiagnosticRequest, EvidenceItem, PatientLink, PatientLinkEvent, Referral, ReferralEvent,
+                      ReferralPackage, User)
 from ..notifications import notify
 from ..security import audit, error, get_principal, kc_config, require_roles, service_tokens, verifier
 from .links import link_out, links_for, open_request
 
 router = APIRouter(tags=["patient links"])
-LINK_ROLES = ("clinic_staff", "clinician", "institution_admin")
-DECIDE_ROLES = ("clinic_staff", "institution_admin")
+LINK_ROLES = ("clinic_staff", "clinician", "institution_admin", "diagnostics_staff")
+DECIDE_ROLES = ("clinic_staff", "institution_admin", "diagnostics_staff")
 
 
 def _event(db: Session, link: PatientLink, action: str, principal: Principal, note: str = "", detail: dict | None = None):
@@ -35,26 +36,34 @@ def _event(db: Session, link: PatientLink, action: str, principal: Principal, no
 
 
 def create_request(db: Session, principal: Principal, *, local_id: str, target: str, name: str, birth_date: str | None,
-                   sex: str | None, cnic: str | None, referral: Referral | None, purpose: str) -> PatientLink:
-    """Shared by the referral and diagnostic-request flows."""
+                   sex: str | None, cnic: str | None, referral: Referral | None, purpose: str,
+                   kind: str = "records") -> PatientLink:
+    """records: staff ask a place the patient visited for their records.
+    intake: sent with a referral or test order; the receiver confirms the patient when it arrives
+    (their incoming referral or order screen shows the request, so no separate notice is sent)."""
     if target not in SOURCES or target == principal.institution_id:
         raise error(422, "invalid_institution", "Choose another participating institution")
     existing = open_request(db, principal.institution_id, local_id, target)
     if existing:
+        if kind == "intake" and existing.status == "requested":
+            existing.kind = "intake"  # the patient is now being sent there, so they may register them as new
+            existing.referral_id = existing.referral_id or (referral.id if referral else None)
         return existing
     link = PatientLink(requester_institution=principal.institution_id, requester_local_id=local_id,
                        target_institution=target, patient_name=name, patient_birth_date=birth_date, patient_sex=sex,
-                       patient_cnic=cnic, referral_id=referral.id if referral else None, purpose=purpose,
+                       patient_cnic=cnic, referral_id=referral.id if referral else None, purpose=purpose, kind=kind,
                        requested_by=principal.display_name, requested_by_id=principal.subject)
     db.add(link)
     db.flush()
     _event(db, link, "requested", principal, purpose)
     audit(db, principal, "patient_link.request", "patient_link", link.id, "success", referral.id if referral else None,
-          {"target": target, "local_id": local_id})
-    notify(db, "link_request", f"Patient link request from {institution_name(principal.institution_id)}",
-           institution=target, role="clinic_staff",
-           body=f"Confirm which of your patient records is {name} (born {birth_date or 'not recorded'}).",
-           link="/patient-links")
+          {"target": target, "local_id": local_id, "kind": kind})
+    if kind == "records":
+        notify(db, "link_request", f"Patient record request from {institution_name(principal.institution_id)}",
+               institution=target, role="clinic_staff",
+               body=f"Confirm which of your patient records is {name} (born {birth_date or 'not recorded'}), "
+                    "or say you have no record of them.",
+               link="/patient-links")
     return link
 
 
@@ -160,6 +169,9 @@ def approve_link(link_id: int, body: ApproveIn, db: Session = Depends(get_db), p
         raise error(409, "not_pending", f"This link is already {link.status}")
     if body.register_new == bool(body.local_patient_id):
         raise error(422, "choose_one", "Choose the matching record, or register the patient as new")
+    if body.register_new and link.kind != "intake":
+        raise error(422, "records_request",
+                    "This is a request for records. If you have no record of this patient, answer 'No record here'.")
     local_id = body.local_patient_id
     if body.register_new:
         *given, family = link.patient_name.split()
@@ -175,9 +187,18 @@ def approve_link(link_id: int, body: ApproveIn, db: Session = Depends(get_db), p
     if taken:
         raise error(409, "record_linked_elsewhere",
                     "That record is already linked to a different patient at the requesting institution")
-    sources.call(link.target_institution, "POST", "/sharing/grants", principal, json={
-        "grantee_institution": link.requester_institution, "local_patient_id": local_id,
-        "basis": f"Patient link #{link.id} approved by {principal.display_name}: {body.note.strip()}"})
+    referral = db.get(Referral, link.referral_id) if link.referral_id else None
+    if link.kind == "records":
+        sources.call(link.target_institution, "POST", "/sharing/grants", principal, json={
+            "grantee_institution": link.requester_institution, "local_patient_id": local_id,
+            "basis": f"Patient link #{link.id} approved by {principal.display_name}: {body.note.strip()}"})
+    elif referral is not None:
+        # the incoming referral and test orders for this patient now point at the confirmed record
+        sources.call(link.target_institution, "POST", "/intake/patient", principal, json={
+            "referral_id": referral.reference, "local_patient_id": local_id})
+        for dx in db.scalars(select(DiagnosticRequest).where(DiagnosticRequest.referral_id == referral.id,
+                                                             DiagnosticRequest.destination_institution == link.target_institution)):
+            dx.local_patient_id = local_id
     link.target_local_id = local_id
     link.status = "verified"
     link.decided_by, link.decided_by_id, link.decided_at = principal.display_name, principal.subject, utcnow()
@@ -185,14 +206,21 @@ def approve_link(link_id: int, body: ApproveIn, db: Session = Depends(get_db), p
     _event(db, link, "verified", principal, body.note, {"local_id": local_id, "registered_new": link.registered_new})
     audit(db, principal, "patient_link.approve", "patient_link", link.id, "success", link.referral_id,
           {"target_local_id": local_id, "registered_new": link.registered_new})
-    notify(db, "link_verified", f"{institution_name(link.target_institution)} confirmed {link.patient_name}",
-           institution=link.requester_institution, role="clinic_staff",
-           body="Records from there can now be retrieved.",
-           link=f"/referrals/{link.referral_id}?tab=links" if link.referral_id else "/patient-links")
+    target = institution_name(link.target_institution)
+    if link.kind == "records":
+        title, text = f"{target} confirmed {link.patient_name}", "Records from there can now be retrieved."
+    elif link.registered_new:
+        title, text = (f"{target} registered {link.patient_name} as a new patient",
+                       f"They had no earlier record of this patient. New record: {local_id}.")
+    else:
+        title, text = f"{target} matched {link.patient_name} to their record", f"Their record: {local_id}."
+    notify(db, "link_verified", title, institution=link.requester_institution, role="clinic_staff", body=text,
+           link=f"/referrals/{link.referral_id}" if link.referral_id else "/patient-links")
     if link.referral_id:
         db.add(ReferralEvent(referral_id=link.referral_id, event_type="patient_link_verified", actor=principal.display_name,
                              institution_id=principal.institution_id,
-                             detail={"institution": link.target_institution, "local_id": local_id}))
+                             detail={"institution": link.target_institution, "local_id": local_id, "kind": link.kind,
+                                     "registered_new": link.registered_new}))
     db.commit()
     return link_out(link)
 

@@ -9,7 +9,7 @@ from datetime import date, datetime
 
 from refcommon.db import utcnow
 from refcommon.sourcekit import AccessGrantMixin, AuditMixin
-from sqlalchemy import JSON, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Date, DateTime, Float, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -131,10 +131,19 @@ class Case(Base):
     requested_doctor: Mapped[str | None] = mapped_column(String(200), nullable=True)
     patient_name: Mapped[str] = mapped_column(String(200))
     patient_birth_date: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    patient_sex: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    patient_cnic: Mapped[str | None] = mapped_column(String(15), nullable=True)
+    # set once staff here confirm the patient (match a record or register them as new)
     local_patient_id: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    link_request_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # the central intake link request
     urgency: Mapped[str] = mapped_column(String(20))
+    # received -> acknowledged (staff) -> assigned (staff) -> accepted | declined (doctor) -> responded
     status: Mapped[str] = mapped_column(String(30), default="received")
     latest_version: Mapped[int] = mapped_column(Integer)
+    assigned_doctor: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    assigned_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    assigned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    assign_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     acknowledged_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     decision: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -216,19 +225,36 @@ class Order(Base):
     urgency: Mapped[str] = mapped_column(String(20))
     patient_name: Mapped[str] = mapped_column(String(200))
     patient_birth_date: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    patient_sex: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    patient_cnic: Mapped[str | None] = mapped_column(String(15), nullable=True)
     local_patient_id: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    link_request_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     requested_by: Mapped[str] = mapped_column(String(200))
     # requested | accepted | rejected | scheduled | done | reported
     status: Mapped[str] = mapped_column(String(20), default="requested")
     reject_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     report_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    findings: Mapped[str | None] = mapped_column(Text, nullable=True)
+    impression: Mapped[str | None] = mapped_column(Text, nullable=True)
     values: Mapped[list] = mapped_column(JSON, default=list)
     reported_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
     reported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     history: Mapped[list] = mapped_column(JSON, default=list)
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class OrderAttachment(Base):
+    """An image or file returned with a report (scan images, ECG trace, report PDF)."""
+    __tablename__ = "order_attachments"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
+    filename: Mapped[str] = mapped_column(String(200))
+    content_type: Mapped[str] = mapped_column(String(100))
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    uploaded_by: Mapped[str] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class Outbox(Base):

@@ -10,9 +10,10 @@ from refcommon.db import utcnow
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..config import DRUG_CLASSES, PROCEDURE_TAGS, PROCEDURES
+from ..config import DRUG_CLASSES, PROCEDURE_HINTS, PROCEDURE_TAGS
 from ..db import get_db
 from ..models import EvidenceItem, EvidenceRevision, FlagReview, MedicationEntry, MedicationFlag, MedicationRule, MedicineName, Referral
+from ..notifications import notify_staff
 from ..referrals.state import CLINICAL_LOCKED, TERMINAL, ensure_clinical_edit_allowed, mark_clinical_change
 from ..security import audit, error, get_principal, load_referral, require_roles
 from ..serializers import flag_out, medication_out
@@ -63,7 +64,7 @@ class ManualMedIn(BaseModel):
 def add_medicine(referral_id: int, body: ManualMedIn, db: Session = Depends(get_db),
                  principal: Principal = Depends(get_principal)):
     """Staff add a medicine the patient says they take, e.g. an over-the-counter painkiller."""
-    r = load_referral(db, referral_id, principal, "edit")
+    r = load_referral(db, referral_id, principal, "edit", roles=("clinic_staff",))
     ensure_clinical_edit_allowed(r)
     fields = {"medication": body.name.strip(), "strength": body.strength, "dosage_text": " ".join(
         x for x in [body.dose, body.frequency] if x) or None, "frequency": body.frequency, "route": body.route,
@@ -188,6 +189,8 @@ def acknowledge_flag(referral_id: int, flag_id: int, body: AckIn, db: Session = 
     f = db.get(MedicationFlag, flag_id)
     if f is None or f.referral_id != r.id:
         raise error(404, "not_found", "Flag not found")
+    if r.prepared_at is None:
+        raise error(409, "not_prepared", "Staff are still gathering the records and medicines; review the flags once they are done")
     if f.status != "active" or f.version != body.flag_version:
         raise error(409, "flag_version_changed", "This flag has changed; acknowledge the current version")
     if service.acknowledgement(db, f) is None:
@@ -195,6 +198,10 @@ def acknowledge_flag(referral_id: int, flag_id: int, body: AckIn, db: Session = 
                           reviewer=principal.display_name, reviewer_id=principal.subject,
                           institution_id=principal.institution_id, note=body.note))
         audit(db, principal, "flag.acknowledge", "medication_flag", f"{f.id}v{f.version}", "success", r.id)
+        db.flush()
+        if r.status == "requested" and not service.unacknowledged_flags(db, r.id):
+            notify_staff(db, r, "ready_to_send", f"{r.reference}: flags reviewed, ready to send",
+                         f"{principal.display_name} reviewed every medication flag.", tab="send")
         db.commit()
     return flag_out(f, _acks(db, f.id))
 
@@ -263,7 +270,8 @@ def _rule_out(r: MedicationRule) -> dict:
             "intact": r.content_hash == rules.rule_hash(r), "created_by": r.created_by, "created_at": r.created_at,
             "decided_by": r.decided_by, "decided_at": r.decided_at, "reference_checked": r.reference_checked,
             "decision_note": r.decision_note,
-            "matching_procedures": [p["label"] for p in PROCEDURES.values() if set(p["tags"]) & set(r.procedure_tags)]}
+            # words in a procedure name that pre-tick one of this rule's features
+            "matching_procedures": sorted(k for k, v in PROCEDURE_HINTS.items() if set(v) & set(r.procedure_tags))}
 
 
 @router.get("/rules")
@@ -382,7 +390,8 @@ def decide_rule(rule_id: str, version: int, body: RuleDecisionIn, db: Session = 
 
 def _reevaluate_open(db: Session, principal: Principal, trigger: str) -> int:
     """A rule or name change re-checks every open referral."""
-    open_refs = db.scalars(select(Referral).where(Referral.status.notin_(list(CLINICAL_LOCKED | TERMINAL)))).all()
+    open_refs = db.scalars(select(Referral).where(Referral.kind == "referral",
+                                                  Referral.status.notin_(list(CLINICAL_LOCKED | TERMINAL)))).all()
     for ref in open_refs:
         after_change(db, ref, trigger, actor=principal.display_name)
     return len(open_refs)

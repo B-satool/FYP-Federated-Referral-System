@@ -1,0 +1,104 @@
+"""Import Pakistani brand names from a CSV file into the curated medicine name list.
+
+  python scripts/import_brands.py <file.csv>            # report what would change
+  python scripts/import_brands.py <file.csv> --write    # update the rules files
+
+Use a file you are allowed to use: an export DRAP or DrugsInfo Pakistan sends you, or rows you type in
+from the pack or the DRAP search page yourself. Do not scrape either website.
+
+Columns (see rules/terminology/brand-import-template.csv):
+  brand_name, ingredients (generic names separated by ';'), strength, dosage_form, drug_class (needed
+  only for a new ingredient or a combination), company, drap_reg_no, source, retrieved_on, checked_by
+
+* A brand with one known ingredient is added to that ingredient's brand list.
+* A combination product (several ingredients) becomes a combination entry whose parts are checked
+  one by one for interactions and label rules.
+* An ingredient this project does not know yet is reported and skipped unless drug_class is given;
+  new ingredients then need scripts/build_ingredient_codes.py, import_ddinter.py and
+  extract_label_rules.py to be run again before they are checked.
+* The same brand name mapping to different ingredients is reported as a conflict and not imported
+  (it would make the name ambiguous).
+Every imported brand keeps its source, DRAP registration number and checker in brand-sources.csv.
+"""
+from __future__ import annotations
+
+import csv
+import json
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+NAMES = ROOT / "rules" / "terminology" / "medicine-names.pk.json"
+INGREDIENTS = ROOT / "rules" / "terminology" / "ingredients.json"
+LEDGER = ROOT / "rules" / "terminology" / "brand-sources.csv"
+FIELDS = ["brand_name", "ingredients", "strength", "dosage_form", "drug_class", "company", "drap_reg_no", "source", "retrieved_on", "checked_by"]
+
+
+def main(path: Path, write: bool) -> None:
+    names = json.loads(NAMES.read_text(encoding="utf-8"))
+    ings = json.loads(INGREDIENTS.read_text(encoding="utf-8"))
+    by_ing = {e["ingredient"]: e for e in names["entries"]}
+    known = {i["name"] for i in ings["ingredients"]}
+    brand_owner = {b.lower(): e["ingredient"] for e in names["entries"] for b in e.get("brands", [])}
+    added, skipped, conflicts, ledger = [], [], [], []
+    with path.open(encoding="utf-8-sig") as fh:
+        rows = list(csv.DictReader(fh))
+    for row in rows:
+        brand = row["brand_name"].strip()
+        parts = [p.strip().lower() for p in row["ingredients"].split(";") if p.strip()]
+        if not brand or not parts:
+            skipped.append(f"{brand or '(no name)'}: brand name and ingredients are required")
+            continue
+        combos = {tuple(sorted(i["components"])): i["name"] for i in ings["ingredients"] if i.get("components")}
+        ingredient = parts[0] if len(parts) == 1 else combos.get(tuple(sorted(parts)), "/".join(sorted(parts)))
+        cls = (row.get("drug_class") or "").strip()
+        missing = [p for p in parts if p not in known]
+        if missing and not cls:
+            skipped.append(f"{brand}: unknown ingredient(s) {', '.join(missing)}; add a drug_class to create them")
+            continue
+        owner = brand_owner.get(brand.lower())
+        if owner and owner != ingredient:
+            conflicts.append(f"{brand}: already mapped to {owner}, file says {ingredient}")
+            continue
+        entry = by_ing.get(ingredient)
+        if entry is None:
+            if not cls and len(parts) > 1:
+                skipped.append(f"{brand}: a combination needs drug_class")
+                continue
+            entry = {"ingredient": ingredient, "class": cls or by_ing[parts[0]]["class"], "generic": [ingredient], "brands": []}
+            names["entries"].append(entry)
+            by_ing[ingredient] = entry
+        for p in missing:
+            ings["ingredients"].append({"name": p, "standard": p, "note": f"Added from {path.name}; run the code and data scripts."})
+            known.add(p)
+        if len(parts) > 1 and ingredient not in known:
+            ings["ingredients"].append({"name": ingredient, "components": sorted(parts)})
+            known.add(ingredient)
+        if brand not in entry["brands"]:
+            entry["brands"].append(brand)
+            brand_owner[brand.lower()] = ingredient
+            added.append(f"{brand} -> {ingredient}")
+        ledger.append({k: (row.get(k) or "").strip() for k in FIELDS})
+    print(f"{len(rows)} rows: {len(added)} brands to add, {len(skipped)} skipped, {len(conflicts)} conflicts")
+    for line in added:
+        print("  add", line)
+    for line in skipped + conflicts:
+        print("  !", line)
+    if not write:
+        print("Nothing written (pass --write).")
+        return
+    NAMES.write_text(json.dumps(names, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    INGREDIENTS.write_text(json.dumps(ings, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    new = not LEDGER.exists()
+    with LEDGER.open("a", encoding="utf-8", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=FIELDS)
+        if new:
+            w.writeheader()
+        w.writerows(ledger)
+    print("Written. Reseed to load: scripts/reset-and-seed.ps1 -Force")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        sys.exit(__doc__)
+    main(Path(sys.argv[1]), "--write" in sys.argv[2:])

@@ -60,6 +60,19 @@ def test_imported_flags_show_source_and_decisions_are_logged():
     ignored = next(a for a in audit if a["action"] == "flag.ignore")
     assert ignored["actor_name"] == "Dr Ali Raza" and ignored["detail"]["ruleset"]
 
+    # AI suggestions: separate from flags, only the doctor reviews them, and a review changes no flag
+    meds = ok(STAFF.get(f"/referrals/{rid}/medications"))
+    sugg = {s["pair_key"]: s for s in meds["ai_suggestions"]}
+    assert "diclofenac|esomeprazole" in sugg and meds["ai_label"] == "AI suggestion, unverified"
+    assert sugg["diclofenac|esomeprazole"]["model_version"] and sugg["diclofenac|esomeprazole"]["data_version"]
+    before = sorted((f["flag_key"], f["version"]) for f in meds["flags"])
+    body = {"pair_key": "diclofenac|esomeprazole", "decision": "relevant"}
+    assert STAFF.post(f"/referrals/{rid}/ai-suggestions/review", body).status_code == 403
+    ok(doctor.post(f"/referrals/{rid}/ai-suggestions/review", body))
+    meds = ok(STAFF.get(f"/referrals/{rid}/medications"))
+    assert sorted((f["flag_key"], f["version"]) for f in meds["flags"]) == before
+    assert {s["pair_key"]: s for s in meds["ai_suggestions"]}["diclofenac|esomeprazole"]["review"]["decision"] == "relevant"
+
 
 def test_procedure_without_features_is_not_checked():
     """A procedure written without saying what it involves: procedure rules are not run, and say so."""

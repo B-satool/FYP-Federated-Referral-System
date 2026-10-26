@@ -28,9 +28,10 @@ def rxcui(client: httpx.Client, name: str) -> str | None:
 
 
 def atc(client: httpx.Client, name: str) -> list[str]:
+    """ATC classes of the ingredient on its own (term type IN), not those it gets from combination products."""
     r = client.get(f"{RXNAV}/rxclass/class/byDrugName.json", params={"drugName": name, "relaSource": "ATC"})
     items = ((r.json().get("rxclassDrugInfoList") or {}).get("rxclassDrugInfo")) or []
-    return sorted({i["rxclassMinConceptItem"]["classId"] for i in items})
+    return sorted({i["rxclassMinConceptItem"]["classId"] for i in items if (i.get("minConcept") or {}).get("tty") == "IN"})
 
 
 def main() -> None:

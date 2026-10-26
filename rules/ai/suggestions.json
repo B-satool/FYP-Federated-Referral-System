@@ -1,0 +1,470 @@
+{
+  "model_version": "ddi-suggest-logreg/1.0",
+  "data_version": "DDInter 2.0 (2710ca66c8e5), ATC via RxNav 2026-10-27",
+  "threshold": 0.8,
+  "label": "AI suggestion, unverified",
+  "suggestions": [
+    {
+      "pair_key": "alendronic acid|dapagliflozin",
+      "ingredient_a": "alendronic acid",
+      "ingredient_b": "dapagliflozin",
+      "score": 0.86,
+      "reason": "dapagliflozin is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 10 other drug(s) in that class, for example acarbose and chlorpropamide, have recorded DDInter interactions with alendronic acid."
+    },
+    {
+      "pair_key": "alendronic acid|empagliflozin",
+      "ingredient_a": "alendronic acid",
+      "ingredient_b": "empagliflozin",
+      "score": 0.87,
+      "reason": "empagliflozin is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 10 other drug(s) in that class, for example acarbose and chlorpropamide, have recorded DDInter interactions with alendronic acid."
+    },
+    {
+      "pair_key": "alendronic acid|esomeprazole",
+      "ingredient_a": "alendronic acid",
+      "ingredient_b": "esomeprazole",
+      "score": 0.989,
+      "reason": "esomeprazole is in the ATC class A02B (drugs for peptic ulcer and gastro-oesophageal reflux disease (gord)); 10 other drug(s) in that class, for example cimetidine and famotidine, have recorded DDInter interactions with alendronic acid."
+    },
+    {
+      "pair_key": "amlodipine|esomeprazole",
+      "ingredient_a": "amlodipine",
+      "ingredient_b": "esomeprazole",
+      "score": 0.924,
+      "reason": "esomeprazole is in the ATC class A02B (drugs for peptic ulcer and gastro-oesophageal reflux disease (gord)); 10 other drug(s) in that class, for example cimetidine and famotidine, have recorded DDInter interactions with amlodipine."
+    },
+    {
+      "pair_key": "amlodipine|rivaroxaban",
+      "ingredient_a": "amlodipine",
+      "ingredient_b": "rivaroxaban",
+      "score": 0.952,
+      "reason": "rivaroxaban is in the ATC class B01A (antithrombotic agents); 13 other drug(s) in that class, for example acenocoumarol and apixaban, have recorded DDInter interactions with amlodipine."
+    },
+    {
+      "pair_key": "amoxicillin|esomeprazole",
+      "ingredient_a": "amoxicillin",
+      "ingredient_b": "esomeprazole",
+      "score": 0.931,
+      "reason": "esomeprazole is in the ATC class A02B (drugs for peptic ulcer and gastro-oesophageal reflux disease (gord)); 8 other drug(s) in that class, for example cimetidine and famotidine, have recorded DDInter interactions with amoxicillin."
+    },
+    {
+      "pair_key": "apixaban|enalapril",
+      "ingredient_a": "apixaban",
+      "ingredient_b": "enalapril",
+      "score": 0.819,
+      "reason": "apixaban is in the ATC class B01A (antithrombotic agents); 21 other drug(s) in that class, for example acenocoumarol and alteplase, have recorded DDInter interactions with enalapril."
+    },
+    {
+      "pair_key": "apixaban|levothyroxine",
+      "ingredient_a": "apixaban",
+      "ingredient_b": "levothyroxine",
+      "score": 0.946,
+      "reason": "apixaban is in the ATC class B01A (antithrombotic agents); 13 other drug(s) in that class, for example acenocoumarol and argatroban, have recorded DDInter interactions with levothyroxine."
+    },
+    {
+      "pair_key": "apixaban|omeprazole",
+      "ingredient_a": "apixaban",
+      "ingredient_b": "omeprazole",
+      "score": 0.808,
+      "reason": "apixaban is in the ATC class B01A (antithrombotic agents); 14 other drug(s) in that class, for example acenocoumarol and cilostazol, have recorded DDInter interactions with omeprazole."
+    },
+    {
+      "pair_key": "apixaban|paracetamol",
+      "ingredient_a": "apixaban",
+      "ingredient_b": "paracetamol",
+      "score": 0.92,
+      "reason": "apixaban is in the ATC class B01A (antithrombotic agents); 13 other drug(s) in that class, for example acenocoumarol and argatroban, have recorded DDInter interactions with paracetamol."
+    },
+    {
+      "pair_key": "apixaban|prednisolone",
+      "ingredient_a": "apixaban",
+      "ingredient_b": "prednisolone",
+      "score": 0.835,
+      "reason": "apixaban is in the ATC class B01A (antithrombotic agents); 10 other drug(s) in that class, for example acenocoumarol and clopidogrel, have recorded DDInter interactions with prednisolone."
+    },
+    {
+      "pair_key": "apixaban|salbutamol",
+      "ingredient_a": "apixaban",
+      "ingredient_b": "salbutamol",
+      "score": 0.936,
+      "reason": "apixaban is in the ATC class B01A (antithrombotic agents); 11 other drug(s) in that class, for example argatroban and cilostazol, have recorded DDInter interactions with salbutamol."
+    },
+    {
+      "pair_key": "aspirin|colecalciferol",
+      "ingredient_a": "aspirin",
+      "ingredient_b": "colecalciferol",
+      "score": 0.801,
+      "reason": "colecalciferol is in the ATC class A11C (vitamin a and d, incl. combinations of the two); 2 other drug(s) in that class, for example calcitriol and vitamin a, have recorded DDInter interactions with aspirin."
+    },
+    {
+      "pair_key": "aspirin|daclatasvir",
+      "ingredient_a": "aspirin",
+      "ingredient_b": "daclatasvir",
+      "score": 0.871,
+      "reason": "daclatasvir is in the ATC class J05A (direct acting antivirals); 17 other drug(s) in that class, for example abacavir and acyclovir, have recorded DDInter interactions with aspirin."
+    },
+    {
+      "pair_key": "aspirin|dapagliflozin",
+      "ingredient_a": "aspirin",
+      "ingredient_b": "dapagliflozin",
+      "score": 0.972,
+      "reason": "dapagliflozin is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 13 other drug(s) in that class, for example acarbose and acetohexamide, have recorded DDInter interactions with aspirin."
+    },
+    {
+      "pair_key": "aspirin|empagliflozin",
+      "ingredient_a": "aspirin",
+      "ingredient_b": "empagliflozin",
+      "score": 0.974,
+      "reason": "empagliflozin is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 13 other drug(s) in that class, for example acarbose and acetohexamide, have recorded DDInter interactions with aspirin."
+    },
+    {
+      "pair_key": "atorvastatin|dapagliflozin",
+      "ingredient_a": "atorvastatin",
+      "ingredient_b": "dapagliflozin",
+      "score": 0.822,
+      "reason": "dapagliflozin is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 12 other drug(s) in that class, for example acarbose and glimepiride, have recorded DDInter interactions with atorvastatin."
+    },
+    {
+      "pair_key": "atorvastatin|empagliflozin",
+      "ingredient_a": "atorvastatin",
+      "ingredient_b": "empagliflozin",
+      "score": 0.833,
+      "reason": "empagliflozin is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 12 other drug(s) in that class, for example acarbose and glimepiride, have recorded DDInter interactions with atorvastatin."
+    },
+    {
+      "pair_key": "bisoprolol|esomeprazole",
+      "ingredient_a": "bisoprolol",
+      "ingredient_b": "esomeprazole",
+      "score": 0.853,
+      "reason": "esomeprazole is in the ATC class A02B (drugs for peptic ulcer and gastro-oesophageal reflux disease (gord)); 8 other drug(s) in that class, for example cimetidine and famotidine, have recorded DDInter interactions with bisoprolol."
+    },
+    {
+      "pair_key": "calcium carbonate|omeprazole",
+      "ingredient_a": "calcium carbonate",
+      "ingredient_b": "omeprazole",
+      "score": 0.942,
+      "reason": "omeprazole is in the ATC class A02B (drugs for peptic ulcer and gastro-oesophageal reflux disease (gord)); 6 other drug(s) in that class, for example cimetidine and famotidine, have recorded DDInter interactions with calcium carbonate."
+    },
+    {
+      "pair_key": "calcium carbonate|salbutamol",
+      "ingredient_a": "calcium carbonate",
+      "ingredient_b": "salbutamol",
+      "score": 0.891,
+      "reason": "calcium carbonate is in the ATC class A02A (antacids); 1 other drug(s) in that class, for example magnesium hydroxide, have recorded DDInter interactions with salbutamol."
+    },
+    {
+      "pair_key": "clopidogrel|daclatasvir",
+      "ingredient_a": "clopidogrel",
+      "ingredient_b": "daclatasvir",
+      "score": 0.888,
+      "reason": "daclatasvir is in the ATC class J05A (direct acting antivirals); 18 other drug(s) in that class, for example abacavir and acyclovir, have recorded DDInter interactions with clopidogrel."
+    },
+    {
+      "pair_key": "clopidogrel|dapagliflozin",
+      "ingredient_a": "clopidogrel",
+      "ingredient_b": "dapagliflozin",
+      "score": 0.911,
+      "reason": "dapagliflozin is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 11 other drug(s) in that class, for example acarbose and chlorpropamide, have recorded DDInter interactions with clopidogrel."
+    },
+    {
+      "pair_key": "clopidogrel|empagliflozin",
+      "ingredient_a": "clopidogrel",
+      "ingredient_b": "empagliflozin",
+      "score": 0.916,
+      "reason": "empagliflozin is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 11 other drug(s) in that class, for example acarbose and chlorpropamide, have recorded DDInter interactions with clopidogrel."
+    },
+    {
+      "pair_key": "daclatasvir|levothyroxine",
+      "ingredient_a": "daclatasvir",
+      "ingredient_b": "levothyroxine",
+      "score": 0.858,
+      "reason": "daclatasvir is in the ATC class J05A (direct acting antivirals); 16 other drug(s) in that class, for example abacavir and acyclovir, have recorded DDInter interactions with levothyroxine."
+    },
+    {
+      "pair_key": "daclatasvir|omeprazole",
+      "ingredient_a": "daclatasvir",
+      "ingredient_b": "omeprazole",
+      "score": 0.809,
+      "reason": "daclatasvir is in the ATC class J05A (direct acting antivirals); 26 other drug(s) in that class, for example abacavir and acyclovir, have recorded DDInter interactions with omeprazole."
+    },
+    {
+      "pair_key": "daclatasvir|prednisolone",
+      "ingredient_a": "daclatasvir",
+      "ingredient_b": "prednisolone",
+      "score": 0.934,
+      "reason": "daclatasvir is in the ATC class J05A (direct acting antivirals); 28 other drug(s) in that class, for example abacavir and acyclovir, have recorded DDInter interactions with prednisolone."
+    },
+    {
+      "pair_key": "daclatasvir|salbutamol",
+      "ingredient_a": "daclatasvir",
+      "ingredient_b": "salbutamol",
+      "score": 0.934,
+      "reason": "daclatasvir is in the ATC class J05A (direct acting antivirals); 22 other drug(s) in that class, for example abacavir and acyclovir, have recorded DDInter interactions with salbutamol."
+    },
+    {
+      "pair_key": "dapagliflozin|diclofenac",
+      "ingredient_a": "dapagliflozin",
+      "ingredient_b": "diclofenac",
+      "score": 0.868,
+      "reason": "dapagliflozin is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 14 other drug(s) in that class, for example acarbose and acetohexamide, have recorded DDInter interactions with diclofenac."
+    },
+    {
+      "pair_key": "dapagliflozin|empagliflozin",
+      "ingredient_a": "dapagliflozin",
+      "ingredient_b": "empagliflozin",
+      "score": 0.962,
+      "reason": "empagliflozin is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 9 other drug(s) in that class, for example acetohexamide and chlorpropamide, have recorded DDInter interactions with dapagliflozin."
+    },
+    {
+      "pair_key": "dapagliflozin|ibuprofen",
+      "ingredient_a": "dapagliflozin",
+      "ingredient_b": "ibuprofen",
+      "score": 0.943,
+      "reason": "dapagliflozin is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 14 other drug(s) in that class, for example acarbose and acetohexamide, have recorded DDInter interactions with ibuprofen."
+    },
+    {
+      "pair_key": "dapagliflozin|metformin",
+      "ingredient_a": "dapagliflozin",
+      "ingredient_b": "metformin",
+      "score": 0.987,
+      "reason": "dapagliflozin is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 12 other drug(s) in that class, for example acarbose and acetohexamide, have recorded DDInter interactions with metformin."
+    },
+    {
+      "pair_key": "dapagliflozin|omeprazole",
+      "ingredient_a": "dapagliflozin",
+      "ingredient_b": "omeprazole",
+      "score": 0.883,
+      "reason": "dapagliflozin is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 13 other drug(s) in that class, for example acarbose and acetohexamide, have recorded DDInter interactions with omeprazole."
+    },
+    {
+      "pair_key": "dapagliflozin|rosuvastatin",
+      "ingredient_a": "dapagliflozin",
+      "ingredient_b": "rosuvastatin",
+      "score": 0.808,
+      "reason": "dapagliflozin is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 9 other drug(s) in that class, for example acarbose and glimepiride, have recorded DDInter interactions with rosuvastatin."
+    },
+    {
+      "pair_key": "dapagliflozin|warfarin",
+      "ingredient_a": "dapagliflozin",
+      "ingredient_b": "warfarin",
+      "score": 0.969,
+      "reason": "dapagliflozin is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 15 other drug(s) in that class, for example acarbose and albiglutide, have recorded DDInter interactions with warfarin."
+    },
+    {
+      "pair_key": "dexamethasone|esomeprazole",
+      "ingredient_a": "dexamethasone",
+      "ingredient_b": "esomeprazole",
+      "score": 0.993,
+      "reason": "esomeprazole is in the ATC class A02B (drugs for peptic ulcer and gastro-oesophageal reflux disease (gord)); 10 other drug(s) in that class, for example cimetidine and famotidine, have recorded DDInter interactions with dexamethasone."
+    },
+    {
+      "pair_key": "dexamethasone|sofosbuvir",
+      "ingredient_a": "dexamethasone",
+      "ingredient_b": "sofosbuvir",
+      "score": 0.837,
+      "reason": "sofosbuvir is in the ATC class J05A (direct acting antivirals); 38 other drug(s) in that class, for example abacavir and acyclovir, have recorded DDInter interactions with dexamethasone."
+    },
+    {
+      "pair_key": "diclofenac|empagliflozin",
+      "ingredient_a": "diclofenac",
+      "ingredient_b": "empagliflozin",
+      "score": 0.876,
+      "reason": "empagliflozin is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 14 other drug(s) in that class, for example acarbose and acetohexamide, have recorded DDInter interactions with diclofenac."
+    },
+    {
+      "pair_key": "diclofenac|esomeprazole",
+      "ingredient_a": "diclofenac",
+      "ingredient_b": "esomeprazole",
+      "score": 0.976,
+      "reason": "esomeprazole is in the ATC class A02B (drugs for peptic ulcer and gastro-oesophageal reflux disease (gord)); 10 other drug(s) in that class, for example cimetidine and famotidine, have recorded DDInter interactions with diclofenac."
+    },
+    {
+      "pair_key": "empagliflozin|ibuprofen",
+      "ingredient_a": "empagliflozin",
+      "ingredient_b": "ibuprofen",
+      "score": 0.947,
+      "reason": "empagliflozin is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 14 other drug(s) in that class, for example acarbose and acetohexamide, have recorded DDInter interactions with ibuprofen."
+    },
+    {
+      "pair_key": "empagliflozin|metformin",
+      "ingredient_a": "empagliflozin",
+      "ingredient_b": "metformin",
+      "score": 0.988,
+      "reason": "empagliflozin is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 12 other drug(s) in that class, for example acarbose and acetohexamide, have recorded DDInter interactions with metformin."
+    },
+    {
+      "pair_key": "empagliflozin|omeprazole",
+      "ingredient_a": "empagliflozin",
+      "ingredient_b": "omeprazole",
+      "score": 0.89,
+      "reason": "empagliflozin is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 13 other drug(s) in that class, for example acarbose and acetohexamide, have recorded DDInter interactions with omeprazole."
+    },
+    {
+      "pair_key": "empagliflozin|rosuvastatin",
+      "ingredient_a": "empagliflozin",
+      "ingredient_b": "rosuvastatin",
+      "score": 0.818,
+      "reason": "empagliflozin is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 9 other drug(s) in that class, for example acarbose and glimepiride, have recorded DDInter interactions with rosuvastatin."
+    },
+    {
+      "pair_key": "empagliflozin|warfarin",
+      "ingredient_a": "empagliflozin",
+      "ingredient_b": "warfarin",
+      "score": 0.971,
+      "reason": "empagliflozin is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 15 other drug(s) in that class, for example acarbose and albiglutide, have recorded DDInter interactions with warfarin."
+    },
+    {
+      "pair_key": "enalapril|esomeprazole",
+      "ingredient_a": "enalapril",
+      "ingredient_b": "esomeprazole",
+      "score": 0.948,
+      "reason": "esomeprazole is in the ATC class A02B (drugs for peptic ulcer and gastro-oesophageal reflux disease (gord)); 10 other drug(s) in that class, for example cimetidine and famotidine, have recorded DDInter interactions with enalapril."
+    },
+    {
+      "pair_key": "enalapril|rivaroxaban",
+      "ingredient_a": "enalapril",
+      "ingredient_b": "rivaroxaban",
+      "score": 0.814,
+      "reason": "rivaroxaban is in the ATC class B01A (antithrombotic agents); 21 other drug(s) in that class, for example acenocoumarol and alteplase, have recorded DDInter interactions with enalapril."
+    },
+    {
+      "pair_key": "esomeprazole|ibandronic acid",
+      "ingredient_a": "esomeprazole",
+      "ingredient_b": "ibandronic acid",
+      "score": 0.934,
+      "reason": "esomeprazole is in the ATC class A02B (drugs for peptic ulcer and gastro-oesophageal reflux disease (gord)); 7 other drug(s) in that class, for example famotidine and lansoprazole, have recorded DDInter interactions with ibandronic acid."
+    },
+    {
+      "pair_key": "esomeprazole|ibuprofen",
+      "ingredient_a": "esomeprazole",
+      "ingredient_b": "ibuprofen",
+      "score": 0.965,
+      "reason": "esomeprazole is in the ATC class A02B (drugs for peptic ulcer and gastro-oesophageal reflux disease (gord)); 10 other drug(s) in that class, for example cimetidine and famotidine, have recorded DDInter interactions with ibuprofen."
+    },
+    {
+      "pair_key": "esomeprazole|losartan",
+      "ingredient_a": "esomeprazole",
+      "ingredient_b": "losartan",
+      "score": 0.906,
+      "reason": "esomeprazole is in the ATC class A02B (drugs for peptic ulcer and gastro-oesophageal reflux disease (gord)); 10 other drug(s) in that class, for example cimetidine and famotidine, have recorded DDInter interactions with losartan."
+    },
+    {
+      "pair_key": "esomeprazole|metformin",
+      "ingredient_a": "esomeprazole",
+      "ingredient_b": "metformin",
+      "score": 0.992,
+      "reason": "esomeprazole is in the ATC class A02B (drugs for peptic ulcer and gastro-oesophageal reflux disease (gord)); 10 other drug(s) in that class, for example cimetidine and famotidine, have recorded DDInter interactions with metformin."
+    },
+    {
+      "pair_key": "esomeprazole|omeprazole",
+      "ingredient_a": "esomeprazole",
+      "ingredient_b": "omeprazole",
+      "score": 0.934,
+      "reason": "esomeprazole is in the ATC class A02B (drugs for peptic ulcer and gastro-oesophageal reflux disease (gord)); 9 other drug(s) in that class, for example cimetidine and famotidine, have recorded DDInter interactions with omeprazole."
+    },
+    {
+      "pair_key": "esomeprazole|paracetamol",
+      "ingredient_a": "esomeprazole",
+      "ingredient_b": "paracetamol",
+      "score": 0.969,
+      "reason": "esomeprazole is in the ATC class A02B (drugs for peptic ulcer and gastro-oesophageal reflux disease (gord)); 10 other drug(s) in that class, for example cimetidine and famotidine, have recorded DDInter interactions with paracetamol."
+    },
+    {
+      "pair_key": "esomeprazole|prednisolone",
+      "ingredient_a": "esomeprazole",
+      "ingredient_b": "prednisolone",
+      "score": 0.984,
+      "reason": "esomeprazole is in the ATC class A02B (drugs for peptic ulcer and gastro-oesophageal reflux disease (gord)); 10 other drug(s) in that class, for example cimetidine and famotidine, have recorded DDInter interactions with prednisolone."
+    },
+    {
+      "pair_key": "esomeprazole|propranolol",
+      "ingredient_a": "esomeprazole",
+      "ingredient_b": "propranolol",
+      "score": 0.952,
+      "reason": "esomeprazole is in the ATC class A02B (drugs for peptic ulcer and gastro-oesophageal reflux disease (gord)); 10 other drug(s) in that class, for example cimetidine and famotidine, have recorded DDInter interactions with propranolol."
+    },
+    {
+      "pair_key": "esomeprazole|rosuvastatin",
+      "ingredient_a": "esomeprazole",
+      "ingredient_b": "rosuvastatin",
+      "score": 0.995,
+      "reason": "esomeprazole is in the ATC class A02B (drugs for peptic ulcer and gastro-oesophageal reflux disease (gord)); 10 other drug(s) in that class, for example cimetidine and famotidine, have recorded DDInter interactions with rosuvastatin."
+    },
+    {
+      "pair_key": "esomeprazole|salbutamol",
+      "ingredient_a": "esomeprazole",
+      "ingredient_b": "salbutamol",
+      "score": 0.994,
+      "reason": "esomeprazole is in the ATC class A02B (drugs for peptic ulcer and gastro-oesophageal reflux disease (gord)); 10 other drug(s) in that class, for example cimetidine and famotidine, have recorded DDInter interactions with salbutamol."
+    },
+    {
+      "pair_key": "esomeprazole|tramadol",
+      "ingredient_a": "esomeprazole",
+      "ingredient_b": "tramadol",
+      "score": 0.945,
+      "reason": "esomeprazole is in the ATC class A02B (drugs for peptic ulcer and gastro-oesophageal reflux disease (gord)); 10 other drug(s) in that class, for example cimetidine and famotidine, have recorded DDInter interactions with tramadol."
+    },
+    {
+      "pair_key": "gliclazide|levothyroxine",
+      "ingredient_a": "gliclazide",
+      "ingredient_b": "levothyroxine",
+      "score": 0.917,
+      "reason": "gliclazide is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 30 other drug(s) in that class, for example acarbose and acetohexamide, have recorded DDInter interactions with levothyroxine."
+    },
+    {
+      "pair_key": "gliclazide|salbutamol",
+      "ingredient_a": "gliclazide",
+      "ingredient_b": "salbutamol",
+      "score": 0.925,
+      "reason": "gliclazide is in the ATC class A10B (blood glucose lowering drugs, excl. insulins); 30 other drug(s) in that class, for example acarbose and acetohexamide, have recorded DDInter interactions with salbutamol."
+    },
+    {
+      "pair_key": "human insulin|paracetamol",
+      "ingredient_a": "human insulin",
+      "ingredient_b": "paracetamol",
+      "score": 0.814,
+      "reason": "paracetamol is in the ATC class N02B (other analgesics and antipyretics); 2 other drug(s) in that class, for example diflunisal and salsalate, have recorded DDInter interactions with human insulin."
+    },
+    {
+      "pair_key": "human insulin|rosuvastatin",
+      "ingredient_a": "human insulin",
+      "ingredient_b": "rosuvastatin",
+      "score": 0.818,
+      "reason": "rosuvastatin is in the ATC class C10A (lipid modifying agents, plain); 4 other drug(s) in that class, for example fenofibrate and fenofibric acid, have recorded DDInter interactions with human insulin."
+    },
+    {
+      "pair_key": "levothyroxine|rivaroxaban",
+      "ingredient_a": "levothyroxine",
+      "ingredient_b": "rivaroxaban",
+      "score": 0.944,
+      "reason": "rivaroxaban is in the ATC class B01A (antithrombotic agents); 13 other drug(s) in that class, for example acenocoumarol and argatroban, have recorded DDInter interactions with levothyroxine."
+    },
+    {
+      "pair_key": "omeprazole|rivaroxaban",
+      "ingredient_a": "omeprazole",
+      "ingredient_b": "rivaroxaban",
+      "score": 0.885,
+      "reason": "rivaroxaban is in the ATC class B01A (antithrombotic agents); 14 other drug(s) in that class, for example acenocoumarol and cilostazol, have recorded DDInter interactions with omeprazole."
+    },
+    {
+      "pair_key": "paracetamol|rivaroxaban",
+      "ingredient_a": "paracetamol",
+      "ingredient_b": "rivaroxaban",
+      "score": 0.917,
+      "reason": "rivaroxaban is in the ATC class B01A (antithrombotic agents); 13 other drug(s) in that class, for example acenocoumarol and argatroban, have recorded DDInter interactions with paracetamol."
+    },
+    {
+      "pair_key": "prednisolone|rivaroxaban",
+      "ingredient_a": "prednisolone",
+      "ingredient_b": "rivaroxaban",
+      "score": 0.817,
+      "reason": "rivaroxaban is in the ATC class B01A (antithrombotic agents); 10 other drug(s) in that class, for example acenocoumarol and clopidogrel, have recorded DDInter interactions with prednisolone."
+    },
+    {
+      "pair_key": "rivaroxaban|salbutamol",
+      "ingredient_a": "rivaroxaban",
+      "ingredient_b": "salbutamol",
+      "score": 0.934,
+      "reason": "rivaroxaban is in the ATC class B01A (antithrombotic agents); 11 other drug(s) in that class, for example argatroban and cilostazol, have recorded DDInter interactions with salbutamol."
+    }
+  ]
+}

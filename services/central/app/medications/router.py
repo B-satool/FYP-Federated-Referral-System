@@ -1,6 +1,7 @@
 """Current medicines, flags and acknowledgments; medication rules and medicine names (edited in the app)."""
 from __future__ import annotations
 
+import json
 from typing import Literal
 
 from fastapi import APIRouter, Depends
@@ -10,16 +11,16 @@ from refcommon.db import utcnow
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..config import DRUG_CLASSES, PROCEDURE_HINTS, PROCEDURE_TAGS
+from ..config import DRUG_CLASSES, PROCEDURE_HINTS, PROCEDURE_TAGS, settings
 from ..db import get_db
-from ..models import (DrugInteraction, EvidenceItem, EvidenceRevision, FlagReview, LabelRule, MedicationEntry, MedicationFlag,
+from ..models import (AiSuggestion, DrugInteraction, EvidenceItem, SuggestionReview, EvidenceRevision, FlagReview, LabelRule, MedicationEntry, MedicationFlag,
                       MedicationRule, MedicineName, Referral, RulesetRelease)
 from ..notifications import notify_staff
 from ..referrals.state import CLINICAL_LOCKED, TERMINAL, ensure_clinical_edit_allowed, mark_clinical_change
 from ..security import audit, error, get_principal, load_referral, require_roles
 from ..serializers import flag_out, medication_out
 from ..workflow import after_change
-from . import mapping, rules, service
+from . import mapping, rules, service, suggestions
 
 router = APIRouter(tags=["medications"])
 
@@ -48,7 +49,66 @@ def medications(referral_id: int, db: Session = Depends(get_db), principal: Prin
         },
         "flags": [flag_out(f, _acks(db, f.id)) for f in flags if f.status == "active"],
         "flag_history": [flag_out(f, _acks(db, f.id)) for f in flags if f.status != "active"],
+        "ai_suggestions": _ai_suggestions(db, r),
+        "ai_label": suggestions.LABEL,
     }
+
+
+def _ai_suggestions(db: Session, r: Referral) -> list[dict]:
+    """Suggestions for pairs among the current medicines that the interaction source does not cover."""
+    ings = {i for e in service.current_entries(db, r.id) if e.mapping_status in ("mapped", "staff_mapped")
+            for i in (e.ingredients or ([e.ingredient] if e.ingredient else []))}
+    covered = {(x.ingredient_a, x.ingredient_b) for x in rules.interactions_for(db, ings)}
+    stored = {s.pair_key: suggestions.Suggestion(s.pair_key, s.ingredient_a, s.ingredient_b, s.score, s.reason, s.model_version,
+                                                 s.data_version)
+              for s in db.scalars(select(AiSuggestion).where(AiSuggestion.ingredient_a.in_(ings), AiSuggestion.ingredient_b.in_(ings)))}
+    reviews = {v.pair_key: v for v in db.scalars(select(SuggestionReview).where(SuggestionReview.referral_id == r.id)
+                                                 .order_by(SuggestionReview.id))}
+    out = []
+    for s in suggestions.suggestions_for(ings, stored, covered):
+        v = reviews.get(s.pair_key)
+        out.append({"pair_key": s.pair_key, "ingredients": [s.ingredient_a, s.ingredient_b], "score": s.score, "reason": s.reason,
+                    "model_version": s.model_version, "data_version": s.data_version,
+                    "review": {"decision": v.decision, "note": v.note, "by": v.reviewer, "at": v.created_at} if v else None})
+    return out
+
+
+class SuggestionReviewIn(BaseModel):
+    pair_key: str
+    decision: Literal["relevant", "not_relevant"]
+    note: str = ""
+
+
+@router.post("/referrals/{referral_id}/ai-suggestions/review")
+def review_suggestion(referral_id: int, body: SuggestionReviewIn, db: Session = Depends(get_db),
+                      principal: Principal = Depends(get_principal)):
+    """The doctor marks an AI suggestion as relevant or not for this patient. It changes no flag."""
+    r = load_referral(db, referral_id, principal, "review_ai_suggestion", roles=("clinician",))
+    s = db.get(AiSuggestion, body.pair_key)
+    if s is None or body.pair_key not in {x["pair_key"] for x in _ai_suggestions(db, r)}:
+        raise error(404, "not_found", "No such suggestion for this patient's current medicines")
+    db.add(SuggestionReview(referral_id=r.id, pair_key=s.pair_key, decision=body.decision, note=body.note.strip(), score=s.score,
+                            model_version=s.model_version, data_version=s.data_version, reviewer=principal.display_name,
+                            reviewer_id=principal.subject))
+    audit(db, principal, "ai_suggestion.review", "ai_suggestion", s.pair_key, "success", r.id,
+          {"decision": body.decision, "score": s.score, "model_version": s.model_version})
+    db.commit()
+    return {"pair_key": s.pair_key, "decision": body.decision}
+
+
+@router.get("/rules/ai")
+def ai_model(db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """The suggestion model's evaluation figures and its stored suggestions (reviewer only)."""
+    require_roles(principal, "rule_reviewer", action="rule.list", message="Only a clinical rule reviewer can view the rules")
+    path = settings.repo_root / "rules" / "ai" / "evaluation.json"
+    evaluation = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+    rows = db.scalars(select(AiSuggestion).order_by(AiSuggestion.score.desc())).all()
+    reviewed = db.scalars(select(SuggestionReview)).all()
+    return {"label": suggestions.LABEL, "evaluation": evaluation,
+            "reviews": {"relevant": sum(1 for v in reviewed if v.decision == "relevant"),
+                        "not_relevant": sum(1 for v in reviewed if v.decision == "not_relevant")},
+            "suggestions": [{"pair_key": s.pair_key, "ingredients": [s.ingredient_a, s.ingredient_b], "score": s.score,
+                             "reason": s.reason, "model_version": s.model_version} for s in rows]}
 
 
 class ManualMedIn(BaseModel):

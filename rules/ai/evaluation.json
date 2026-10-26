@@ -1,0 +1,70 @@
+{
+  "model_version": "ddi-suggest-logreg/1.0",
+  "trained": "2026-10-27",
+  "training_data": "DDInter 2.0 files sha256 2710ca66c8e5017813bddc0372ff3075e78873f370a1b377e8d04c37cdaa17a6",
+  "known_interactions": 160235,
+  "drugs": 1939,
+  "drugs_with_atc": 1394,
+  "held_out_interactions": 32047,
+  "held_out_unlabelled_pairs": 32047,
+  "threshold_used": 0.8,
+  "by_threshold": {
+    "0.5": {
+      "recall_held_out_interactions": 0.869,
+      "recall_by_severity": {
+        "Major": 0.904,
+        "Moderate": 0.87,
+        "Minor": 0.797,
+        "Unknown": 0.851
+      },
+      "suggestions_not_in_ddinter_per_100_unlabelled_pairs": 9.2
+    },
+    "0.6": {
+      "recall_held_out_interactions": 0.83,
+      "recall_by_severity": {
+        "Major": 0.875,
+        "Moderate": 0.834,
+        "Minor": 0.76,
+        "Unknown": 0.791
+      },
+      "suggestions_not_in_ddinter_per_100_unlabelled_pairs": 6.9
+    },
+    "0.7": {
+      "recall_held_out_interactions": 0.785,
+      "recall_by_severity": {
+        "Major": 0.848,
+        "Moderate": 0.793,
+        "Minor": 0.715,
+        "Unknown": 0.718
+      },
+      "suggestions_not_in_ddinter_per_100_unlabelled_pairs": 5.1
+    },
+    "0.8": {
+      "recall_held_out_interactions": 0.725,
+      "recall_by_severity": {
+        "Major": 0.803,
+        "Moderate": 0.738,
+        "Minor": 0.676,
+        "Unknown": 0.627
+      },
+      "suggestions_not_in_ddinter_per_100_unlabelled_pairs": 3.4
+    },
+    "0.9": {
+      "recall_held_out_interactions": 0.63,
+      "recall_by_severity": {
+        "Major": 0.732,
+        "Moderate": 0.648,
+        "Minor": 0.589,
+        "Unknown": 0.492
+      },
+      "suggestions_not_in_ddinter_per_100_unlabelled_pairs": 1.8
+    }
+  },
+  "caveats": [
+    "Unlabelled pairs are not proven non-interacting; DDInter is incomplete, so 'not in DDInter' is not 'false'.",
+    "Trained only on DDInter, so the model mostly generalises DDInter's class patterns; it cannot find mechanisms DDInter lacks.",
+    "Drugs in one ATC group can behave differently: cimetidine and esomeprazole share group A02B, but only cimetidine strongly inhibits liver enzymes, so class-mate evidence can overstate a clash.",
+    "Held-out unlabelled pairs are random pairs, which are easier to tell apart than the pairs a doctor actually sees.",
+    "Not a clinical accuracy figure."
+  ]
+}

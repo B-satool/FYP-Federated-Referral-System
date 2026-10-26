@@ -24,7 +24,7 @@ from .config import settings
 from .db import Base, SessionLocal
 from .medications import mapping
 from .medications.rules import rule_hash
-from .models import (DrugInteraction, Ingredient, LabelRule, MedicationRule, MedicineName, PatientLink, PatientLinkEvent,
+from .models import (AiSuggestion, DrugInteraction, Ingredient, LabelRule, MedicationRule, MedicineName, PatientLink, PatientLinkEvent,
                      RulesetRelease)
 
 SEED_ACTOR = ("seed-script", "Seed script (synthetic data)")
@@ -118,7 +118,13 @@ def seed_imported(db) -> dict:
                          severity_hint=r["severity_hint"], summary=r["summary"], quote=r["quote"], section=r["section"],
                          source_type=r["source_type"], source_ref=r["source_ref"], source_name=r["source_name"],
                          source_version=r["source_version"], extractor_version=r["extractor_version"]))
-    counts = {"ingredients": len(ingredients["ingredients"]), "interactions": len(pairs), "label_rules": len(labels["rules"])}
+    ai_path = root / "ai" / "suggestions.json"
+    ai = json.loads(ai_path.read_text(encoding="utf-8")) if ai_path.exists() else {"suggestions": []}
+    db.add_all(AiSuggestion(pair_key=s["pair_key"], ingredient_a=s["ingredient_a"], ingredient_b=s["ingredient_b"], score=s["score"],
+                            reason=s["reason"], model_version=ai["model_version"], data_version=ai["data_version"])
+               for s in ai["suggestions"])
+    counts = {"ingredients": len(ingredients["ingredients"]), "interactions": len(pairs), "label_rules": len(labels["rules"]),
+              "ai_suggestions": len(ai["suggestions"])}
     release_hash = content_hash({"ddinter": report["files_sha256"], "labels": labels["content_sha256"],
                                  "ingredients": ingredients, "vocabulary": vocab["version"]})
     db.add(RulesetRelease(hash=release_hash, counts=counts,
@@ -147,7 +153,8 @@ def main() -> None:
         imported = seed_imported(db)
         db.commit()
         print(f"Central seeded: {n_names} medicine names, {n_rules} approved rules, {n_links} existing patient links, "
-              f"{imported['interactions']} DDInter interactions, {imported['label_rules']} drug-label rules")
+              f"{imported['interactions']} DDInter interactions, {imported['label_rules']} drug-label rules, "
+              f"{imported['ai_suggestions']} AI suggestions")
 
 
 if __name__ == "__main__":

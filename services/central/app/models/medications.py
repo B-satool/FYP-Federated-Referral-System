@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from refcommon.db import utcnow
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..db import Base
@@ -108,6 +108,36 @@ class LabelRule(Base):
     source_version: Mapped[str] = mapped_column(String(80))
     extractor_version: Mapped[str] = mapped_column(String(40))
     status: Mapped[str] = mapped_column(String(20), default="auto_extracted")  # auto_extracted | withdrawn
+
+
+class AiSuggestion(Base):
+    """A possible clash between two ingredients that have no entry in the interaction source, scored
+    offline by a small model. A suggestion is never a flag: it cannot add, remove or change a flag,
+    never blocks sending and is not included in the sent referral."""
+    __tablename__ = "ai_suggestions"
+    pair_key: Mapped[str] = mapped_column(String(210), primary_key=True)  # "a|b" with a < b
+    ingredient_a: Mapped[str] = mapped_column(String(100), index=True)
+    ingredient_b: Mapped[str] = mapped_column(String(100), index=True)
+    score: Mapped[float] = mapped_column(Float)
+    reason: Mapped[str] = mapped_column(Text)
+    model_version: Mapped[str] = mapped_column(String(60))
+    data_version: Mapped[str] = mapped_column(String(200))
+
+
+class SuggestionReview(Base):
+    """A doctor's view of one AI suggestion for one patient: relevant or not relevant."""
+    __tablename__ = "suggestion_reviews"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    referral_id: Mapped[int] = mapped_column(ForeignKey("referrals.id"), index=True)
+    pair_key: Mapped[str] = mapped_column(String(210))
+    decision: Mapped[str] = mapped_column(String(20))  # relevant | not_relevant
+    note: Mapped[str] = mapped_column(Text, default="")
+    score: Mapped[float] = mapped_column(Float)
+    model_version: Mapped[str] = mapped_column(String(60))
+    data_version: Mapped[str] = mapped_column(String(200))
+    reviewer: Mapped[str] = mapped_column(String(200))
+    reviewer_id: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class RulesetRelease(Base):

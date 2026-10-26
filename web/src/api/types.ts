@@ -369,6 +369,19 @@ export type MedicationView = {
   evaluation: { id: number; status: string; outcome: string | null; summary_message: string | null; trigger: string; context: Record<string, unknown>; error: string | null; created_at: string } | null;
   flags: Flag[];
   flag_history: Flag[];
+  /** possible clashes for pairs with no DDInter entry; never flags */
+  ai_suggestions: AiSuggestion[];
+  ai_label: string;
+};
+
+export type AiSuggestion = {
+  pair_key: string;
+  ingredients: string[];
+  score: number;
+  reason: string;
+  model_version: string;
+  data_version?: string;
+  review: { decision: "relevant" | "not_relevant"; note: string; by: string; at: string } | null;
 };
 
 export type BriefStatement = {

@@ -22,7 +22,7 @@ import {
 } from "@mui/material";
 import Add from "@mui/icons-material/Add";
 import { api } from "../../api/client";
-import type { Flag, FlagDecision, MedicationEntry, MedicationView, MedicineNamesView, ReferralDetail } from "../../api/types";
+import type { AiSuggestion, Flag, FlagDecision, MedicationEntry, MedicationView, MedicineNamesView, ReferralDetail } from "../../api/types";
 import { FlagCard } from "../../components/FlagCard";
 import { Empty, ErrorAlert, fmtDate, Loading, ReasonDialog, Section, Tag } from "../../components/common";
 import { useRefData } from "../../hooks";
@@ -181,6 +181,47 @@ function DecisionButtons({ busy, onDecide }: { busy: boolean; onDecide: (d: Flag
         </DialogActions>
       </Dialog>
     </>
+  );
+}
+
+/** Model suggestions for pairs DDInter does not cover: separate from flags, never verified, never blocking. */
+function AiSuggestions({ r, role, items, label, locked, onDone }: { r: ReferralDetail; role: Role; items: AiSuggestion[]; label: string; locked: boolean; onDone: () => void }) {
+  const review = useMutation({
+    mutationFn: ({ pair_key, decision }: { pair_key: string; decision: "relevant" | "not_relevant" }) =>
+      api.post(`/referrals/${r.id}/ai-suggestions/review`, { pair_key, decision, note: "" }),
+    meta: { success: "Recorded." },
+    onSuccess: onDone,
+  });
+  return (
+    <Section title={`AI suggestions (${items.length})`}
+      description="Possible clashes between current medicines that have no entry in DDInter, scored by a small model trained on DDInter's known interactions. These are not flags: they are unverified, never block sending and are not sent with the referral.">
+      <ErrorAlert error={review.error} />
+      <Stack spacing={1.5}>
+        {items.map((s) => (
+          <Alert key={s.pair_key} severity="info" variant="outlined" sx={{ "& .MuiAlert-message": { width: "100%" } }}>
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+              <Typography variant="body2" sx={{ fontWeight: 700 }}>{s.ingredients.join(" and ")}</Typography>
+              <Tag tone="info" label={label} />
+              <Tag tone="neutral" label={`score ${s.score.toFixed(2)}`} />
+            </Stack>
+            <Typography variant="body2" sx={{ mt: 0.5 }}>{s.reason}</Typography>
+            <Typography variant="caption" color="text.secondary" component="div">
+              Model {s.model_version}{s.data_version ? ` · trained on ${s.data_version}` : ""}
+            </Typography>
+            {s.review ? (
+              <Typography variant="body2" sx={{ mt: 0.5 }}>
+                Marked <strong>{s.review.decision === "relevant" ? "relevant" : "not relevant"}</strong> by {s.review.by}, {fmtDate(s.review.at)}
+              </Typography>
+            ) : role === "doctor" && !locked ? (
+              <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                <Button size="small" variant="outlined" disabled={review.isPending} onClick={() => review.mutate({ pair_key: s.pair_key, decision: "relevant" })}>Relevant</Button>
+                <Button size="small" variant="outlined" disabled={review.isPending} onClick={() => review.mutate({ pair_key: s.pair_key, decision: "not_relevant" })}>Not relevant</Button>
+              </Stack>
+            ) : null}
+          </Alert>
+        ))}
+      </Stack>
+    </Section>
   );
 }
 
@@ -356,6 +397,8 @@ export function MedicinesTab({ r, role }: { r: ReferralDetail; role: Role }) {
           ))}
         </Stack>
       </Section>
+
+      {v.ai_suggestions.length > 0 && <AiSuggestions r={r} role={role} items={v.ai_suggestions} label={v.ai_label} locked={locked} onDone={done} />}
 
       {adding && <AddMedicineDialog referralId={r.id} onClose={() => setAdding(false)} onDone={done} />}
       {matching && <MatchDialog referralId={r.id} entry={matching} onClose={() => setMatching(null)} onDone={done} />}

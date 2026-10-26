@@ -221,10 +221,12 @@ export function RulesPage() {
         <Tab label="Approved rules" />
         <Tab label="Drug interactions (DDInter)" />
         <Tab label="Drug-label rules" />
+        <Tab label="AI suggestions" />
       </Tabs>
       {tab === 0 && <ApprovedRules />}
       {tab === 1 && <InteractionRules />}
       {tab === 2 && <LabelRules />}
+      {tab === 3 && <AiModel />}
     </>
   );
 }
@@ -355,6 +357,83 @@ function InteractionRules() {
         </>
       )}
     </Paper>
+  );
+}
+
+type AiView = {
+  label: string;
+  reviews: { relevant: number; not_relevant: number };
+  evaluation: null | {
+    model_version: string; trained: string; training_data: string; known_interactions: number; drugs: number; drugs_with_atc: number;
+    held_out_interactions: number; held_out_unlabelled_pairs: number; threshold_used: number; caveats: string[];
+    by_threshold: Record<string, { recall_held_out_interactions: number; recall_by_severity: Record<string, number | null>; suggestions_not_in_ddinter_per_100_unlabelled_pairs: number }>;
+  };
+  suggestions: { pair_key: string; ingredients: string[]; score: number; reason: string; model_version: string }[];
+};
+
+/** The suggestion model: how it was measured, and what it suggests among our ingredients (read-only). */
+function AiModel() {
+  const q = useQuery({ queryKey: ["rules", "ai"], queryFn: () => api.get<AiView>("/rules/ai") });
+  if (q.isLoading) return <Loading />;
+  if (q.error) return <ErrorAlert error={q.error} />;
+  const v = q.data!;
+  const e = v.evaluation;
+  return (
+    <Stack spacing={2}>
+      <Paper sx={{ p: { xs: 2, md: 2.5 } }}>
+        <Typography variant="h6" component="h2">How the model was measured</Typography>
+        {!e ? <Empty>The model has not been trained yet.</Empty> : (
+          <>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              {e.model_version}, trained {e.trained} on {e.known_interactions.toLocaleString()} known DDInter interactions among {e.drugs.toLocaleString()} drugs
+              ({e.drugs_with_atc.toLocaleString()} with ATC classes). Held out: {e.held_out_interactions.toLocaleString()} known interactions and{" "}
+              {e.held_out_unlabelled_pairs.toLocaleString()} pairs not in DDInter. Suggestions use a threshold of {e.threshold_used}.
+            </Typography>
+            <Table size="small" aria-label="Model evaluation">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Threshold</TableCell>
+                  <TableCell>Held-out interactions found</TableCell>
+                  <TableCell>Major</TableCell>
+                  <TableCell>Moderate</TableCell>
+                  <TableCell>Minor</TableCell>
+                  <TableCell>Suggestions per 100 pairs not in DDInter</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {Object.entries(e.by_threshold).map(([t, m]) => (
+                  <TableRow key={t} selected={Number(t) === e.threshold_used}>
+                    <TableCell>{t}</TableCell>
+                    <TableCell>{Math.round(m.recall_held_out_interactions * 100)}%</TableCell>
+                    {["Major", "Moderate", "Minor"].map((s) => <TableCell key={s}>{m.recall_by_severity[s] == null ? "" : `${Math.round(m.recall_by_severity[s]! * 100)}%`}</TableCell>)}
+                    <TableCell>{m.suggestions_not_in_ddinter_per_100_unlabelled_pairs}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <Box component="ul" sx={{ mt: 1.5, mb: 0, pl: 2.5 }}>
+              {e.caveats.map((c) => <li key={c}><Typography variant="body2">{c}</Typography></li>)}
+            </Box>
+          </>
+        )}
+        <Typography variant="body2" sx={{ mt: 1 }}>
+          Doctors' feedback so far: {v.reviews.relevant} relevant, {v.reviews.not_relevant} not relevant.
+        </Typography>
+      </Paper>
+      <Paper sx={{ p: { xs: 2, md: 2.5 } }}>
+        <Typography variant="h6" component="h2">Suggestions among this project's ingredients ({v.suggestions.length})</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+          Only pairs with no DDInter entry. Shown to doctors as "{v.label}", separately from flags.
+        </Typography>
+        <Stack spacing={1}>
+          {v.suggestions.map((s) => (
+            <Typography key={s.pair_key} variant="body2">
+              <strong>{s.ingredients.join(" and ")}</strong> · score {s.score.toFixed(2)} · {s.reason}
+            </Typography>
+          ))}
+        </Stack>
+      </Paper>
+    </Stack>
   );
 }
 

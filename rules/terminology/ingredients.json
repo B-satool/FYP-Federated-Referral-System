@@ -7,21 +7,14 @@
       "standard": "alendronic acid",
       "label_name": "alendronate",
       "rxnorm_id": "46041",
-      "atc_codes": [
-        "M05BA"
-      ]
+      "atc_codes": []
     },
     {
       "name": "amlodipine",
       "standard": "amlodipine",
       "rxnorm_id": "17767",
       "atc_codes": [
-        "C08CA",
-        "C09BB",
-        "C09DB",
-        "C09DX",
-        "C09XA",
-        "C10BX"
+        "C08CA"
       ]
     },
     {
@@ -40,7 +33,6 @@
       "atc_codes": [
         "A01AD",
         "B01AC",
-        "N02AJ",
         "N02BA"
       ]
     },
@@ -49,9 +41,7 @@
       "standard": "atorvastatin",
       "rxnorm_id": "83367",
       "atc_codes": [
-        "C10AA",
-        "C10BA",
-        "C10BX"
+        "C10AA"
       ]
     },
     {
@@ -109,7 +99,6 @@
       "component_only": true,
       "rxnorm_id": "723",
       "atc_codes": [
-        "A02BD",
         "J01CA"
       ]
     },
@@ -126,7 +115,6 @@
       "standard": "dapagliflozin",
       "rxnorm_id": "1488564",
       "atc_codes": [
-        "A10BD",
         "A10BK"
       ]
     },
@@ -164,7 +152,6 @@
       "standard": "empagliflozin",
       "rxnorm_id": "1545653",
       "atc_codes": [
-        "A10BD",
         "A10BK"
       ]
     },
@@ -181,8 +168,7 @@
       "standard": "esomeprazole",
       "rxnorm_id": "283742",
       "atc_codes": [
-        "A02BC",
-        "M01AE"
+        "A02BC"
       ]
     },
     {
@@ -190,8 +176,7 @@
       "standard": "ferrous fumarate",
       "rxnorm_id": "24941",
       "atc_codes": [
-        "B03AA",
-        "B03AD"
+        "B03AA"
       ]
     },
     {
@@ -200,8 +185,7 @@
       "label_name": "ferrous sulfate",
       "rxnorm_id": "24947",
       "atc_codes": [
-        "B03AA",
-        "B03AD"
+        "B03AA"
       ]
     },
     {
@@ -218,8 +202,7 @@
       "standard": "glimepiride",
       "rxnorm_id": "25789",
       "atc_codes": [
-        "A10BB",
-        "A10BD"
+        "A10BB"
       ]
     },
     {
@@ -243,9 +226,7 @@
       "standard": "ibandronate",
       "label_name": "ibandronate",
       "rxnorm_id": "115264",
-      "atc_codes": [
-        "M05BA"
-      ]
+      "atc_codes": []
     },
     {
       "name": "ibuprofen",
@@ -256,7 +237,6 @@
         "G02CC",
         "M01AE",
         "M02AA",
-        "N02AJ",
         "R02AX"
       ]
     },
@@ -272,9 +252,7 @@
       "name": "levothyroxine",
       "standard": "levothyroxine",
       "rxnorm_id": "10582",
-      "atc_codes": [
-        "H03AA"
-      ]
+      "atc_codes": []
     },
     {
       "name": "losartan",
@@ -289,8 +267,7 @@
       "standard": "metformin",
       "rxnorm_id": "6809",
       "atc_codes": [
-        "A10BA",
-        "A10BD"
+        "A10BA"
       ]
     },
     {
@@ -300,8 +277,7 @@
       "atc_codes": [
         "G02CC",
         "M01AE",
-        "M02AA",
-        "N02CC"
+        "M02AA"
       ]
     },
     {
@@ -309,8 +285,7 @@
       "standard": "omeprazole",
       "rxnorm_id": "7646",
       "atc_codes": [
-        "A02BC",
-        "A02BD"
+        "A02BC"
       ]
     },
     {
@@ -319,7 +294,6 @@
       "label_name": "acetaminophen",
       "rxnorm_id": "161",
       "atc_codes": [
-        "N02AJ",
         "N02BE"
       ]
     },
@@ -362,8 +336,7 @@
       "standard": "rosuvastatin",
       "rxnorm_id": "301542",
       "atc_codes": [
-        "C10AA",
-        "C10BA"
+        "C10AA"
       ]
     },
     {
@@ -406,7 +379,6 @@
       "standard": "tramadol",
       "rxnorm_id": "10689",
       "atc_codes": [
-        "N02AJ",
         "N02AX"
       ]
     },

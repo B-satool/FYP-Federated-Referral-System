@@ -83,16 +83,65 @@ All are recorded in `rules/sources.json`. Files are downloaded by a person; the 
 - `tests/test_v2_scenarios.py`: imported flags carry their source; Ignore and Research are logged with the rule-set version; an ignored flag stays listed.
 - The browser journey ignores one flag with a note and reviews the rest.
 
-## 6. Not done
+## 6. AI suggestion layer (spec section 8)
 
-- **AI suggestion layer (spec section 8)** is not built. The spec makes it optional and says to build it only after sections 4 to 7 are measured; the accuracy sample is still unmarked.
+Built on 2026-10-27, at the project lead's request. It is offline and small, and it cannot touch flags.
+
+**How suggestions are made**
+- **Model:** logistic regression (`scripts/train_ai_suggestions.py`). For a pair of drugs, the features are:
+  - whether they share an ATC group;
+  - how often each drug's ATC class-mates have recorded DDInter interactions with the other drug;
+  - how many interactions each drug has;
+  - which ATC main groups are involved.
+- **ATC classes:** from RxNav, keeping only classes a drug has on its own. RxNav marks these as term type IN; MIN means the class came from a combination product, and those are dropped. Combination, topical, eye, ear, mouth and skin classes are also left out.
+- **Training:** the positives are the 160,235 known DDInter pairs. Pairs absent from DDInter are unlabelled, not negatives: a random sample of them is used as background.
+- **Output:** the app never runs the model. The script scores every pair among our ingredients that has no DDInter entry, and writes those at or above 0.8 to `rules/ai/suggestions.json` (66 pairs). Each has the two ingredient names, a score, a one-line reason naming the ATC class and example class-mates, and the model and data versions.
+
+**How it is measured**
+- 20% of known interactions are held out.
+- The class-mate features for the evaluation come from the training interactions only.
+- Full figures are in `rules/ai/evaluation.json` and on the reviewer's AI suggestions tab.
+
+| Threshold | Held-out interactions found | Major | Moderate | Minor | Suggestions per 100 random pairs not in DDInter |
+|---|---|---|---|---|---|
+| 0.5 | about 87% | 90% | 87% | 80% | about 10 |
+| 0.8 (used) | 73% | 80% | 74% | 68% | 3.4 |
+| 0.9 | about 63% | 72% | 64% | 57% | about 2 |
+
+**Caveats (also stored with the evaluation)**
+- A pair not in DDInter is not proven harmless, since DDInter is incomplete.
+- The model can only generalise DDInter's class patterns.
+- Class-mates can behave differently. For example, cimetidine and esomeprazole share ATC group A02B, but only cimetidine strongly inhibits liver enzymes; this is why esomeprazole gets many suggestions.
+- Random pairs are easier than the pairs a doctor actually sees.
+- None of these figures is clinical accuracy.
+
+**In the app**
+- Doctors see an **AI suggestions** section, separate from the flags and labelled "AI suggestion, unverified", for pairs among the current medicines with no DDInter entry. A pair that DDInter covers is never suggested, whatever its score.
+- The doctor can mark each suggestion **Relevant** or **Not relevant**. The review is stored with the score and the model and data versions, and audited.
+- Suggestions never block sending and are not in the sent referral.
+- The evaluator has no input from the model. Unit tests force every score to 0 and to 1 and check that the flags are identical.
+
+## 7. Pakistani brand data
+
+DrugsInfo Pakistan (drugsinfo.pk) says it imports brand, composition, pack and DRAP registration data from DRAP's registry. Its site has a search but no download, no published terms page, and its robots.txt disallows `/api/`. DRAP's own search page offers no export and restricts use of its list. So neither site is scraped. To bring real Pakistani brand data in:
+
+1. **Ask for a file.** Use the contact page at drugsinfo.pk/contact (or the supervisor's or faculty contact with DRAP). Ask for an export of brand name, generic composition with strengths, dosage form, company and DRAP registration number, for non-commercial academic use, and keep their written permission.
+2. **Or build the file by hand** for the brands you need (for example those in the seed patients' prescriptions), reading DrugsInfo or DRAP search results or the packs. Use `rules/terminology/brand-import-template.csv`.
+3. **Import it:**
+   - Run `python scripts/import_brands.py <file.csv>` to see the report: brands added, combination products recognised by their parts, unknown ingredients, and brand names that would become ambiguous.
+   - Then run it again with `--write`.
+   - Each imported brand's source, DRAP number and checker are kept in `rules/terminology/brand-sources.csv`.
+   - New ingredients then need the code, DDInter and label scripts to be run again (section 9) before they are checked.
+
+## 8. Not done
+
 - **Language-model extraction** is not used: no model key is configured. The fixed patterns are reproducible, and any model output would have to pass the same validator.
-- **DRAP / DrugsInfo Pakistan brand data:** needs a file or written permission.
+- **DRAP / DrugsInfo Pakistan brand data:** needs a file or written permission (section 7).
 - **Pharmacist sign-off** of the demo flags and the curated brand list.
 - **Mechanism and management text** for interactions: DDInter's download does not include it.
 - `docs/architecture.md` and the SRS traceability still describe the v1 rule approval (FR-61); the change for imported rules must be reflected there once the supervisor confirms gate 2.
 
-## 7. Refreshing the data
+## 9. Refreshing the data
 
 ```powershell
 python scripts/build_ingredient_codes.py                     # RxNorm and ATC codes
@@ -100,6 +149,8 @@ python scripts/import_ddinter.py <folder of DDInter CSVs>     # interaction subs
 python scripts/extract_label_rules.py download <cache folder>
 python scripts/extract_label_rules.py extract <cache folder>  # label rules
 python scripts/label_rule_audit.py sample 100                 # new accuracy sample for the new release
+python scripts/train_ai_suggestions.py codes <folder of DDInter CSVs>   # ATC classes for DDInter drugs (needs scikit-learn for train)
+python scripts/train_ai_suggestions.py train <folder of DDInter CSVs>   # model, evaluation, suggestions
 docker compose up -d --build central worker; .\scripts\reset-and-seed.ps1 -Force
 ```
 

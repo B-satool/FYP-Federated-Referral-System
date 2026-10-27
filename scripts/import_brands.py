@@ -3,8 +3,10 @@
   python scripts/import_brands.py <file.csv>            # report what would change
   python scripts/import_brands.py <file.csv> --write    # update the rules files
 
-Use a file you are allowed to use: an export DRAP or DrugsInfo Pakistan sends you, or rows you type in
-from the pack or the DRAP search page yourself. Do not scrape either website.
+Use a file you are allowed to use: an export DRAP or DrugsInfo Pakistan sends you, rows you type in
+from the pack or the DRAP search page yourself, or rules/terminology/drap/brand-import.csv from
+scripts/scrape_drap.py (docs/decisions/2026-10-28-drap-register-snapshot.md). Do not scrape DrugsInfo.
+Fill checked_by for every row before --write.
 
 Columns (see rules/terminology/brand-import-template.csv):
   brand_name, ingredients (generic names separated by ';'), strength, dosage_form, drug_class (needed

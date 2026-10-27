@@ -159,8 +159,11 @@ services:
       LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
       LLM_MODEL: ${LLM_MODEL:-claude-opus-5-5}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
       EXTRACTION_MODE: ${EXTRACTION_MODE:-auto}
       DOCUMENT_RETENTION_DAYS: ${DOCUMENT_RETENTION_DAYS:-365}
+    extra_hosts: &host-gateway ["host.docker.internal:host-gateway"]
     volumes:
       - documents:/data/documents
     ports: ["8000:8000"]
@@ -175,6 +178,7 @@ services:
     build: {context: ., dockerfile: services/central/Dockerfile}
     command: ["celery", "-A", "app.tasks", "worker", "-B", "--loglevel=info", "--concurrency=2", "-Q", "referral"]
     environment: *central-env
+    extra_hosts: *host-gateway
     volumes:
       - documents:/data/documents
     depends_on:

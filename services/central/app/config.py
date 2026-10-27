@@ -20,9 +20,13 @@ class Settings:
     # Visits, results and imaging older than this are not retrieved for a referral.
     referral_window_days = int(os.environ.get("REFERRAL_WINDOW_DAYS", "183"))
 
-    llm_provider = os.environ.get("LLM_PROVIDER", "anthropic")
+    llm_provider = os.environ.get("LLM_PROVIDER", "anthropic")  # anthropic | ollama
     llm_model = os.environ.get("LLM_MODEL", "claude-opus-5-5")
     anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    # Ollama: a local server (which also serves ":cloud" models once `ollama signin` has run on that
+    # computer), or https://ollama.com directly with OLLAMA_API_KEY.
+    ollama_host = os.environ.get("OLLAMA_HOST", "http://host.docker.internal:11434").rstrip("/")
+    ollama_api_key = os.environ.get("OLLAMA_API_KEY", "")
     extraction_mode = os.environ.get("EXTRACTION_MODE", "auto")  # auto | llm | rules
     llm_timeout_seconds = float(os.environ.get("LLM_TIMEOUT_SECONDS", "120"))
 
@@ -41,6 +45,8 @@ class Settings:
 
     @property
     def llm_configured(self) -> bool:
+        if self.llm_provider == "ollama":
+            return bool(self.llm_model and self.ollama_host)
         return self.llm_provider == "anthropic" and bool(self.anthropic_api_key)
 
 

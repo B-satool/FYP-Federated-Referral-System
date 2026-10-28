@@ -8,7 +8,7 @@
 | Status | Living document: regenerated from the code on every change, frozen per release in `docs/sds/versions/` |
 | Structure fingerprint | `f22b30e6f290b811` |
 | Written-sections fingerprint | `4ee51ec82da973ff` |
-| Source fingerprint | `26a0a66af6e6be17` |
+| Source fingerprint | `74772051da24eae1` |
 | Maintained by | The project team. See section 17 for how to update and release it. |
 
 ## Contents
@@ -5779,9 +5779,9 @@ Data files loaded at seed time or read by the services. Large data sets are summ
 | `rules/ai/evaluation.json` | 2 KB | model_version, trained, training_data, known_interactions, drugs, drugs_with_atc |
 | `rules/ai/model.json` | 1 KB | model_version, data_version, features: 24, coefficients: 24, intercept, threshold |
 | `rules/ai/suggestions.json` | 25 KB | model_version, data_version, threshold, label, suggestions: 66 |
+| `rules/interactions/README.md` | 1 KB |  |
 | `rules/interactions/ddinter-import-report.json` | 1 KB | imported, files: 8, files_sha256, ddinter_rows, ddinter_drugs, ddinter_drugs_not_mapped_to_our_ingredients |
 | `rules/interactions/ddinter-subset.csv` | 28 KB | 342 rows |
-| `rules/interactions/README.md` | 1 KB |  |
 | `rules/labels/label-rules.json` | 88 KB | version, extractor_version, vocabulary, content_sha256, status, stats: 7 |
 | `rules/medication/seed-rules.json` | 6 KB | version, note, rules: 11 |
 | `rules/roles/templates.v1.json` | 4 KB | template_set_id, version, note, screens: 10, templates: 5 |

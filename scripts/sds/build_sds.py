@@ -123,6 +123,11 @@ AUTH_CALLS = {"require_roles", "require_service", "load_referral", "require_own"
 
 
 # --------------------------------------------------------------------------- small helpers
+def psorted(paths) -> list[Path]:
+    """Sort paths by their POSIX text, so Windows (case-insensitive) and Linux give the same order."""
+    return sorted(paths, key=lambda p: p.as_posix())
+
+
 def rel(p: Path) -> str:
     return p.relative_to(ROOT).as_posix()
 
@@ -262,7 +267,7 @@ def _column(stmt: ast.AnnAssign, lines: list[str]) -> dict:
 
 def model_inventory() -> dict[str, list[dict]]:
     mixin_files = [REFCOMMON / "sourcekit.py"]
-    central_files = sorted((CENTRAL / "models").glob("*.py"))
+    central_files = psorted((CENTRAL / "models").glob("*.py"))
     provider_files = [PROVIDER / "models.py"]
     mixins = _model_classes(mixin_files)
     out: dict[str, list[dict]] = {}
@@ -431,7 +436,7 @@ def _checks(fn: ast.AST, consts: dict[str, list[str]], helpers: dict[str, ast.AS
 
 
 def api_inventory() -> list[dict]:
-    files = sorted(CENTRAL.rglob("*.py")) + [PROVIDER / "main.py", REFCOMMON / "sourcekit.py"]
+    files = psorted(CENTRAL.rglob("*.py")) + [PROVIDER / "main.py", REFCOMMON / "sourcekit.py"]
     shared = _module_constants(parse(CENTRAL / "security.py"))
     shared.update(_module_constants(parse(REFCOMMON / "sourcekit.py")))
     endpoints = []
@@ -567,7 +572,7 @@ def gen_contracts() -> str:
     for m in pydantic_models([REFCOMMON / "exchange.py"]):
         out += [f"### `{m['name']}`\n", (m["doc"] + "\n") if m["doc"] else "",
                 table(["Field", "Type", "Default", "Note"], m["fields"])]
-    req = pydantic_models(sorted(CENTRAL.rglob("*.py")) + [PROVIDER / "main.py", REFCOMMON / "sourcekit.py"])
+    req = pydantic_models(psorted(CENTRAL.rglob("*.py")) + [PROVIDER / "main.py", REFCOMMON / "sourcekit.py"])
     out.append("## Request bodies (API input models)\n")
     for m in req:
         out += [f"### `{m['name']}` ({m['file']})\n", (m["doc"] + "\n") if m["doc"] else "",
@@ -580,7 +585,7 @@ ENV_FUNCS = {"os.environ.get", "os.getenv", "_bool", "_env_bool", "environ.get"}
 
 
 def config_inventory() -> list[dict]:
-    files = sorted(list(CENTRAL.rglob("*.py")) + list(PROVIDER.rglob("*.py")) + list(REFCOMMON.rglob("*.py")))
+    files = psorted(list(CENTRAL.rglob("*.py")) + list(PROVIDER.rglob("*.py")) + list(REFCOMMON.rglob("*.py")))
     seen: dict[str, dict] = {}
     for f in files:
         lines = read(f).splitlines()
@@ -743,7 +748,7 @@ def web_inventory() -> dict:
     app = read(ROOT / "web" / "src" / "App.tsx")
     routes = sorted(set(re.findall(r'<Route path="([^"]+)" element=\{<(?:PublicFrame>|ReviewerOnly>)?<?(\w+)', app)))
     features = {}
-    for d in sorted((ROOT / "web" / "src" / "features").iterdir()):
+    for d in psorted((ROOT / "web" / "src" / "features").iterdir()):
         if d.is_dir():
             features[d.name] = sorted(p.name for p in d.iterdir() if p.is_file())
     pkg = json.loads(read(ROOT / "web" / "package.json"))
@@ -802,7 +807,7 @@ def migrations_inventory() -> dict:
     out = {}
     for svc in ("central", "provider"):
         revs = []
-        for p in sorted((ROOT / "services" / svc / "migrations" / "versions").glob("*.py")):
+        for p in psorted((ROOT / "services" / svc / "migrations" / "versions").glob("*.py")):
             t = read(p)
             rid = re.search(r"Revision ID: (\w+)", t)
             down = re.search(r"Revises: ([\w, ]*)", t)
@@ -820,7 +825,7 @@ def migrations_inventory() -> dict:
 
 def deps_inventory() -> dict:
     out = {}
-    for p in sorted(ROOT.glob("services/*/requirements.txt")):
+    for p in psorted(ROOT.glob("services/*/requirements.txt")):
         out[rel(p)] = [l.strip() for l in read(p).splitlines() if l.strip() and not l.startswith("#")]
     pp = ROOT / "libs" / "common" / "pyproject.toml"
     m = re.search(r"dependencies\s*=\s*\[(.*?)\]", read(pp), re.S)
@@ -830,7 +835,7 @@ def deps_inventory() -> dict:
 
 def assets_inventory() -> list[list[str]]:
     rows = []
-    for p in sorted((ROOT / "rules").rglob("*")):
+    for p in psorted((ROOT / "rules").rglob("*")):
         if not p.is_file():
             continue
         size = len(p.read_bytes().replace(b"\r\n", b"\n"))  # same on Windows (CRLF checkout) and Linux
@@ -853,13 +858,13 @@ def assets_inventory() -> list[list[str]]:
 
 def tests_inventory() -> list[dict]:
     out = []
-    for p in sorted(list((ROOT / "services" / "central" / "tests").glob("test_*.py")) + list((ROOT / "tests").glob("test_*.py"))):
+    for p in psorted(list((ROOT / "services" / "central" / "tests").glob("test_*.py")) + list((ROOT / "tests").glob("test_*.py"))):
         tree = parse(p)
         tests = [[n.name, first_line(ast.get_docstring(n))] for n in ast.walk(tree)
                  if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name.startswith("test_")]
         kind = "unit (no services)" if "services" in p.parts else "integration (full stack)"
         out.append({"file": rel(p), "kind": kind, "tests": tests})
-    for p in sorted((ROOT / "web" / "e2e").glob("*.spec.ts")):
+    for p in psorted((ROOT / "web" / "e2e").glob("*.spec.ts")):
         tests = [[t, ""] for t in re.findall(r"\btest\(\s*[\"'`](.+?)[\"'`]", read(p))]
         out.append({"file": rel(p), "kind": "browser end-to-end (Playwright)", "tests": tests})
     return out
@@ -867,7 +872,7 @@ def tests_inventory() -> list[dict]:
 
 def decisions_inventory() -> list[list[str]]:
     rows = []
-    for p in sorted((ROOT / "docs" / "decisions").glob("*.md")):
+    for p in psorted((ROOT / "docs" / "decisions").glob("*.md")):
         t = read(p)
         title = re.search(r"^#\s+(.+)$", t, re.M)
         status = re.search(r"\*\*Status:\*\*\s*(.+)", t)
@@ -975,12 +980,12 @@ def collect() -> tuple[dict[str, str], dict]:
 
 
 def sections() -> list[tuple[str, str]]:
-    return [(p.name, read(p)) for p in sorted(SECTIONS.glob("*.md"))]
+    return [(p.name, read(p)) for p in psorted(SECTIONS.glob("*.md"))]
 
 
 def source_hash() -> str:
     h = hashlib.sha256()
-    files = sorted({p for g in SOURCE_GLOBS for p in ROOT.glob(g) if p.is_file() and "node_modules" not in p.parts
+    files = psorted({p for g in SOURCE_GLOBS for p in ROOT.glob(g) if p.is_file() and "node_modules" not in p.parts
                     and "__pycache__" not in p.parts})
     for p in files:
         h.update(rel(p).encode())

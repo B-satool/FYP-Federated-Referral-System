@@ -55,8 +55,8 @@ def setup(db: Session):
     return r, rows
 
 
-def answer(recs):
-    return lambda payload: {"items": [{"evidence_id": rec["id"], "recommendation": recs[rec["text"][:5]], "relevance": "low",
+def answer(recs, relevance="high"):
+    return lambda payload: {"items": [{"evidence_id": rec["id"], "recommendation": recs[rec["text"][:5]], "relevance": relevance,
                                        "reason": "Relevance to the planned knee operation."} for rec in payload["records"]],
                             "missing": ["Recent ECG"]}
 
@@ -98,3 +98,22 @@ def test_failure_keeps_the_default(db, factory, status):
     assert run.status == status
     assert {k: e.selected for k, e in rows.items()} == before
     assert all(e.ai_recommendation is None for e in rows.values())
+
+
+def test_include_at_low_relevance_does_not_add(db):
+    r, rows = setup(db)
+    selection.recommend(db, r, "staff", provider_factory=lambda: Fake(answer(
+        {"Osteo": "include", "Haemo": "include", "Lipid": "include", "Ankle": "include"}, relevance="low")))
+    assert not rows["old"].selected and not rows["older"].selected  # hint only
+    assert rows["old"].ai_recommendation == "include" and rows["old"].ai_relevance == "low"
+
+def test_answer_arriving_after_purge_is_discarded(db):
+    r, rows = setup(db)
+
+    def late(payload):
+        r.working_set_purged_at = datetime.now(timezone.utc)
+        db.flush()
+        return answer({"Osteo": "include", "Haemo": "include", "Lipid": "include", "Ankle": "include"})(payload)
+
+    run = selection.recommend(db, r, "staff", provider_factory=lambda: Fake(late))
+    assert run.status == "discarded" and all(e.ai_reason is None for e in rows.values())

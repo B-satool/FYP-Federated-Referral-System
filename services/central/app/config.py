@@ -20,14 +20,27 @@ class Settings:
     # Visits, results and imaging older than this are not retrieved for a referral.
     referral_window_days = int(os.environ.get("REFERRAL_WINDOW_DAYS", "183"))
 
-    llm_provider = os.environ.get("LLM_PROVIDER", "anthropic")  # anthropic | ollama
+    llm_provider = os.environ.get("LLM_PROVIDER", "anthropic")  # anthropic | ollama | openai_compatible
     llm_model = os.environ.get("LLM_MODEL", "claude-opus-5-5")
     anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     # Ollama: a local server (which also serves ":cloud" models once `ollama signin` has run on that
     # computer), or https://ollama.com directly with OLLAMA_API_KEY.
     ollama_host = os.environ.get("OLLAMA_HOST", "http://host.docker.internal:11434").rstrip("/")
     ollama_api_key = os.environ.get("OLLAMA_API_KEY", "")
+    llm_context_tokens = int(os.environ.get("LLM_CONTEXT_TOKENS", "16384"))  # local Ollama models
+    # Patient data (always de-identified) may go to a model outside this computer (an Ollama ":cloud" model,
+    # ollama.com, Anthropic, any remote server) only if this is true: docs/decisions/2026-10-28-cloud-model-privacy.md
+    llm_external_allowed = _bool("LLM_EXTERNAL_ALLOWED", False)
+    # openai_compatible: vLLM, Kimi or any other chat-completions server (…/v1)
+    llm_base_url = os.environ.get("LLM_BASE_URL", "")
+    llm_api_key = os.environ.get("LLM_API_KEY", "")
     extraction_mode = os.environ.get("EXTRACTION_MODE", "auto")  # auto | llm | rules
+    # Reading papers: tesseract (printed text, on this computer) | google_vision (printed and handwritten;
+    # the page image is sent to Google Cloud Vision)
+    ocr_engine = os.environ.get("OCR_ENGINE", "tesseract")
+    google_vision_api_key = os.environ.get("GOOGLE_VISION_API_KEY", "")
+    google_vision_endpoint = os.environ.get("GOOGLE_VISION_ENDPOINT", "https://vision.googleapis.com/v1/images:annotate")
+    ocr_timeout_seconds = float(os.environ.get("OCR_TIMEOUT_SECONDS", "60"))
     llm_timeout_seconds = float(os.environ.get("LLM_TIMEOUT_SECONDS", "120"))
 
     max_upload_bytes = int(os.environ.get("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
@@ -53,6 +66,8 @@ class Settings:
     def llm_configured(self) -> bool:
         if self.llm_provider == "ollama":
             return bool(self.llm_model and self.ollama_host)
+        if self.llm_provider == "openai_compatible":
+            return bool(self.llm_base_url and self.llm_model)
         return self.llm_provider == "anthropic" and bool(self.anthropic_api_key)
 
 

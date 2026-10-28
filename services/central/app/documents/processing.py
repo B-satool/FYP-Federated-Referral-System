@@ -1,8 +1,10 @@
 """Document processing pipeline executed by the worker (FR-22 to FR-28).
 
 1. Digital PDF pages with reliable embedded text use that text directly.
-2. Scanned pages and images are rasterised, pre-processed and passed to OCR
-   (Tesseract via `ocr_page`, behind `extract_document`).
+2. Scanned pages and images are rasterised and passed to OCR: Tesseract (`ocr_page`, printed text), or
+   Google Cloud Vision (`vision_page`, OCR_ENGINE=google_vision), which also reads handwriting such as
+   doctors' prescriptions. If Vision cannot be reached, the page is read with Tesseract and the run says so.
+   Vision receives the page image (it leaves this computer): see docs/decisions/2026-10-28-handwriting-ocr.md.
 3. A field extractor proposes ONLY supported medication and laboratory fields.
    Proposals start unverified and link back to their page and line region.
 
@@ -22,8 +24,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import settings
+from ..generation import privacy
 from ..generation.provider import ProviderOutputInvalid, ProviderUnavailable, get_provider
-from ..models import Document, EvidenceItem, ExtractionRun, MedicineName
+from ..models import Document, EvidenceItem, ExtractionRun, MedicineName, Referral
 from . import extract_rules
 from .storage import storage
 
@@ -107,6 +110,95 @@ def ocr_page(img: Image.Image) -> tuple[list[dict], float | None]:
     return lines, (round(sum(confs) / len(confs), 1) if confs else None)
 
 
+class OcrUnavailable(Exception):
+    """The OCR service could not be used for this page (no key, network, quota or a service error)."""
+
+
+_LINE_END = {"EOL_SURE_SPACE", "LINE_BREAK", "HYPHEN"}
+
+
+def vision_page(img: Image.Image) -> tuple[list[dict], float | None]:
+    """Google Cloud Vision DOCUMENT_TEXT_DETECTION: printed text and handwriting, with word boxes.
+    Returns lines like ocr_page (box relative to the page, confidence 0-100 like Tesseract's)."""
+    import base64
+
+    import httpx
+
+    if not settings.google_vision_api_key:
+        raise OcrUnavailable("no GOOGLE_VISION_API_KEY is set")
+    img = ImageOps.exif_transpose(img).convert("RGB")
+    if max(img.size) > 4000:  # well inside Vision's limits, and small enough to send quickly
+        img.thumbnail((4000, 4000), Image.LANCZOS)
+    W, H = img.size
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=90)
+    body = {"requests": [{"image": {"content": base64.b64encode(buf.getvalue()).decode()},
+                          "features": [{"type": "DOCUMENT_TEXT_DETECTION"}]}]}
+    try:
+        # the key goes in a header, never in the URL, so it cannot end up in request logs
+        resp = httpx.post(settings.google_vision_endpoint, json=body, timeout=settings.ocr_timeout_seconds,
+                          headers={"X-Goog-Api-Key": settings.google_vision_api_key})
+    except httpx.HTTPError as exc:
+        raise OcrUnavailable(f"Google Vision unreachable: {type(exc).__name__}") from exc
+    if resp.status_code != 200:
+        raise OcrUnavailable(f"Google Vision error {resp.status_code}")
+    result = (resp.json().get("responses") or [{}])[0]
+    if result.get("error"):
+        raise OcrUnavailable(f"Google Vision error: {result['error'].get('message', '')[:200]}")
+    lines: list[dict] = []
+    confs: list[float] = []
+    current: dict | None = None
+
+    def close() -> None:
+        nonlocal current
+        if current and current["words"]:
+            conf = sum(current["conf"]) / len(current["conf"]) if current["conf"] else None
+            if conf is not None:
+                confs.append(conf)
+            lines.append({"text": " ".join(current["words"]),
+                          "bbox": {"x": current["l"] / W, "y": current["t"] / H,
+                                   "w": (current["r"] - current["l"]) / W, "h": (current["b"] - current["t"]) / H},
+                          "ocr_confidence": round(conf, 1) if conf is not None else None})
+        current = None
+
+    for page in (result.get("fullTextAnnotation") or {}).get("pages", []):
+        for block in page.get("blocks", []):
+            for para in block.get("paragraphs", []):
+                for word in para.get("words", []):
+                    symbols = word.get("symbols", [])
+                    text = "".join(sym.get("text", "") for sym in symbols)
+                    if not text.strip():
+                        continue
+                    xs = [v.get("x", 0) for v in word.get("boundingBox", {}).get("vertices", [])] or [0]
+                    ys = [v.get("y", 0) for v in word.get("boundingBox", {}).get("vertices", [])] or [0]
+                    if current is None:
+                        current = {"words": [], "l": min(xs), "t": min(ys), "r": max(xs), "b": max(ys), "conf": []}
+                    current["words"].append(text)
+                    current["l"], current["t"] = min(current["l"], min(xs)), min(current["t"], min(ys))
+                    current["r"], current["b"] = max(current["r"], max(xs)), max(current["b"], max(ys))
+                    if word.get("confidence") is not None:
+                        current["conf"].append(float(word["confidence"]) * 100)
+                    brk = ((symbols[-1].get("property") or {}).get("detectedBreak") or {}).get("type") if symbols else None
+                    if brk in _LINE_END:
+                        close()
+                close()  # a paragraph always ends a line
+    lines.sort(key=lambda ln: (round(ln["bbox"]["y"], 3), ln["bbox"]["x"]))
+    return lines, (round(sum(confs) / len(confs), 1) if confs else None)
+
+
+def read_page(img: Image.Image, notes: list[str]) -> tuple[list[dict], float | None, str]:
+    """OCR one page with the configured engine; returns (lines, mean confidence, engine used)."""
+    if settings.ocr_engine == "google_vision":
+        try:
+            lines, conf = vision_page(img)
+            return lines, conf, "google-vision"
+        except OcrUnavailable as exc:
+            notes.append(f"Handwriting reader (Google Vision) not used: {exc}. Read with Tesseract instead, "
+                         "which reads printed text only.")
+    lines, conf = ocr_page(img)
+    return lines, conf, "tesseract"
+
+
 def _embedded_lines(page) -> list[dict]:
     textpage = page.get_textpage()
     n = textpage.count_chars()
@@ -144,7 +236,9 @@ def extract_document(doc: Document) -> tuple[list[PageText], dict]:
 
     path = storage.path(doc.storage_key)
     pages: list[PageText] = []
-    meta = {"ocr_engine": "tesseract", "ocr_engine_version": str(pytesseract.get_tesseract_version())}
+    notes: list[str] = []
+    used: set[str] = set()
+    meta = {"ocr_engine": "tesseract", "ocr_engine_version": str(pytesseract.get_tesseract_version()), "notes": notes}
     if doc.detected_type == "application/pdf":
         import pypdfium2 as pdfium
 
@@ -158,15 +252,20 @@ def extract_document(doc: Document) -> tuple[list[PageText], dict]:
             if sum(len(line["text"]) for line in lines) >= MIN_EMBEDDED_CHARS:
                 pages.append(PageText(i + 1, "embedded", "\n".join(x["text"] for x in lines), lines, image_key, None))
             else:
-                ocr_lines, conf = ocr_page(image)
+                ocr_lines, conf, engine = read_page(image, notes)
+                used.add(engine)
                 pages.append(PageText(i + 1, "ocr", "\n".join(x["text"] for x in ocr_lines), ocr_lines, image_key, conf))
     else:
         image = Image.open(path)
         image.load()
         image_key = f"{doc.storage_key}.p1.png"
         _save_png(image.convert("RGB"), image_key)
-        ocr_lines, conf = ocr_page(image)
+        ocr_lines, conf, engine = read_page(image, notes)
+        used.add(engine)
         pages.append(PageText(1, "ocr", "\n".join(x["text"] for x in ocr_lines), ocr_lines, image_key, conf))
+    if "google-vision" in used:
+        meta["ocr_engine"] = "google-vision" if used == {"google-vision"} else "google-vision+tesseract"
+        meta["ocr_engine_version"] = "vision v1 DOCUMENT_TEXT_DETECTION"
     return pages, meta
 
 
@@ -176,13 +275,17 @@ def _save_png(image: Image.Image, key: str) -> None:
     storage.put_named(key, buf.getvalue())
 
 
-def _choose_extractor(lines: list[dict], names: list[str]) -> tuple[dict, str, str, list[str]]:
+def _choose_extractor(lines: list[dict], names: list[str], scrub: "privacy.Scrubber | None" = None
+                      ) -> tuple[dict, str, str, list[str]]:
     notes: list[str] = []
     mode = settings.extraction_mode
     if mode in ("auto", "llm") and settings.llm_configured:
         provider = get_provider()
         try:
-            raw = provider.structured(EXTRACTION_SYSTEM, {"lines": [{"i": ln["i"], "page": ln["page"], "text": ln["text"]}
+            privacy.check_destination(provider)  # refuses before anything is sent
+            # de-identified: the patient's name and ID numbers, doctors and institutions are removed
+            clean = scrub.text if scrub else (lambda t: t)
+            raw = provider.structured(EXTRACTION_SYSTEM, {"lines": [{"i": ln["i"], "page": ln["page"], "text": clean(ln["text"])}
                                                                     for ln in lines]}, extraction_schema())
             valid_ids = {ln["i"] for ln in lines}
             for group in ("medications", "labs"):
@@ -240,15 +343,18 @@ def process(db: Session, doc: Document, job_id: str | None) -> ExtractionRun:
         return run
 
     names = [n.name for n in db.scalars(select(MedicineName).where(MedicineName.status == "active"))]
+    referral = db.get(Referral, doc.referral_id)
+    scrub = privacy.Scrubber(referral.patient_name, [referral.patient_cnic, referral.patient_local_id, referral.reference],
+                             None, keep_dates=True) if referral else None
     try:
-        fields, extractor, extractor_version, notes = _choose_extractor(lines, names)
+        fields, extractor, extractor_version, notes = _choose_extractor(lines, names, scrub)
     except (ProviderUnavailable, ProviderOutputInvalid) as exc:
         run.status, run.error = "failed", f"Field extraction failed: {exc}"
         doc.status, doc.error = "failed", run.error
         run.duration_ms = int((time.monotonic() - started) * 1000)
         db.commit()
         return run
-    run.extractor, run.extractor_version, run.notes = extractor, extractor_version, notes
+    run.extractor, run.extractor_version, run.notes = extractor, extractor_version, meta.get("notes", []) + notes
     by_i = {ln["i"]: ln for ln in lines}
     created = 0
     for med in fields.get("medications", []):

@@ -7,6 +7,7 @@ import type { Evidence, ReferralDetail, SelectionStatus } from "../../api/types"
 import { EvidenceRef } from "../../components/EvidenceRef";
 import { Empty, ErrorAlert, fmtDate, Loading, RetrievalStatus, Section } from "../../components/common";
 import { isStaff, useMe, useRefData } from "../../hooks";
+import { HoldNotice } from "./HoldNotice";
 import { OtherPlaces } from "./LinksTab";
 import { useInvalidateReferral } from "./ReferralWorkspace";
 
@@ -113,12 +114,7 @@ export function RecordsTab({ r }: { r: ReferralDetail }) {
 
   return (
     <Stack spacing={2}>
-      {r.working_set_expires_at && (
-        <Alert severity="info" variant="outlined">
-          Held for this referral until {fmtDate(r.working_set_expires_at)}. After that the copies here are removed; the
-          reference and the fingerprint of what was sent are kept.
-        </Alert>
-      )}
+      <HoldNotice r={r} />
       <OtherPlaces r={r} />
       <Section
         title="Where the records come from"

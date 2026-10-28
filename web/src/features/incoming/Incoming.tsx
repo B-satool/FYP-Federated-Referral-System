@@ -36,12 +36,13 @@ const CASE_STATUS: Record<string, string> = {
   accepted: "accepted",
   declined: "declined",
   responded: "response sent",
+  completed: "complete",
 };
 
 const NEEDS_INTAKE = ["received", "acknowledged"];
 
 function CaseStatusTag({ status }: { status: string }) {
-  const tone = status === "received" ? "warn" : status === "declined" ? "off" : status === "responded" ? "ok" : "info";
+  const tone = status === "received" ? "warn" : status === "declined" ? "off" : ["responded", "completed"].includes(status) ? "ok" : "info";
   return <Tag tone={tone} label={CASE_STATUS[status] ?? status} />;
 }
 
@@ -313,6 +314,20 @@ export function IncomingCase() {
     meta: { success: "Draft saved." },
     onSuccess: refresh,
   });
+  const [extendOpen, setExtendOpen] = useState(false);
+  const complete = useMutation({
+    mutationFn: () => api.post(`/cases/${id}/complete`, {}, service),
+    meta: { success: "Marked complete. The referring clinic is told; the shared records are removed in 72 hours." },
+    onSuccess: refresh,
+  });
+  const extend = useMutation({
+    mutationFn: (reason: string) => api.post(`/cases/${id}/extend-hold`, { reason }, service),
+    meta: { success: "The shared records are kept for another 30 days." },
+    onSuccess: () => {
+      setExtendOpen(false);
+      refresh();
+    },
+  });
   const send = useMutation({
     mutationFn: async () => {
       const saved = await api.put<{ row_version: number }>(`/cases/${id}/response`, { ...form, expected_row_version: draft?.row_version ?? null }, service);
@@ -326,7 +341,8 @@ export function IncomingCase() {
   if (q.error) return <ErrorAlert error={q.error} />;
   const { case: c, packages, info_requests, results } = q.data!;
   const shown = packages.find((p) => p.version === version) ?? packages[0];
-  const env = shown?.envelope;
+  const removed = !!c.shared_removed_at || !!shown?.envelope.purged;
+  const env = removed ? undefined : shown?.envelope;
   const urgency = ref.data?.urgencies[c.urgency];
   const deptName = (code: string | null | undefined) => (code ? ref.data?.departments[code]?.name ?? code : null);
   const sent = draft?.status === "returned";
@@ -334,7 +350,7 @@ export function IncomingCase() {
   const from = env ? `${env.requesting_doctor.name}, ${env.requesting_doctor.institution}` : c.sender_name;
   const decided = !!c.decision;
   const canDecide = doctor && c.status === "assigned" && !decided;
-  const canAsk = doctor && !!c.assigned_doctor && !["responded", "declined"].includes(c.status);
+  const canAsk = doctor && !!c.assigned_doctor && !["responded", "declined", "completed"].includes(c.status);
 
   // ---- intake steps (staff)
   const acked = !!c.acknowledged_at;
@@ -473,10 +489,52 @@ export function IncomingCase() {
     </Box>
   );
 
-  const resultsSection = results.length > 0 && (
+  const isAssignedDoctor = doctor && !!c.assigned_doctor;
+  const holdSection = (accepted || removed) && (
+    <Section title="Shared records" description="The referral letter and the records sent with it are kept only while you need them. Your decision, questions and response are your own record and are kept.">
+      {removed ? (
+        <Alert severity="info">
+          The shared records were removed{c.shared_removed_at ? ` on ${fmtDate(c.shared_removed_at)}` : ""}. Reference and fingerprint kept. If you need them again, ask the referring clinic to send the referral again.
+        </Alert>
+      ) : c.completed_at ? (
+        <Alert severity="success">
+          Marked complete by {c.completed_by} on {fmtDate(c.completed_at)}. The shared records are removed on {fmtDate(c.hold_until)}.
+        </Alert>
+      ) : (
+        <Stack spacing={1.5}>
+          <Typography variant="body2">
+            Kept until <strong>{fmtDate(c.hold_until)}</strong> (30 days after you accepted). Mark the referral complete when you have finished with it; the shared records are then removed 72 hours later.
+          </Typography>
+          <ErrorAlert error={complete.error || extend.error} />
+          {isAssignedDoctor ? (
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Button variant="contained" onClick={() => complete.mutate()} disabled={complete.isPending || !sent}>
+                Mark as complete
+              </Button>
+              <Button variant="outlined" onClick={() => setExtendOpen(true)} disabled={extend.isPending}>
+                Keep for another 30 days
+              </Button>
+            </Stack>
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              Only the assigned doctor can mark it complete or keep the records longer.
+            </Typography>
+          )}
+          {isAssignedDoctor && !sent && (
+            <Typography variant="caption" color="text.secondary">
+              Send your response first; then you can mark the referral complete.
+            </Typography>
+          )}
+        </Stack>
+      )}
+    </Section>
+  );
+
+  const shownResults = results.filter((r) => !r.purged);
+  const resultsSection = shownResults.length > 0 && (
     <Section title="Results received" description="Test and scan reports for this referral, sent on to you when they are ready.">
       <Stack spacing={1.5}>
-        {results.map((r) => (
+        {shownResults.map((r) => (
           <ResultReport
             key={r.id}
             title={r.test}
@@ -609,8 +667,10 @@ export function IncomingCase() {
 
         {(!doctor || sent) && responseSection}
 
+        {holdSection}
+
         {letter}
-        {!env && <Empty>The referral letter has not been received yet.</Empty>}
+        {!env && !removed && <Empty>The referral letter has not been received yet.</Empty>}
 
         {resultsSection}
 
@@ -630,8 +690,8 @@ export function IncomingCase() {
                 {packages.map((p) => (
                   <TableRow key={p.version}>
                     <TableCell>v{p.version}</TableCell>
-                    <TableCell>{p.envelope.sent_by}</TableCell>
-                    <TableCell>{fmtDate(p.envelope.sent_at)}</TableCell>
+                    <TableCell>{p.envelope.purged ? "removed" : p.envelope.sent_by}</TableCell>
+                    <TableCell>{p.envelope.purged ? "removed" : fmtDate(p.envelope.sent_at)}</TableCell>
                     <TableCell>{fmtDate(p.received_at)}</TableCell>
                     <TableCell>
                       <code title={p.content_hash}>{p.content_hash.slice(0, 12)}…</code>
@@ -652,6 +712,15 @@ export function IncomingCase() {
         onClose={() => setDeclineOpen(false)}
         onConfirm={(reason) => decide.mutate({ decision: "decline", reason })}
         busy={decide.isPending}
+      />
+      <ReasonDialog
+        open={extendOpen}
+        title="Keep the shared records for another 30 days"
+        label="Why do you need them for longer?"
+        confirm="Keep for 30 more days"
+        onClose={() => setExtendOpen(false)}
+        onConfirm={(reason) => extend.mutate(reason)}
+        busy={extend.isPending}
       />
       <ReasonDialog
         open={askOpen}

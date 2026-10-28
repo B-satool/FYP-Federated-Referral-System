@@ -33,11 +33,12 @@ class Settings:
     max_upload_bytes = int(os.environ.get("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
     max_pages = int(os.environ.get("MAX_PAGES", "10"))
     document_retention_days = int(os.environ.get("DOCUMENT_RETENTION_DAYS", "365"))
-    # Temporary working set (placeholders until an institutional retention source exists): retrieved
-    # content is removed this many hours after the referral is answered or ends, and in any case
-    # this many days after the first retrieval.
+    # How long a referral's shared records are kept (docs/decisions/2026-10-28-referral-expiry.md):
+    # no limit until the receiving doctor accepts; then a safety limit of ACCEPTED_HOLD_DAYS, which that
+    # doctor can extend by the same again; removed WORKING_SET_GRACE_HOURS after they mark the referral
+    # complete (or it is cancelled), and straight away if they decline it.
     working_set_grace_hours = int(os.environ.get("WORKING_SET_GRACE_HOURS", "72"))
-    working_set_max_days = int(os.environ.get("WORKING_SET_MAX_DAYS", "60"))
+    accepted_hold_days = int(os.environ.get("ACCEPTED_HOLD_DAYS", "30"))
     # How far back retrieval asks each source (the 6-month window is the default selection, not a fetch limit),
     # for a destination with no entry in SPECIALTY_HISTORY_YEARS
     history_years = int(os.environ.get("REFERRAL_HISTORY_YEARS", "3"))

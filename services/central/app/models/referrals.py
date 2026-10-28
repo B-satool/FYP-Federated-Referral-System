@@ -71,6 +71,9 @@ class Referral(Base):
     # manifest and fingerprint stay). See lifecycle/working_set.py.
     working_set_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     working_set_purged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # the receiving doctor marked the referral complete (its shared records are removed after the grace period)
+    receiver_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    receiver_completed_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

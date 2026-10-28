@@ -1,7 +1,7 @@
 # Decision: shared records are viewed through the platform, for an access window the referred doctor sets
 
 - **Date:** 2026-10-28
-- **Status:** agreed by the project team (reported by the project lead on 2026-10-28). Not yet built. Builds on `2026-10-27-data-lifecycle-and-v3.md`, which made the platform's own copy temporary.
+- **Status:** agreed by the project team (reported by the project lead on 2026-10-28). Not yet built. **Section 3 (the 7/30/90-day window) is replaced by [2026-10-28-referral-expiry.md](2026-10-28-referral-expiry.md)**, which is built: records are kept until the referred doctor marks the referral complete (then 72 hours), with a 30-day safety limit after acceptance that they can extend; a decline removes them straight away. Builds on `2026-10-27-data-lifecycle-and-v3.md`, which made the platform's own copy temporary.
 - **Why:** After v3 the platform deletes its copy, but the receiving institution keeps the full package in its own database (`incoming_packages.envelope`), and the sending clinic keeps a full copy (`/outbound-copies`). So patient records from other institutions stay with B after the referral has ended.
 
 ## What was decided

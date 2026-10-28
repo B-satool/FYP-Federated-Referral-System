@@ -17,7 +17,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..config import (CATEGORY_DEPARTMENT_KIND, DEPARTMENTS, INSTITUTIONS, PROCEDURE_STATUSES, PROCEDURE_TAGS, SOURCES,
-                      URGENCIES, settings)
+                      URGENCIES, department_name, institution_name, settings)
 from ..db import get_db
 from ..identity.links import links_for
 from ..identity.router import create_request
@@ -192,8 +192,10 @@ def list_referrals(patient: str | None = None, reference: str | None = None, sta
         stmt = stmt.where(Referral.reference.ilike(f"%{reference.strip()}%"))
     if status:
         stmt = stmt.where(Referral.status.in_(status.split(",")))
-    if destination:
-        stmt = stmt.where(Referral.destination_institution == destination)
+    if destination:  # a referral's destination, or where a test request's orders went
+        stmt = stmt.where(or_(Referral.destination_institution == destination,
+                              Referral.id.in_(select(DiagnosticRequest.referral_id)
+                                              .where(DiagnosticRequest.destination_institution == destination))))
     if date_from:
         stmt = stmt.where(Referral.created_at >= datetime.combine(date_from, time.min, tzinfo=timezone.utc))
     if date_to:
@@ -201,7 +203,23 @@ def list_referrals(patient: str | None = None, reference: str | None = None, sta
     if "clinician" not in principal.roles:
         stmt = stmt.where(Referral.status != "draft")  # a doctor's unsubmitted draft is the doctor's own
     rows = db.scalars(stmt.order_by(Referral.updated_at.desc()).limit(limit)).all()
-    return [referral_out(r) for r in rows]
+    tests = test_destinations(db, [r.id for r in rows if r.kind == "test"])
+    return [{**referral_out(r), "test_destinations": tests.get(r.id, [])} for r in rows]
+
+
+def test_destinations(db: Session, referral_ids: list[int]) -> dict[int, list[dict]]:
+    """Where each test request's orders go: one row per institution and department, with the tests."""
+    out: dict[int, dict[tuple[str, str], dict]] = {}
+    if not referral_ids:
+        return {}
+    for d in db.scalars(select(DiagnosticRequest).where(DiagnosticRequest.referral_id.in_(referral_ids),
+                                                        DiagnosticRequest.status != "cancelled")
+                        .order_by(DiagnosticRequest.id)):
+        row = out.setdefault(d.referral_id, {}).setdefault((d.destination_institution, d.destination_department), {
+            "institution_id": d.destination_institution, "institution_name": institution_name(d.destination_institution),
+            "department_name": department_name(d.destination_department), "tests": []})
+        row["tests"].append(d.test)
+    return {rid: list(v.values()) for rid, v in out.items()}
 
 
 def source_overview(db: Session, referral: Referral) -> list[dict]:

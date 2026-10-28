@@ -49,6 +49,28 @@ def seed_names(db) -> int:
                     seen.add(key)
                     db.add(MedicineName(name=key, display=n, ingredient=e["ingredient"], drug_class=e["class"], kind=kind,
                                         added_by=SEED_ACTOR[1]))
+    # DRAP register brands come after the hand-checked names (which win) and are filtered for matching
+    owners: dict[str, set[str]] = {}
+    for e in data["entries"]:
+        for n in e.get("register_brands", []):
+            owners.setdefault(mapping.normalize(n), set()).add(e["ingredient"])
+    words = {w for k in seen for w in k.split()}  # generic and hand-checked brand words are not brands
+    for e in data["entries"]:
+        for n in e.get("register_brands", []):
+            key = mapping.normalize(n)
+            if (key in seen or len(owners[key]) > 1 or not mapping.usable_register_name(key)
+                    or (" " not in key and key in words)):
+                continue
+            seen.add(key)
+            db.add(MedicineName(name=key, display=n, ingredient=e["ingredient"], drug_class=e["class"],
+                                kind=mapping.REGISTER_KIND, added_by="DRAP product register snapshot"))
+    # register names used for two different medicines: never mapped, but staff are told the options
+    for a in data.get("register_ambiguous", []):
+        key = mapping.normalize(a["brand"])
+        if key and key not in seen and mapping.usable_register_name(key):
+            seen.add(key)
+            db.add(MedicineName(name=key, display=a["brand"], ingredient=" | ".join(a["options"])[:100], drug_class="",
+                                kind=mapping.AMBIGUOUS_KIND, added_by="DRAP product register snapshot"))
     return len(seen)
 
 

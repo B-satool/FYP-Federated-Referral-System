@@ -44,24 +44,62 @@ def test_grant_expiry_default_and_max():
 
 
 # ---------------------------------------------------------------- working set timing
-def test_working_set_starts_and_shortens_on_ending_status():
-    r = SimpleNamespace(working_set_expires_at=None, working_set_purged_at=None)
+def referral(kind="referral", **kw):
+    base = dict(kind=kind, status="submitted", working_set_expires_at=None, working_set_purged_at=None,
+                receiver_completed_at=None, accepted_at=None)
+    return SimpleNamespace(**{**base, **kw})
+
+
+HOLD = timedelta(days=settings.accepted_hold_days)
+GRACE = timedelta(hours=settings.working_set_grace_hours)
+
+
+def test_no_limit_until_accepted_then_safety_limit():
+    r = referral()
     working_set.start(r, NOW)
-    assert r.working_set_expires_at == NOW + timedelta(days=settings.working_set_max_days)
-    working_set.on_status(r, "accepted", NOW)  # not an ending status
-    assert r.working_set_expires_at == NOW + timedelta(days=settings.working_set_max_days)
+    assert r.working_set_expires_at is None  # sent but not accepted: no time limit
+    for status in ("acknowledged", "response_returned", "closed"):
+        working_set.on_status(r, status, NOW)
+        assert r.working_set_expires_at is None  # answering or closing alone does not start the clock
+    working_set.on_status(r, "accepted", NOW)
+    assert r.working_set_expires_at == NOW + HOLD
+
+
+def test_receiver_extends_and_completes():
+    r = referral(status="accepted", working_set_expires_at=NOW + HOLD)
+    later = NOW + timedelta(days=20)
+    assert working_set.extend(r, later) == later + HOLD  # 30 days from when they extend
+    assert working_set.extend(r, NOW) == later + HOLD  # never shortens
+    working_set.complete(r, later)
+    r.receiver_completed_at = later
+    assert r.working_set_expires_at == later + GRACE
+    assert working_set.extend(r, later) is None  # nothing to extend once complete
+
+
+def test_decline_removes_now_and_cancel_after_grace():
+    r = referral(status="acknowledged")
+    working_set.on_status(r, "declined", NOW)
+    assert r.working_set_expires_at == NOW
+    r = referral(status="accepted", working_set_expires_at=NOW + HOLD)
+    working_set.on_status(r, "cancelled", NOW)
+    assert r.working_set_expires_at == NOW + GRACE
+
+
+def test_test_requests_end_after_results():
+    r = referral(kind="test")
     working_set.on_status(r, "response_returned", NOW)
-    assert r.working_set_expires_at == NOW + timedelta(hours=settings.working_set_grace_hours)
-    later = NOW + timedelta(hours=10)
-    working_set.on_status(r, "closed", later)  # never extends past the earlier grace end
-    assert r.working_set_expires_at == NOW + timedelta(hours=settings.working_set_grace_hours)
+    assert r.working_set_expires_at == NOW + GRACE
+    working_set.on_status(r, "closed", NOW + timedelta(hours=10))  # never later than before
+    assert r.working_set_expires_at == NOW + GRACE
 
 
 def test_working_set_restarts_after_purge():
-    r = SimpleNamespace(working_set_expires_at=NOW, working_set_purged_at=NOW)
+    r = referral(status="accepted", accepted_at=NOW, working_set_expires_at=NOW, working_set_purged_at=NOW)
     working_set.start(r, NOW + timedelta(days=1))
-    assert r.working_set_purged_at is None and r.working_set_expires_at > NOW + timedelta(days=1)
-
+    assert r.working_set_purged_at is None and r.working_set_expires_at == NOW + timedelta(days=1) + HOLD
+    r = referral(working_set_expires_at=NOW, working_set_purged_at=NOW)  # not accepted yet
+    working_set.start(r, NOW + timedelta(days=1))
+    assert r.working_set_purged_at is None and r.working_set_expires_at is None
 
 # ---------------------------------------------------------------- manifest and copy check
 ENVELOPE = {

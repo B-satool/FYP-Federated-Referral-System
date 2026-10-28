@@ -75,6 +75,7 @@ class MedInput:
     source_label: str
     evidence_ids: tuple[int, ...] = ()
     ingredients: tuple[str, ...] = ()  # all parts of a combination product (defaults to the ingredient)
+    mapping_note: str | None = None  # e.g. which medicines an ambiguous brand name could be
 
 
 @dataclass(frozen=True)
@@ -221,8 +222,9 @@ def evaluate_medications(inp: EvalInput) -> EvalOutput:
                 flag_key=f"unrecognised:{m.entry_id}", kind="unrecognised_medicine",
                 title=f"{UNRECOGNISED_TITLE}: {m.original_name}",
                 message=("This medicine could not be matched to an ingredient, so it was not checked against the "
-                         "medication rules, drug interactions or drug labels. Check the name, or ask a clinical "
-                         "reviewer to add it."),
+                         "medication rules, drug interactions or drug labels. "
+                         + (f"{m.mapping_note} " if m.mapping_status == "ambiguous" and m.mapping_note else "")
+                         + "Check the name, or ask a clinical reviewer to add it."),
                 medication=m.original_name, source_label=m.source_label, medication_entry_id=m.entry_id,
                 evidence_ids=list(m.evidence_ids), source_type="system"))
 

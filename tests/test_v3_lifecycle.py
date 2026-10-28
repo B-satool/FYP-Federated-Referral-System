@@ -73,7 +73,7 @@ def test_selection_manifest_own_copy_and_purge():
     r = new_referral("Gondal", "akuh", "orthopaedics", "Total knee replacement (right)", SURGERY)
     rid = r["id"]
     retrieved = ok(STAFF.post(f"/referrals/{rid}/retrieve"))
-    assert _ref(rid)["working_set_expires_at"]
+    assert _ref(rid)["working_set_expires_at"] is None  # no time limit until the receiving doctor accepts
 
     # Packet selection: without a model the default stands and the page can say so.
     sel = ok(STAFF.get(f"/referrals/{rid}/selection"))

@@ -1,13 +1,16 @@
 """Temporary working set: retrieved records are held only as long as the referral needs them.
 
-Lifetime of a referral's clinical content held centrally (evidence, papers and their OCR text,
-medicine list, flags, the letter, package content, results, the response):
-* starts at the first retrieval (or the first paper or medicine added) and runs at most
-  WORKING_SET_MAX_DAYS from then;
-* ends WORKING_SET_GRACE_HOURS after the referral is answered (response or all results back) or ends
-  (closed, declined, cancelled), if that is sooner.
+Lifetime of a referral's clinical content (evidence, papers and their OCR text, medicine list, flags,
+the letter, package content, results, the response); see docs/decisions/2026-10-28-referral-expiry.md:
+* referral, until the receiving doctor accepts: no time limit;
+* accepted: a safety limit of ACCEPTED_HOLD_DAYS, which the receiving doctor can extend (each time to
+  ACCEPTED_HOLD_DAYS from then);
+* marked complete by the receiving doctor: removed WORKING_SET_GRACE_HOURS later;
+* declined: removed straight away; cancelled: removed WORKING_SET_GRACE_HOURS later;
+* test request: removed WORKING_SET_GRACE_HOURS after all results are back (or it is closed or cancelled).
 
-At expiry the content is removed; identifiers, status, audit, the package manifest and its
+At expiry the content is removed, here and at the receiving institution (its copy of the shared
+records; it keeps what it wrote itself). Identifiers, status, audit, the package manifest and its
 fingerprint stay. Content is never removed while something sent has not been confirmed delivered,
 or before the sending clinic has confirmed its own copy of each sent package (its lasting record,
 together with the receiving institution's). A removed list is shown as "no longer held",
@@ -28,27 +31,57 @@ from ..models import (Brief, Clarification, ConsultationResponse, DiagnosticRequ
 from ..security import audit
 from .manifest import PURGED_MARKER, is_purged, purged_envelope
 
-ENDING = {"response_returned", "closed", "declined", "cancelled"}
+TEST_ENDING = {"response_returned", "closed", "cancelled"}
 REMOVED = "[removed: working set ended]"
 # Outbox kinds that carry content and must be confirmed delivered before anything is removed
 MUST_DELIVER = ("deliver_package", "sender_copy", "deliver_order")
 
 
+def _grace(now: datetime) -> datetime:
+    return now + timedelta(hours=settings.working_set_grace_hours)
+
+
+def _sooner(current: datetime | None, candidate: datetime) -> datetime:
+    return candidate if current is None else min(current, candidate)
+
+
 def start(referral: Referral, now: datetime | None = None) -> None:
-    """The working set exists once anything is retrieved or added."""
-    now = now or utcnow()
-    if referral.working_set_expires_at is None or referral.working_set_purged_at is not None:
-        referral.working_set_expires_at = now + timedelta(days=settings.working_set_max_days)
+    """Something was retrieved or added. After a removal this begins a new working set (fresh copies);
+    the expiry is not set here: it follows the referral's status."""
+    if referral.working_set_purged_at is not None:
         referral.working_set_purged_at = None
+        if referral.receiver_completed_at is None and referral.status not in ("declined", "cancelled", "closed"):
+            referral.working_set_expires_at = None
+            if referral.kind == "referral" and referral.accepted_at is not None:
+                referral.working_set_expires_at = (now or utcnow()) + timedelta(days=settings.accepted_hold_days)
 
 
 def on_status(referral: Referral, status: str, now: datetime | None = None) -> None:
-    """Once answered or ended, the content is kept only for the grace period."""
-    if status not in ENDING or referral.working_set_expires_at is None:
-        return
     now = now or utcnow()
-    referral.working_set_expires_at = min(referral.working_set_expires_at,
-                                          now + timedelta(hours=settings.working_set_grace_hours))
+    if referral.kind == "test":
+        if status in TEST_ENDING:
+            referral.working_set_expires_at = _sooner(referral.working_set_expires_at, _grace(now))
+        return
+    if status == "accepted" and referral.receiver_completed_at is None:
+        referral.working_set_expires_at = now + timedelta(days=settings.accepted_hold_days)
+    elif status == "declined":
+        referral.working_set_expires_at = now  # removed straight away
+    elif status == "cancelled":
+        referral.working_set_expires_at = _sooner(referral.working_set_expires_at, _grace(now))
+
+
+def complete(referral: Referral, when: datetime) -> None:
+    """The receiving doctor marked the referral complete: kept for the grace period, then removed."""
+    referral.working_set_expires_at = _grace(when)
+
+
+def extend(referral: Referral, when: datetime) -> datetime | None:
+    """The receiving doctor needs the records for longer: the safety limit becomes ACCEPTED_HOLD_DAYS from now."""
+    if referral.receiver_completed_at is not None or referral.working_set_purged_at is not None:
+        return None
+    until = when + timedelta(days=settings.accepted_hold_days)
+    referral.working_set_expires_at = max(referral.working_set_expires_at or until, until)
+    return referral.working_set_expires_at
 
 
 def blockers(db: Session, referral: Referral) -> list[str]:
@@ -151,6 +184,13 @@ def purge(db: Session, r: Referral, now: datetime | None = None) -> dict:
     r.reason = REMOVED if r.reason else r.reason
     r.meds_checked_note = r.patient_informed_note = None
     r.working_set_purged_at = now
+    if r.kind == "referral" and r.destination_institution and r.submitted_package_version:
+        # the receiving institution removes its copy of the shared records too (it keeps what it wrote)
+        key = f"expire:{r.reference}:{int(now.timestamp())}"
+        db.add(Outbox(referral_id=r.id, kind="expire_shared", target_institution=r.destination_institution,
+                      message_key=key, payload={"expire_key": key, "referral_id": r.reference,
+                                                "expired_at": now.isoformat()}))
+        counts["receiver_notified"] = 1
     audit(db, None, "retention.purge_working_set", "referral", r.reference, "success", r.id, counts,
           actor=("system", "working-set purge", "central-platform"))
     return counts

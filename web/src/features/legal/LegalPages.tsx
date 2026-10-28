@@ -85,7 +85,7 @@ export function PrivacyNotice() {
       <Block title="How long data is kept (provisional)">
         <Typography component="div">
           <ul style={{ margin: 0, paddingLeft: 20 }}>
-            <li>Records retrieved or added for a referral are a temporary working set. They are removed 72 hours after the specialist's answer is returned or the referral ends (cancelled, declined, closed), and at the latest 60 days after they were first gathered. Removal waits until the referral and the clinic's own copy have been delivered.</li>
+            <li>Records retrieved or added for a referral are kept only while the referral needs them: removed 72 hours after the receiving doctor marks the referral complete, straight away if they decline it, and 72 hours after it is cancelled. Once accepted, they are kept for at most 30 days unless the receiving doctor extends this. The receiving hospital's copy of these records is removed at the same time; it keeps its own decision, questions and response. Removal waits until everything sent has been delivered.</li>
             <li>After removal the platform keeps only the referral's reference, a list of what was sent (which record and version, from where, and which flags and rules), the SHA-256 fingerprint of each sent version, and the audit trail. The sending clinic's system keeps its own copy of what was sent, the receiving institution keeps what it received, and the source institutions keep their own records.</li>
             <li>Access that another institution gives to its records is temporary: 14 days by default and at most 30, and it is closed when the referral finishes.</li>
             <li>Audit events and referral events are kept and are append-only.</li>

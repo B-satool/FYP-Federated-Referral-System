@@ -2,6 +2,9 @@
 
   python scripts/import_brands.py <file.csv>            # report what would change
   python scripts/import_brands.py <file.csv> --write    # update the rules files
+  python scripts/import_brands.py <file.csv> --register --write
+      # register names (the DRAP snapshot): kept apart from the hand-checked brands, in each entry's
+      # "register_brands", and matched more strictly (see app/medications/mapping.py)
 
 Use a file you are allowed to use: an export DRAP or DrugsInfo Pakistan sends you, rows you type in
 from the pack or the DRAP search page yourself, or rules/terminology/drap/brand-import.csv from
@@ -36,12 +39,14 @@ LEDGER = ROOT / "rules" / "terminology" / "brand-sources.csv"
 FIELDS = ["brand_name", "ingredients", "strength", "dosage_form", "drug_class", "company", "drap_reg_no", "source", "retrieved_on", "checked_by"]
 
 
-def main(path: Path, write: bool) -> None:
+def main(path: Path, write: bool, register: bool = False) -> None:
+    field = "register_brands" if register else "brands"
     names = json.loads(NAMES.read_text(encoding="utf-8"))
     ings = json.loads(INGREDIENTS.read_text(encoding="utf-8"))
     by_ing = {e["ingredient"]: e for e in names["entries"]}
     known = {i["name"] for i in ings["ingredients"]}
-    brand_owner = {b.lower(): e["ingredient"] for e in names["entries"] for b in e.get("brands", [])}
+    brand_owner = {b.lower(): e["ingredient"] for e in names["entries"]
+                   for b in e.get("brands", []) + e.get("register_brands", [])}
     added, skipped, conflicts, ledger = [], [], [], []
     with path.open(encoding="utf-8-sig") as fh:
         rows = list(csv.DictReader(fh))
@@ -67,6 +72,10 @@ def main(path: Path, write: bool) -> None:
             if not cls and len(parts) > 1:
                 skipped.append(f"{brand}: a combination needs drug_class")
                 continue
+            if not cls and parts[0] not in by_ing:
+                # known only as part of a combination (e.g. colecalciferol): no class to file it under
+                skipped.append(f"{brand}: {ingredient} has no medicine-name entry yet; add a drug_class to create it")
+                continue
             entry = {"ingredient": ingredient, "class": cls or by_ing[parts[0]]["class"], "generic": [ingredient], "brands": []}
             names["entries"].append(entry)
             by_ing[ingredient] = entry
@@ -76,12 +85,30 @@ def main(path: Path, write: bool) -> None:
         if len(parts) > 1 and ingredient not in known:
             ings["ingredients"].append({"name": ingredient, "components": sorted(parts)})
             known.add(ingredient)
-        if brand not in entry["brands"]:
-            entry["brands"].append(brand)
+        if brand not in entry.setdefault(field, []) and brand not in entry["brands"]:
+            entry[field].append(brand)
             brand_owner[brand.lower()] = ingredient
             added.append(f"{brand} -> {ingredient}")
         ledger.append({k: (row.get(k) or "").strip() for k in FIELDS})
-    print(f"{len(rows)} rows: {len(added)} brands to add, {len(skipped)} skipped, {len(conflicts)} conflicts")
+    if register:
+        # a register name used for two different medicines is ambiguous: drop it everywhere it was added
+        clash = {c.split(":")[0].lower() for c in conflicts}
+        for e in names["entries"]:
+            if e.get(field):
+                e[field] = [b for b in e[field] if b.lower() not in clash]
+        # keep them as known-ambiguous names, so staff are told what the name could mean
+        options: dict[str, set[str]] = {}
+        for row in rows:
+            brand = row["brand_name"].strip()
+            if brand.lower() in clash:
+                parts = sorted(p.strip().lower() for p in row["ingredients"].split(";") if p.strip())
+                options.setdefault(brand, set()).add(" + ".join(parts))
+        names["register_ambiguous"] = [{"brand": b, "options": sorted(o)} for b, o in sorted(options.items())
+                                       if len(o) > 1]
+        added = [a for a in added if a.split(" -> ")[0].lower() not in clash]
+        ledger = [row for row in ledger if row["brand_name"].lower() not in clash]
+    print(f"{len(rows)} rows: {len(added)} brands to add, {len(skipped)} skipped, {len(conflicts)} conflicts"
+          + (" (dropped: a register name for two different medicines is ambiguous)" if register and conflicts else ""))
     for line in added:
         print("  add", line)
     for line in skipped + conflicts:
@@ -103,4 +130,4 @@ def main(path: Path, write: bool) -> None:
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         sys.exit(__doc__)
-    main(Path(sys.argv[1]), "--write" in sys.argv[2:])
+    main(Path(sys.argv[1]), "--write" in sys.argv[2:], "--register" in sys.argv[2:])

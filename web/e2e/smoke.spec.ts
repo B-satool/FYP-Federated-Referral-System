@@ -141,6 +141,11 @@ test("referral: doctor requests, staff prepare, doctor reviews flags, staff send
   await shot(surgeon, "v2-incoming-case");
   await surgeon.getByRole("button", { name: "Send response to the referring clinic" }).click();
   await expect(surgeon.getByRole("button", { name: "Send response to the referring clinic" })).toHaveCount(0, { timeout: 30_000 });
+  // The surgeon has finished: the shared records are removed 72 hours after "Mark as complete".
+  await expect(surgeon.getByText(/Kept until/)).toBeVisible();
+  await surgeon.getByRole("button", { name: "Mark as complete" }).click();
+  await expect(surgeon.getByText(/Marked complete by Dr Naveed Baig/)).toBeVisible({ timeout: 30_000 });
+  await shot(surgeon, "v3-receiver-marked-complete");
 
   // 7. The clinic learns the patient was new there; doctor reviews; staff inform the patient and close.
   await go(dr, `${url}?tab=response`);
@@ -149,6 +154,7 @@ test("referral: doctor requests, staff prepare, doctor reviews flags, staff send
     await dr.getByRole("button", { name: "I have reviewed the outcome" }).click({ timeout: 3_000 });
   }).toPass({ timeout: 60_000 });
   await expect(dr.getByText(/Seen by/)).toBeVisible();
+  await expect(dr.getByText(/Marked complete by Dr Naveed Baig/)).toBeVisible();
   await go(staff, `${url}?tab=response`);
   await staff.getByRole("button", { name: "Record that the patient was told" }).click();
   await staff.getByLabel("How and what (e.g. phoned, clinic date given)").fill("Phoned the patient; surgical clinic date given");

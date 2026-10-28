@@ -6,6 +6,7 @@ import type { ConsultationResponse, FollowupTask, ReferralDetail } from "../../a
 import { Empty, ErrorAlert, fmtDate, KeyValue, ReasonDialog, Section, Tag } from "../../components/common";
 import { useInvalidateReferral } from "./ReferralWorkspace";
 import type { Role } from "./steps";
+import { HoldNotice } from "./HoldNotice";
 
 const PROGRESS = [
   ["submitted", "Delivered"],
@@ -73,6 +74,7 @@ export function ResponseTab({ r, role }: { r: ReferralDetail; role: Role }) {
         </Section>
       )}
       {r.status === "declined" && <Alert severity="warning">{r.destination_name} declined this referral. Reason: {r.decline_reason}</Alert>}
+      {r.submitted_package_version && <HoldNotice r={r} />}
 
       {r.clarifications.length > 0 && (
         <Section title="Questions from the receiving hospital">

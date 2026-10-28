@@ -54,7 +54,7 @@ class MedicineName(Base):
     display: Mapped[str] = mapped_column(String(120))
     ingredient: Mapped[str] = mapped_column(String(100))
     drug_class: Mapped[str] = mapped_column(String(60))
-    kind: Mapped[str] = mapped_column(String(20), default="generic")  # generic | brand
+    kind: Mapped[str] = mapped_column(String(20), default="generic")  # generic | brand | register_brand | register_ambiguous (DRAP)
     status: Mapped[str] = mapped_column(String(20), default="active")  # active | retired
     added_by: Mapped[str] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

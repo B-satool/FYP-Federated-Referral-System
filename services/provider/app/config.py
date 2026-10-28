@@ -12,3 +12,7 @@ AUDIENCE = os.environ.get("TOKEN_AUDIENCE", f"{INSTITUTION}-api")
 # Look-back window for referral retrieval (visits, results, imaging). Conditions,
 # surgeries and current medications are returned regardless of date.
 DEFAULT_WINDOW_DAYS = int(os.environ.get("REFERRAL_WINDOW_DAYS", "183"))
+# a received referral's shared records: kept ACCEPTED_HOLD_DAYS after acceptance (extendable by the referred
+# doctor), and removed GRACE_HOURS after they mark it complete (the platform applies the same rules)
+ACCEPTED_HOLD_DAYS = int(os.environ.get("ACCEPTED_HOLD_DAYS", "30"))
+GRACE_HOURS = int(os.environ.get("WORKING_SET_GRACE_HOURS", "72"))

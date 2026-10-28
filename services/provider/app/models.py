@@ -137,7 +137,7 @@ class Case(Base):
     local_patient_id: Mapped[str | None] = mapped_column(String(30), nullable=True)
     link_request_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # the central intake link request
     urgency: Mapped[str] = mapped_column(String(20))
-    # received -> acknowledged (staff) -> assigned (staff) -> accepted | declined (doctor) -> responded
+    # received -> acknowledged (staff) -> assigned (staff) -> accepted | declined (doctor) -> responded -> completed
     status: Mapped[str] = mapped_column(String(30), default="received")
     latest_version: Mapped[int] = mapped_column(Integer)
     assigned_doctor: Mapped[str | None] = mapped_column(String(200), nullable=True)
@@ -150,6 +150,14 @@ class Case(Base):
     decision_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
     decision_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     decline_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # the referred doctor has finished with it; the shared records are then removed after 72 hours
+    completed_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # until when the shared records are kept (mirrors the platform: 30 days after acceptance, extendable)
+    hold_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # when the shared records (packages, forwarded results) were removed here; this institution's own
+    # decision, questions and response are kept
+    shared_removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

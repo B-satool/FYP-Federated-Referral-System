@@ -1,0 +1,229 @@
+=== M0 live rules state: [('ORTHO-ANTICOAG-SURG', 1, 'draft'), ('ORTHO-ANTIPLATELET-SURG', 1, 'draft'), ('ORTHO-BISPHOS-SURG', 1, 'draft'), ('ORTHO-BISPHOS-ATTN', 1, 'draft'), ('ORTHO-STEROID-SURG', 1, 'draft')]
+[M0 no approved rules] run=completed outcome=unsupported_coverage changed=0 error=None
+    summary: No approved medication rules are active for orthodontics. Medication flags cannot be evaluated; manual clinician review is required. This is not a negative result.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+=== simulated approvals: [('ORTHO-ANTICOAG-SURG', 'approved'), ('ORTHO-ANTIPLATELET-SURG', 'approved'), ('ORTHO-BISPHOS-SURG', 'approved'), ('ORTHO-BISPHOS-ATTN', 'approved'), ('ORTHO-STEROID-SURG', 'approved')]
+
+=== M1 all medications unverified, procedure not stated
+[M1] run=completed outcome=no_match changed=3 error=None
+    summary: No matching medication flag within the available verified records and the supported rules (anticoagulant, antiplatelet agent, bisphosphonate, systemic corticosteroid). This is not treatment clearance and does not mean that no relevant medications exist.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#12 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#13 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+    flag#14 v1 possible_use | Possible medication use—please confirm | med=Warfarin 5 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-1 v1 | rule=None vNone | ev=[97]
+
+=== M2 warfarin confirmed current + tooth extraction
+[M2] run=completed outcome=flags changed=2 error=None
+    summary: 1 referral-specific medication flag(s) from approved rules.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#12 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#13 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+    flag#15 v1 confirmed | Medication requires review: anticoagulant recorded | med=Warfarin 5 mg tablet | use=confirmed_current | src=Clinic A - Green Valley Family Clinic prescription RX-102-1 v1 | rule=ORTHO-ANTICOAG-SURG v1 | ev=[97]
+
+=== M3 same medication and specialty, each procedure
+    orthodontic_assessment   outcome=no_match     flags=[('possible_use', None), ('possible_use', None)]
+    fixed_appliance          outcome=no_match     flags=[('possible_use', None), ('possible_use', None)]
+    tooth_extraction         outcome=flags        flags=[('possible_use', None), ('possible_use', None), ('confirmed', 'ORTHO-ANTICOAG-SURG')]
+    mini_implant_placement   outcome=flags        flags=[('possible_use', None), ('possible_use', None), ('confirmed', 'ORTHO-ANTICOAG-SURG')]
+    orthognathic_surgery     outcome=flags        flags=[('possible_use', None), ('possible_use', None), ('confirmed', 'ORTHO-ANTICOAG-SURG')]
+
+=== M4 procedure unknown / not stated (warfarin confirmed)
+[M4 unknown] run=completed outcome=no_match changed=2 error=None
+    summary: No matching medication flag within the available verified records and the supported rules (anticoagulant, antiplatelet agent, bisphosphonate, systemic corticosteroid). This is not treatment clearance and does not mean that no relevant medications exist.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#12 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#13 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+    flag#17 v1 procedure_context_required | Procedure context required for a medication rule | med=Warfarin 5 mg tablet | use=confirmed_current | src=Clinic A - Green Valley Family Clinic prescription RX-102-1 v1 | rule=ORTHO-ANTICOAG-SURG v1 | ev=[97]
+[M4 not_stated] run=completed outcome=no_match changed=0 error=None
+    summary: No matching medication flag within the available verified records and the supported rules (anticoagulant, antiplatelet agent, bisphosphonate, systemic corticosteroid). This is not treatment clearance and does not mean that no relevant medications exist.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#12 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#13 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+    flag#17 v1 procedure_context_required | Procedure context required for a medication rule | med=Warfarin 5 mg tablet | use=confirmed_current | src=Clinic A - Green Valley Family Clinic prescription RX-102-1 v1 | rule=ORTHO-ANTICOAG-SURG v1 | ev=[97]
+
+=== M5 stopped prescription (Alendronate, source status 'stopped')
+    source_status: stopped | use_status: unverified
+[M5 stopped at source, use unverified] run=completed outcome=no_match changed=3 error=None
+    summary: No matching medication flag within the available verified records and the supported rules (anticoagulant, antiplatelet agent, bisphosphonate, systemic corticosteroid). This is not treatment clearance and does not mean that no relevant medications exist.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#18 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#19 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+    flag#20 v1 possible_use | Possible medication use—please confirm | med=Warfarin 5 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-1 v1 | rule=None vNone | ev=[97]
+[M5 clinician marked historical_stopped] run=completed outcome=no_match changed=1 error=None
+    summary: No matching medication flag within the available verified records and the supported rules (anticoagulant, antiplatelet agent, bisphosphonate, systemic corticosteroid). This is not treatment clearance and does not mean that no relevant medications exist.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#19 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+    flag#20 v1 possible_use | Possible medication use—please confirm | med=Warfarin 5 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-1 v1 | rule=None vNone | ev=[97]
+[M5 confirmed, assessment (specialty-only rule)] run=completed outcome=flags changed=1 error=None
+    summary: 1 referral-specific medication flag(s) from approved rules.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#19 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+    flag#20 v1 possible_use | Possible medication use—please confirm | med=Warfarin 5 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-1 v1 | rule=None vNone | ev=[97]
+    flag#21 v1 confirmed | Attention: bisphosphonate recorded | med=Alendronate 70 mg tablet | use=confirmed_current | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=ORTHO-BISPHOS-ATTN v1 | ev=[98]
+
+=== M6 uncertain / conflicting / unverified use (Ecosprin -> aspirin, antiplatelet)
+    use=unverified   -> [('possible_use', 'Possible medication use—please confirm', 'unverified')]
+    use=uncertain    -> [('possible_use', 'Possible medication use—please confirm', 'uncertain')]
+    use=conflicting  -> [('possible_use', 'Possible medication use—please confirm', 'conflicting')]
+
+=== M7 ambiguous / unmapped names, clinician mapping
+[M7 with Disprin (suggested) and an unknown name] run=completed outcome=no_match changed=5 error=None
+    summary: No matching medication flag within the available verified records and the supported rules (anticoagulant, antiplatelet agent, bisphosphonate, systemic corticosteroid). This is not treatment clearance and does not mean that no relevant medications exist.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#27 v1 ambiguous_mapping | Medication mapping unresolved: Disprin 300 mg | med=Disprin 300 mg | use=unverified | src=Manually entered by Sana Malik | rule=None vNone | ev=[112]
+    flag#28 v1 ambiguous_mapping | Medication mapping unresolved: Herbal remedy Q | med=Herbal remedy Q | use=unverified | src=Manually entered by Sana Malik | rule=None vNone | ev=[113]
+    flag#29 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#30 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+    flag#31 v1 possible_use | Possible medication use—please confirm | med=Warfarin 5 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-1 v1 | rule=None vNone | ev=[97]
+    Disprin mapping: ambiguous note='Suggested mapping not yet reviewed: Disprin is commonly used as an analgesic dose; class relevance depends on dose - requires review'; Herbal: unmapped
+    set_mapping to non-reviewed ingredient -> 422 {'code': 'unknown_ingredient', 'message': 'Choose an ingredient from the reviewed mapping list'}
+[M7 after clinician mapping + confirmed] run=completed outcome=flags changed=2 error=None
+    summary: 1 referral-specific medication flag(s) from approved rules.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#28 v1 ambiguous_mapping | Medication mapping unresolved: Herbal remedy Q | med=Herbal remedy Q | use=unverified | src=Manually entered by Sana Malik | rule=None vNone | ev=[113]
+    flag#29 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#31 v1 possible_use | Possible medication use—please confirm | med=Warfarin 5 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-1 v1 | rule=None vNone | ev=[97]
+    flag#34 v1 confirmed | Medication requires review: antiplatelet agent recorded | med=Disprin 300 mg | use=confirmed_current | src=Manually entered by Sana Malik | rule=ORTHO-ANTIPLATELET-SURG v1 | ev=[112]
+    mapping record: clinician_mapped local-medication-dictionary (clinician selection) Sana Malik: Disprin is aspirin 300 mg (checked pack)
+[M7 ambiguous but historical] run=completed outcome=flags changed=1 error=None
+    summary: 1 referral-specific medication flag(s) from approved rules.
+    flag#28 v1 ambiguous_mapping | Medication mapping unresolved: Herbal remedy Q | med=Herbal remedy Q | use=unverified | src=Manually entered by Sana Malik | rule=None vNone | ev=[113]
+    flag#29 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#31 v1 possible_use | Possible medication use—please confirm | med=Warfarin 5 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-1 v1 | rule=None vNone | ev=[97]
+    flag#34 v1 confirmed | Medication requires review: antiplatelet agent recorded | med=Disprin 300 mg | use=confirmed_current | src=Manually entered by Sana Malik | rule=ORTHO-ANTIPLATELET-SURG v1 | ev=[112]
+
+=== M8 medication source unavailable / denied alongside a confirmed flag
+[M8 clinic unavailable] run=completed outcome=flags changed=4 error=None
+    summary: 1 referral-specific medication flag(s) from approved rules.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#35 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#36 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+    flag#37 v1 confirmed | Medication requires review: anticoagulant recorded | med=Warfarin 5 mg tablet | use=confirmed_current | src=Clinic A - Green Valley Family Clinic prescription RX-102-1 v1 | rule=ORTHO-ANTICOAG-SURG v1 | ev=[97]
+    flag#38 v2 history_incomplete | Medication history incomplete | med=None | use=None | src=None | rule=None vNone | ev=[]
+[M8 clinic denied] run=completed outcome=flags changed=1 error=None
+    summary: 1 referral-specific medication flag(s) from approved rules.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#35 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#36 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+    flag#37 v1 confirmed | Medication requires review: anticoagulant recorded | med=Warfarin 5 mg tablet | use=confirmed_current | src=Clinic A - Green Valley Family Clinic prescription RX-102-1 v1 | rule=ORTHO-ANTICOAG-SURG v1 | ev=[97]
+    flag#39 v3 history_incomplete | Medication history incomplete | med=None | use=None | src=None | rule=None vNone | ev=[]
+
+=== M9 evaluation failure vs genuine no-match
+[M9 before failure] run=completed outcome=flags changed=3 error=None
+    summary: 1 referral-specific medication flag(s) from approved rules.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#40 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#41 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+    flag#42 v1 confirmed | Medication requires review: anticoagulant recorded | med=Warfarin 5 mg tablet | use=confirmed_current | src=Clinic A - Green Valley Family Clinic prescription RX-102-1 v1 | rule=ORTHO-ANTICOAG-SURG v1 | ev=[97]
+[M9 failure (malformed rule)] run=failed outcome=None changed=0 error='rule BROKEN requires a procedure but lists none'
+    summary: Medication rule evaluation failed. Existing evidence is retained; manual clinician review is required. This is not a negative result.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#40 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#41 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+    flag#42 v1 confirmed | Medication requires review: anticoagulant recorded | med=Warfarin 5 mg tablet | use=confirmed_current | src=Clinic A - Green Valley Family Clinic prescription RX-102-1 v1 | rule=ORTHO-ANTICOAG-SURG v1 | ev=[97]
+    approval blockers after failure: [('medication_evaluation_failed', 'Medication rule evaluation failed')]
+[M9 genuine no-match] run=completed outcome=no_match changed=2 error=None
+    summary: No matching medication flag within the available verified records and the supported rules (anticoagulant, antiplatelet agent, bisphosphonate, systemic corticosteroid). This is not treatment clearance and does not mean that no relevant medications exist.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#40 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+
+=== M10 repeated evaluation and duplicate matches
+[M10 first] run=completed outcome=flags changed=3 error=None
+    summary: 1 referral-specific medication flag(s) from approved rules.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#43 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#44 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+    flag#45 v1 confirmed | Medication requires review: anticoagulant recorded | med=Warfarin 5 mg tablet | use=confirmed_current | src=Clinic A - Green Valley Family Clinic prescription RX-102-1 v1 | rule=ORTHO-ANTICOAG-SURG v1 | ev=[97]
+    repeat 1: changed=0 outcome=flags
+    repeat 2: changed=0 outcome=flags
+    repeat 3: changed=0 outcome=flags
+    flag rows before/after repeats: 5 5
+[M10 same drug from a second record (clinic + manual)] run=completed outcome=flags changed=1 error=None
+    summary: 1 referral-specific medication flag(s) from approved rules.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#43 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#44 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+    flag#46 v2 confirmed | Medication requires review: anticoagulant recorded | med=Warfarin 5 mg tablet | use=confirmed_current | src=Clinic A - Green Valley Family Clinic prescription RX-102-1 v1; Manually entered by Sana Malik | rule=ORTHO-ANTICOAG-SURG v1 | ev=[97, 114]
+
+=== M11 review, package traceability and changes
+[M11 setup] run=completed outcome=flags changed=3 error=None
+    summary: 1 referral-specific medication flag(s) from approved rules.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#47 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#48 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+    flag#49 v1 confirmed | Medication requires review: anticoagulant recorded | med=Warfarin 5 mg tablet | use=confirmed_current | src=Clinic A - Green Valley Family Clinic prescription RX-102-1 v1 | rule=ORTHO-ANTICOAG-SURG v1 | ev=[97]
+    package v1 flag snapshot: {"flag_id": 49, "version": 1, "kind": "confirmed", "title": "Medication requires review: anticoagulant recorded", "message": "The patient's verified medication list includes an anticoagulant. Review its relevance to the planned procedure.", "medication": "Warfarin 5 mg tablet", "drug_class": "anticoagulant", "current_use_status": "confirmed_current", "source_label": "Clinic A - Green Valley Family Clinic prescription RX-102-1 v1", "rule_id": "ORTHO-ANTICOAG-SURG", "rule_version": 1, "evidence_ids": [97], "clinic_review": {"reviewer": "Sana Malik", "reviewed_at": "2026-10-25T15:19:50.334915+00:
+    brief sections in package: ['reason', 'history', 'medications', 'results', 'outstanding'] | flags carried separately: 4
+    review rows: [('Sana Malik', '2026-10-25T15:19:50.334915+00:00', 1, 'reviewed', None, 'referring')]
+  -- (a) procedure change extraction -> mini-implant (same rule still applies)
+[M11a] run=completed outcome=flags changed=0 error=None
+    summary: 1 referral-specific medication flag(s) from approved rules.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#47 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#48 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+    flag#49 v1 confirmed | Medication requires review: anticoagulant recorded | med=Warfarin 5 mg tablet | use=confirmed_current | src=Clinic A - Green Valley Family Clinic prescription RX-102-1 v1 | rule=ORTHO-ANTICOAG-SURG v1 | ev=[97]
+    referral: approved | package v1 superseded: False
+  -- (b) procedure change -> fixed appliance (rule no longer applies)
+[M11b] run=completed outcome=no_match changed=1 error=None
+    summary: No matching medication flag within the available verified records and the supported rules (anticoagulant, antiplatelet agent, bisphosphonate, systemic corticosteroid). This is not treatment clearance and does not mean that no relevant medications exist.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#47 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#48 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+    referral: draft | package v1 superseded: True
+[M11b back to extraction] run=completed outcome=flags changed=1 error=None
+    summary: 1 referral-specific medication flag(s) from approved rules.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#47 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#48 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+    flag#50 v2 confirmed | Medication requires review: anticoagulant recorded | med=Warfarin 5 mg tablet | use=confirmed_current | src=Clinic A - Green Valley Family Clinic prescription RX-102-1 v1 | rule=ORTHO-ANTICOAG-SURG v1 | ev=[97]
+    flag after return: #50 v2 | unreviewed blockers: ['Medication flag not reviewed: Medication requires review: anticoagulant recorded']
+    re-review of old flag version -> 409 {'code': 'flag_version_changed', 'message': 'This flag has changed; review the current version'}
+  -- (c) rule version change (simulated v2 of ORTHO-ANTICOAG-SURG, approved)
+[M11c] run=completed outcome=flags changed=1 error=None
+    summary: 1 referral-specific medication flag(s) from approved rules.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#47 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#48 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+    flag#51 v3 confirmed | Medication requires review: anticoagulant recorded | med=Warfarin 5 mg tablet | use=confirmed_current | src=Clinic A - Green Valley Family Clinic prescription RX-102-1 v1 | rule=ORTHO-ANTICOAG-SURG v2 | ev=[97]
+    referral: draft | unreviewed blockers: ['Medication flag not reviewed: Medication requires review: anticoagulant recorded']
+  -- (d) rule text edited WITHOUT a new approval (same version)
+    approval state: [('ORTHO-ANTICOAG-SURG', 2, 'approval_invalid_content_changed')]
+[M11d] run=completed outcome=no_match changed=1 error=None
+    summary: No matching medication flag within the available verified records and the supported rules (antiplatelet agent, bisphosphonate, systemic corticosteroid). This is not treatment clearance and does not mean that no relevant medications exist.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#47 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#48 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+  -- (e) use change confirmed -> uncertain
+[M11e] run=completed outcome=no_match changed=1 error=None
+    summary: No matching medication flag within the available verified records and the supported rules (anticoagulant, antiplatelet agent, bisphosphonate, systemic corticosteroid). This is not treatment clearance and does not mean that no relevant medications exist.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#47 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#48 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+    flag#52 v1 possible_use | Possible medication use—please confirm | med=Warfarin 5 mg tablet | use=uncertain | src=Clinic A - Green Valley Family Clinic prescription RX-102-1 v1 | rule=None vNone | ev=[97]
+[M11e restore] run=completed outcome=flags changed=2 error=None
+    summary: 1 referral-specific medication flag(s) from approved rules.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#47 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#48 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+    flag#53 v4 confirmed | Medication requires review: anticoagulant recorded | med=Warfarin 5 mg tablet | use=confirmed_current | src=Clinic A - Green Valley Family Clinic prescription RX-102-1 v1 | rule=ORTHO-ANTICOAG-SURG v1 | ev=[97]
+  -- (f) change after submission (fixture: status submitted with v1 delivered)
+[M11f] run=completed outcome=no_match changed=1 error=None
+    summary: No matching medication flag within the available verified records and the supported rules (anticoagulant, antiplatelet agent, bisphosphonate, systemic corticosteroid). This is not treatment clearance and does not mean that no relevant medications exist.
+    flag#11 v1 ambiguous_mapping | Medication mapping unresolved: Calcium D sachet | med=Calcium D sachet | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-2 v1 | rule=None vNone | ev=[101]
+    flag#47 v1 possible_use | Possible medication use—please confirm | med=Alendronate 70 mg tablet | use=unverified | src=Clinic A - Green Valley Family Clinic prescription RX-102-2 v1 | rule=None vNone | ev=[98]
+    flag#48 v1 possible_use | Possible medication use—please confirm | med=Ecosprin 75 | use=unverified | src=Clinic A - Green Valley Family Clinic reported medication record MS-102-1 v1 | rule=None vNone | ev=[100]
+    after: status submitted | amendment_open True | package v1 envelope unchanged: True
+  -- (g) flag review with clarification request, including an unrelated assignee
+    assignee=lab-b: accepted, clarification #2 assignee=lab-b
+    assignee=spec-c: accepted, clarification #3 assignee=spec-c
+    assignee=no-such-institution: accepted, clarification #4 assignee=no-such-institution
+    review rows: [('Sana Malik', 5, 'request_clarification', 2), ('Sana Malik', 5, 'request_clarification', 3), ('Sana Malik', 5, 'request_clarification', 4)]
+    clarification without question -> 422 {'code': 'question_required', 'message': 'Enter the clarification question'}
+
+=== M12 determinism of the pure evaluator
+    same input twice identical: True | reordered meds+rules identical: True | order of candidates identical: True
+
+=== M13 wording scan (all generated titles/messages/summaries + rule file text)
+    33 distinct texts scanned; matches: [('clearance', 'No matching medication flag within the available verified records and the supported rules (anticoagulant, antiplatelet agent, bisphosphonate, systemic corticosteroid). This is not treatment clearance and does not mean that no relevant medications exist.'), ('clearance', 'No matching medication flag within the available verified records and the supported rules (antiplatelet agent, bisphosphonate, systemic corticosteroid). This is not treatment clearance and does not mean that no relevant medications exist.')]
+
+[cleanup] persisted rule approvals: 0 | flags on referral: 2 | packages on referral: 0

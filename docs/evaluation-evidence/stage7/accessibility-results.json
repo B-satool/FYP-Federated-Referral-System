@@ -1,0 +1,82 @@
+{
+ "keyboard": [
+  {
+   "id": "K1a reach Sign in by Tab",
+   "ok": true,
+   "note": "2 Tab presses; focus outline=none 0px shadow=false"
+  },
+  {
+   "id": "K1b Keycloak username field autofocused",
+   "ok": true,
+   "note": "active element id on load: username"
+  },
+  {
+   "id": "K1c Keycloak login completed by keyboard only (Tab, type, Enter)",
+   "ok": true,
+   "note": "signed in"
+  },
+  {
+   "id": "K2a first Tab reaches skip link",
+   "ok": true,
+   "note": "first focus: {\"tag\":\"A\",\"text\":\"Skip to main content\",\"role\":null,\"outline\":\"solid 3px\",\"boxShadow\":false}"
+  },
+  {
+   "id": "K2b skip link moves focus to main",
+   "ok": true,
+   "note": "active=MAIN#main"
+  },
+  {
+   "id": "K3a reach a referral row link by Tab",
+   "ok": true,
+   "note": "28 presses, focus={\"tag\":\"A\",\"text\":\"REF-2026-00005\",\"role\":null,\"outline\":\"solid 3px\",\"boxShadow\":false}"
+  },
+  {
+   "id": "K3b Enter opens the referral",
+   "ok": true,
+   "note": "http://localhost:3000/referrals/5"
+  },
+  {
+   "id": "K4a reach 'Medications & flags' step by Tab",
+   "ok": false,
+   "note": "not reached"
+  },
+  {
+   "id": "K4b Enter activates the step",
+   "ok": true,
+   "note": "medications view visible: true"
+  },
+  {
+   "id": "K4c ArrowRight moves between steps (ARIA tabs pattern)",
+   "ok": false,
+   "note": "focus after ArrowRight: {\"tag\":\"BUTTON\",\"text\":\"Go to Checklist & clarifications\",\"role\":null,\"outline\":\"auto 3px\",\"boxShadow\":false}"
+  },
+  {
+   "id": "K5 dialog opens by Enter, focus moves into it, Escape closes",
+   "ok": true,
+   "note": "open=true focusInside=true closedByEsc=true"
+  },
+  {
+   "id": "C1 flag cards carry text + icon (not colour alone)",
+   "ok": true,
+   "note": "[{\"text\":\"Rules not active\\nNo approved medication rules are active for\",\"hasIcon\":true},{\"text\":\"MAPPING NEEDS CLARIFICATION · V1\\nMedication mapping unresolv\",\"hasIcon\":true}]"
+  }
+ ],
+ "axe": {
+  "sign-in page": [],
+  "referral list": [],
+  "referral workspace (overview)": [],
+  "referral workspace (medications & flags)": [],
+  "work queue": [],
+  "patient links": [
+   {
+    "id": "list",
+    "impact": "serious",
+    "nodes": 1,
+    "help": "<ul> and <ol> must only directly contain <li>, <script> or <template> elements"
+   }
+  ],
+  "document review": [],
+  "brief & approval (closed referral)": [],
+  "specialist case": []
+ }
+}

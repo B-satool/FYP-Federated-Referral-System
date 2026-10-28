@@ -12,18 +12,34 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Box,
   TextField,
   Typography,
   Link,
 } from "@mui/material";
 import { api } from "../../api/client";
-import type { Referral } from "../../api/types";
+import type { ReferralRow } from "../../api/types";
 import { Empty, ErrorAlert, fmtDate, Loading, PageHeader, ReferralStatus, Tag, UrgencyTag } from "../../components/common";
 import { isDoctor, useMe, useRefData } from "../../hooks";
 import { NewRequestButton } from "./NewReferral";
 
-function Destination({ r }: { r: Referral }) {
-  if (r.kind === "test") return <>Tests and scans</>;
+function Destination({ r }: { r: ReferralRow }) {
+  if (r.kind === "test") {
+    const to = r.test_destinations ?? [];
+    if (!to.length) return <>Not chosen yet</>;
+    return (
+      <>
+        {to.map((d) => (
+          <Box key={`${d.institution_id}-${d.department_name}`} sx={{ "& + &": { mt: 0.75 } }}>
+            {d.institution_name}
+            <Typography variant="caption" display="block" color="text.secondary">
+              {[d.department_name, d.tests.join(", ")].filter(Boolean).join(" · ")}
+            </Typography>
+          </Box>
+        ))}
+      </>
+    );
+  }
   return (
     <>
       {r.destination_name}
@@ -43,7 +59,7 @@ export function ReferralList() {
   const params = new URLSearchParams(Object.entries(applied).filter(([, v]) => v) as [string, string][]);
   const q = useQuery({
     queryKey: ["referrals", applied],
-    queryFn: () => api.get<Referral[]>(`/referrals?${params.toString()}`),
+    queryFn: () => api.get<ReferralRow[]>(`/referrals?${params.toString()}`),
   });
 
   return (

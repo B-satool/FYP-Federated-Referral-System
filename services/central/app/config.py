@@ -20,24 +20,38 @@ class Settings:
     # Visits, results and imaging older than this are not retrieved for a referral.
     referral_window_days = int(os.environ.get("REFERRAL_WINDOW_DAYS", "183"))
 
-    llm_provider = os.environ.get("LLM_PROVIDER", "anthropic")  # anthropic | ollama
+    llm_provider = os.environ.get("LLM_PROVIDER", "anthropic")  # anthropic | ollama | openai_compatible
     llm_model = os.environ.get("LLM_MODEL", "claude-opus-5-5")
     anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     # Ollama: a local server (which also serves ":cloud" models once `ollama signin` has run on that
     # computer), or https://ollama.com directly with OLLAMA_API_KEY.
     ollama_host = os.environ.get("OLLAMA_HOST", "http://host.docker.internal:11434").rstrip("/")
     ollama_api_key = os.environ.get("OLLAMA_API_KEY", "")
+    llm_context_tokens = int(os.environ.get("LLM_CONTEXT_TOKENS", "16384"))  # local Ollama models
+    # Patient data (always de-identified) may go to a model outside this computer (an Ollama ":cloud" model,
+    # ollama.com, Anthropic, any remote server) only if this is true: docs/decisions/2026-10-28-cloud-model-privacy.md
+    llm_external_allowed = _bool("LLM_EXTERNAL_ALLOWED", False)
+    # openai_compatible: vLLM, Kimi or any other chat-completions server (…/v1)
+    llm_base_url = os.environ.get("LLM_BASE_URL", "")
+    llm_api_key = os.environ.get("LLM_API_KEY", "")
     extraction_mode = os.environ.get("EXTRACTION_MODE", "auto")  # auto | llm | rules
+    # Reading papers: tesseract (printed text, on this computer) | google_vision (printed and handwritten;
+    # the page image is sent to Google Cloud Vision)
+    ocr_engine = os.environ.get("OCR_ENGINE", "tesseract")
+    google_vision_api_key = os.environ.get("GOOGLE_VISION_API_KEY", "")
+    google_vision_endpoint = os.environ.get("GOOGLE_VISION_ENDPOINT", "https://vision.googleapis.com/v1/images:annotate")
+    ocr_timeout_seconds = float(os.environ.get("OCR_TIMEOUT_SECONDS", "60"))
     llm_timeout_seconds = float(os.environ.get("LLM_TIMEOUT_SECONDS", "120"))
 
     max_upload_bytes = int(os.environ.get("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
     max_pages = int(os.environ.get("MAX_PAGES", "10"))
     document_retention_days = int(os.environ.get("DOCUMENT_RETENTION_DAYS", "365"))
-    # Temporary working set (placeholders until an institutional retention source exists): retrieved
-    # content is removed this many hours after the referral is answered or ends, and in any case
-    # this many days after the first retrieval.
+    # How long a referral's shared records are kept (docs/decisions/2026-10-28-referral-expiry.md):
+    # no limit until the receiving doctor accepts; then a safety limit of ACCEPTED_HOLD_DAYS, which that
+    # doctor can extend by the same again; removed WORKING_SET_GRACE_HOURS after they mark the referral
+    # complete (or it is cancelled), and straight away if they decline it.
     working_set_grace_hours = int(os.environ.get("WORKING_SET_GRACE_HOURS", "72"))
-    working_set_max_days = int(os.environ.get("WORKING_SET_MAX_DAYS", "60"))
+    accepted_hold_days = int(os.environ.get("ACCEPTED_HOLD_DAYS", "30"))
     # How far back retrieval asks each source (the 6-month window is the default selection, not a fetch limit),
     # for a destination with no entry in SPECIALTY_HISTORY_YEARS
     history_years = int(os.environ.get("REFERRAL_HISTORY_YEARS", "3"))
@@ -52,6 +66,8 @@ class Settings:
     def llm_configured(self) -> bool:
         if self.llm_provider == "ollama":
             return bool(self.llm_model and self.ollama_host)
+        if self.llm_provider == "openai_compatible":
+            return bool(self.llm_base_url and self.llm_model)
         return self.llm_provider == "anthropic" and bool(self.anthropic_api_key)
 
 

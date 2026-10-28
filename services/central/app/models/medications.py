@@ -35,6 +35,8 @@ class MedicationEntry(Base):
     drug_class: Mapped[str | None] = mapped_column(String(60), nullable=True)
     # mapped | ambiguous | unmapped | staff_mapped
     mapping_status: Mapped[str] = mapped_column(String(20))
+    # ambiguous DRAP brand: the products it could be, for staff or the doctor to pick from by company
+    mapping_choices: Mapped[list | None] = mapped_column(JSON, nullable=True)
     mapping_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     duplicate_of: Mapped[int | None] = mapped_column(Integer, nullable=True)
     dose_differs: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -54,8 +56,10 @@ class MedicineName(Base):
     display: Mapped[str] = mapped_column(String(120))
     ingredient: Mapped[str] = mapped_column(String(100))
     drug_class: Mapped[str] = mapped_column(String(60))
-    kind: Mapped[str] = mapped_column(String(20), default="generic")  # generic | brand
+    kind: Mapped[str] = mapped_column(String(20), default="generic")  # generic | brand | register_brand | register_ambiguous (DRAP)
     status: Mapped[str] = mapped_column(String(20), default="active")  # active | retired
+    # register_ambiguous only: the products behind the name (ingredient, company, DRAP number, strength, form)
+    options: Mapped[list | None] = mapped_column(JSON, nullable=True)
     added_by: Mapped[str] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 

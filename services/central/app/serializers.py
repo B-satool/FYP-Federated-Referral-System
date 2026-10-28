@@ -41,6 +41,7 @@ def referral_out(r: Referral) -> dict:
         "procedure_label": procedure_label(r.procedure_status, r.planned_procedure),
         "requested_at": r.requested_at, "created_by": r.created_by_name,
         "working_set_expires_at": r.working_set_expires_at, "working_set_purged_at": r.working_set_purged_at,
+        "receiver_completed_at": r.receiver_completed_at, "receiver_completed_by": r.receiver_completed_by,
         "amendment_open": r.amendment_open, "current_package_version": r.current_package_version,
         "submitted_package_version": r.submitted_package_version, "delivery_status": r.delivery_status,
         "meds_checked_by": r.meds_checked_by, "meds_checked_at": r.meds_checked_at,
@@ -106,7 +107,7 @@ def medication_out(m: MedicationEntry) -> dict:
         "start_date": m.start_date, "over_the_counter": m.over_the_counter, "source_label": m.source_label,
         "ingredient": m.ingredient, "drug_class": m.drug_class,
         "drug_class_label": DRUG_CLASSES.get(m.drug_class or "", m.drug_class),
-        "mapping_status": m.mapping_status, "mapping_note": m.mapping_note, "duplicate_of": m.duplicate_of,
+        "mapping_status": m.mapping_status, "mapping_note": m.mapping_note, "mapping_choices": m.mapping_choices, "duplicate_of": m.duplicate_of,
         "dose_differs": m.dose_differs, "excluded": m.excluded, "excluded_by": m.excluded_by,
         "excluded_reason": m.excluded_reason,
     }

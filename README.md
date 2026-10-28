@@ -192,15 +192,16 @@ python -m venv .venv
 .\.venv\Scripts\pip install httpx pytest
 
 # API checks: P5 referral, P3 test request with an image, every patient's expected flags, OCR merge,
-# temporary grants, role menus, packet selection, the package fingerprint, the clinic's own copy and the purge (resets demo data first). Expect: 18 passed
+# temporary grants, role menus and role assignment, packet selection, the package fingerprint, the clinic's own copy and the purge (resets demo data first). Expect: 22 passed
 .\.venv\Scripts\python -m pytest tests -q
 
 # Medication-rule logic, interactions, label rules, the extraction validator, AI selection checks, grant expiry,
-# working-set timing, manifests and role templates. Expect: 79 passed
+# working-set timing, manifests, role templates and DRAP brand matching. Expect: 101 passed
 docker compose run --rm --no-deps -v ${PWD}/services/central/tests:/srv/tests central python -m pytest tests -q
 
-# Browser robot: the referral and test-request journeys across 7 accounts in Chrome (reset the demo data first). Expect: 2 passed
-cd web; npm ci; npx playwright install chromium; npx playwright test e2e/smoke.spec.ts; cd ..
+# Browser robot: the referral and test-request journeys across 7 accounts, and an administrator changing a role
+# (reset the demo data first). Expect: 3 passed
+cd web; npm ci; npx playwright install chromium; npx playwright test; cd ..
 ```
 
 ---
@@ -211,6 +212,7 @@ cd web; npm ci; npx playwright install chromium; npx playwright test e2e/smoke.s
 |---|---|
 | Login page says **"We are sorry… An internal server error has occurred"** | Run `docker compose restart keycloak`, wait about 1 minute, refresh. |
 | `rad.chughtai` cannot sign in after pulling | The login accounts are imported only once. Delete the realm and restart Keycloak: `docker compose exec keycloak sh -c '/opt/keycloak/bin/kcadm.sh config credentials --server http://localhost:8080 --realm master --user admin --password "$KC_BOOTSTRAP_ADMIN_PASSWORD" && /opt/keycloak/bin/kcadm.sh delete realms/referral'` then `docker compose restart keycloak` and reseed. |
+| **Accounts** → changing a role says "The sign-in service did not accept the role change" | Keycloak was set up before the platform was allowed to assign roles. Run once: `docker compose exec keycloak sh -c '/opt/keycloak/bin/kcadm.sh config credentials --server http://localhost:8080 --realm master --user admin --password "$KC_BOOTSTRAP_ADMIN_PASSWORD" && /opt/keycloak/bin/kcadm.sh add-roles -r referral --uusername service-account-central-api --cclientid realm-management --rolename view-realm'` |
 | Login works but every page errors after switching from version 1 | The old database volume is still there. Run `docker compose down -v`, then the first-time steps. |
 | `docker compose` can't connect, or hangs | Docker Desktop isn't running, or its WSL backend froze. Quit Docker Desktop, run `wsl --shutdown`, start Docker Desktop again. |
 | Port already in use (3000, 8000-8004, 8080, 5432) | Close the other program, or change the left-hand port in `docker-compose.yml`. |
@@ -240,7 +242,7 @@ docker-compose.yml      Defines all 11 containers
 
 - **Synthetic data, unreviewed clinical content.** The rules, references, procedure features and brand mappings are plausible but not clinically reviewed. The seed marks the rules as approved by a demo reviewer.
 - **Interactions come from DDInter and US drug labels only** (automatically generated, not clinically reviewed); AI suggestions are labelled "not verified". See [`docs/medication-flagging.md`](docs/medication-flagging.md).
-- **Records are held only temporarily.** After the referral ends (72 hours after the answer, at most 60 days) the platform keeps only the reference, fingerprint and audit; the receiving hospital and the sending clinic keep the content. See [`docs/data-lifecycle.md`](docs/data-lifecycle.md).
+- **Records are held only temporarily.** They are removed 72 hours after the receiving doctor marks the referral complete (30-day safety limit after acceptance, which they can extend), at once if declined. The platform then keeps only the reference, fingerprint and audit; the receiving hospital keeps its own response, and the sending clinic its own copy. See [`docs/data-lifecycle.md`](docs/data-lifecycle.md).
 - **AI packet selection needs `ANTHROPIC_API_KEY`.** Without it the rule-based default is used and the Records tab says "AI recommendation unavailable".
 - **Most recent place only:** records held only at an older hospital are not retrieved automatically; they are listed as skipped.
 - **OCR:** printed prescriptions read well. The handwriting-style samples read with small errors, which staff correct when checking.

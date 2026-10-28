@@ -133,7 +133,7 @@ export function MedicineNames() {
                   <TableCell>{n.ingredient}</TableCell>
                   <TableCell>{n.display}</TableCell>
                   <TableCell>
-                    <Tag tone={n.kind === "brand" ? "info" : "neutral"} label={n.kind} />
+                    <Tag tone={n.kind === "generic" ? "neutral" : "info"} label={n.kind === "register_brand" ? "DRAP register" : n.kind} />
                   </TableCell>
                   <TableCell>{view.classes[n.drug_class] ?? n.drug_class}</TableCell>
                   {view.can_edit && (

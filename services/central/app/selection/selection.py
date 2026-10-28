@@ -28,20 +28,24 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import department_name, settings
+from ..generation import privacy
 from ..generation.provider import LLMProvider, ProviderOutputInvalid, ProviderUnavailable, get_provider
 from ..medications.label_validation import ADVICE
 from ..models import EvidenceItem, Referral, SelectionRun
 from ..security import audit
 
 log = logging.getLogger("selection")
-PROMPT_VERSION = "packet-selection/1"
+PROMPT_VERSION = "packet-selection/2"  # 2: de-identified input
 MAX_ITEMS = 150  # cap sent to the model; older non-default items are dropped first and the cut is reported
 DATED = {"visit", "lab", "lab_report", "imaging"}
 INACTIVE = {"resolved", "inactive", "remission", "entered-in-error", "refuted"}
-DOSING = re.compile(r"\b(\d+\s*mg|mg|mcg|doses?|dosage|dosing|tablets?|take|taking)\b", re.I)
+# Dose-change wording. Describing a record ("is taking losartan", "creatinine 1.2 mg/dL") is allowed;
+# commands such as "stop" or "start taking" are caught by ADVICE.
+DOSING = re.compile(r"\b(doses?|dosage|dosing|titrat\w*|adjust\w*)\b", re.I)
 
 SYSTEM = """You help prepare a medical referral. You are given the referral (reason, department, planned procedure)
-and the records retrieved for the patient. Recommend which records the receiving specialist needs.
+and the records retrieved for the patient (de-identified: the patient's age and sex, and each record's date as days
+before the referral). Recommend which records the receiving specialist needs.
 
 For every record id in the input return one item:
 - recommendation: "include" (the specialist needs it), "exclude" (not relevant to this referral) or
@@ -124,12 +128,17 @@ def candidates(db: Session, r: Referral) -> tuple[list[EvidenceItem], bool]:
 
 
 def _payload(r: Referral, items: list[EvidenceItem]) -> dict:
+    """What the model sees: de-identified (generation/privacy.py). No name, CNIC, record numbers, date of birth,
+    doctors' or institutions' names, and no calendar dates: only age, sex and days before the referral."""
+    on = (r.requested_at or r.created_at or utcnow()).date()
+    scrub = privacy.Scrubber(r.patient_name, [r.patient_cnic, r.patient_local_id, r.reference], on)
     return {
-        "referral": {"kind": r.kind, "reason": r.reason, "department": department_name(r.destination_department),
-                     "planned_procedure": r.planned_procedure if r.procedure_status == "planned" else None,
+        "patient": {"age_years": privacy.age_years(r.patient_birth_date, on), "sex": r.patient_sex},
+        "referral": {"kind": r.kind, "reason": scrub.text(r.reason), "department": department_name(r.destination_department),
+                     "planned_procedure": scrub.text(r.planned_procedure) if r.procedure_status == "planned" else None,
                      "procedure_status": r.procedure_status, "urgency": r.urgency},
-        "records": [{"id": e.id, "category": e.category, "date": e.clinical_time.date().isoformat() if e.clinical_time else None,
-                     "default": floor(e), "text": (e.display or "")[:300]} for e in items],
+        "records": [{"id": e.id, "category": e.category, "when": scrub.when(e.clinical_time),
+                     "default": floor(e), "text": scrub.text((e.display or "")[:300])} for e in items],
     }
 
 
@@ -155,10 +164,24 @@ def validate(raw: Any, allowed_ids: set[int]) -> tuple[dict[int, dict], list[str
         if ADVICE.search(reason) or DOSING.search(reason):
             raise ProviderOutputInvalid("a reason gives treatment or dosing advice")
         out[eid] = {"recommendation": it["recommendation"], "relevance": it["relevance"], "reason": reason.strip()}
-    missing = [m.strip() for m in raw["missing"] if isinstance(m, str) and m.strip()][:5]
-    if any(len(m.split()) > 15 or ADVICE.search(m) or DOSING.search(m) for m in missing):
-        raise ProviderOutputInvalid("a 'missing' entry is too long or gives advice")
+    # "missing" is only a hint for staff: a phrase that is too long or reads as advice is dropped,
+    # not a reason to discard the whole recommendation
+    missing = [m.strip() for m in raw["missing"] if isinstance(m, str) and m.strip()
+               and len(m.split()) <= 15 and not ADVICE.search(m) and not DOSING.search(m)][:5]
     return out, missing
+
+
+def schema_for(provider: LLMProvider, n_items: int) -> dict[str, Any]:
+    """The answer schema, with list lengths where the provider enforces them while generating.
+
+    A small local model (MedGemma 4B) was seen to finish the list and then start it over until it
+    ran out of tokens; a maxItems limit in the grammar makes it close the list instead."""
+    if not getattr(provider, "enforces_array_limits", False):
+        return SCHEMA
+    schema = json.loads(json.dumps(SCHEMA))
+    schema["properties"]["items"]["maxItems"] = n_items
+    schema["properties"]["missing"]["maxItems"] = 5
+    return schema
 
 
 def recommend(db: Session, r: Referral, actor: str, principal=None,
@@ -174,8 +197,12 @@ def recommend(db: Session, r: Referral, actor: str, principal=None,
         return run
     provider = provider_factory()
     run.provider, run.model = provider.name, provider.model
+    sent: dict = {}
     try:
-        raw = provider.structured(SYSTEM, _payload(r, items), SCHEMA, max_tokens=16000)
+        sent = privacy.check_destination(provider)  # refuses before anything is sent
+        # about 80 tokens per record is ample for 25 words; a cap keeps a slow local model from running on
+        budget = min(16000, 400 + 80 * len(items))
+        raw = provider.structured(SYSTEM, _payload(r, items), schema_for(provider, len(items)), max_tokens=budget)
         recs, missing = validate(raw, {e.id for e in items})
     except ProviderUnavailable as exc:
         run.status, run.error = "unavailable", str(exc)[:500]
@@ -187,6 +214,10 @@ def recommend(db: Session, r: Referral, actor: str, principal=None,
     else:
         run.status, run.missing = "completed", missing
         db.flush()
+        db.refresh(r)  # a local model can take minutes: the working set may have been removed meanwhile
+        if r.working_set_purged_at is not None:
+            run.status, run.missing, run.error = "discarded", [], "The records were removed while the model was working"
+            items = []
         for e in items:
             rec = recs.get(e.id)
             if rec is None:
@@ -194,13 +225,15 @@ def recommend(db: Session, r: Referral, actor: str, principal=None,
             e.ai_recommendation, e.ai_relevance, e.ai_reason, e.ai_run_id = (
                 rec["recommendation"], rec["relevance"], rec["reason"], run.id)
             # staff choices always win; default items are only ever added to, never removed by the AI
+            # adding a record needs "include" with high or medium relevance; "include" at low relevance
+            # (MedGemma 4B said "include" for everything, even records it called not relevant) is a hint only
             if e.selection_source in (None, "default", "ai") and not floor(e):
-                e.selected = rec["recommendation"] == "include"
+                e.selected = rec["recommendation"] == "include" and rec["relevance"] in ("high", "medium")
                 e.selection_source = "ai"
     db.flush()
     audit(db, principal, "selection.recommend", "referral", r.reference, run.status, r.id,
           {"run_id": run.id, "model": run.model, "prompt_version": PROMPT_VERSION, "items": run.item_count,
-           "truncated": truncated, "error": run.error},
+           "truncated": truncated, "error": run.error, "sent_to": sent},
           actor=None if principal else ("system", f"AI selection (requested by {actor})", r.source_institution))
     return run
 

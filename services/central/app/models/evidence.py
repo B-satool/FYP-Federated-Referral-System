@@ -97,6 +97,7 @@ class SelectionRun(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     referral_id: Mapped[int] = mapped_column(ForeignKey("referrals.id"), index=True)
     # completed | unavailable (no model / API error) | rejected (answer failed checks) | nothing_to_review
+    # | discarded (the working set was removed before the answer arrived)
     status: Mapped[str] = mapped_column(String(20))
     provider: Mapped[str | None] = mapped_column(String(40), nullable=True)
     model: Mapped[str | None] = mapped_column(String(80), nullable=True)

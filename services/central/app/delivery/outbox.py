@@ -26,6 +26,7 @@ ENDPOINTS = {
     "forward_result": "/inbound/results",
     "clarification_answer": "/inbound/clarification-answers",
     "sender_copy": "/outbound-copies",  # the sending clinic's own copy of what it sent and received
+    "expire_shared": "/inbound/referral-expired",  # the receiving institution removes its copy of the shared records
 }
 
 

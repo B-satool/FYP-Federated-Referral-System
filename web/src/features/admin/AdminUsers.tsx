@@ -26,7 +26,7 @@ export function AdminUsers() {
   const [assign, setAssign] = useState<{ user: AdminUser; template: RoleTemplate } | null>(null);
   const apply = useMutation({
     mutationFn: (reason: string) => api.post(`/admin/users/${assign!.user.id}/apply-template`, { template_id: assign!.template.template_id, reason }),
-    meta: { success: "Role changed. It applies from the user's next action." },
+    meta: { success: "Role changed. It applies when the user next signs in, or within about 5 minutes if they are signed in now." },
     onSuccess: () => {
       setAssign(null);
       qc.invalidateQueries({ queryKey: ["admin-users"] });

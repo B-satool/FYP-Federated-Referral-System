@@ -6,7 +6,7 @@ import json
 
 import pytest
 from conftest import SURGERY, compose, new_referral
-from helpers import central, institution, ok, wait_for
+from helpers import central, institution, ok, token, wait_for
 
 DOCTOR, STAFF = central("dr.ali"), central("staff.ali")
 
@@ -42,11 +42,38 @@ def test_role_menus():
     assert STAFF.get("/rules").status_code == 403
 
 
+def test_admin_assigns_a_role_by_template():
+    """An institution administrator turns a lab account into front-desk staff and back. The change is
+    made in Keycloak, so it applies on the user's next sign-in, and it is audited."""
+    admin = central("admin.ali")
+    users = {u["username"]: u for u in ok(admin.get("/admin/users"))}
+    tech = users["tech.ali"]
+    assert {t["template_id"] for t in ok(admin.get("/admin/role-templates"))} >= {"front_desk", "doctor"}
+    try:
+        out = ok(admin.post(f"/admin/users/{tech['id']}/apply-template",
+                            {"template_id": "front_desk", "reason": "Moved to the front desk"}))
+        assert out["added"] == ["clinic_staff"] and out["removed"] == ["diagnostics_staff"]
+        token("tech.ali", fresh=True)
+        me = ok(central("tech.ali").get("/me"))
+        assert me["roles"] == ["clinic_staff"] and me["home"] == "/work-queue"
+        assert central("tech.ali").get("/work-queue").status_code == 200
+    finally:
+        ok(admin.post(f"/admin/users/{tech['id']}/apply-template", {"template_id": "lab_radiology", "reason": "Test finished"}))
+    token("tech.ali", fresh=True)
+    assert ok(central("tech.ali").get("/me"))["roles"] == ["diagnostics_staff"]
+    # guards: not oneself, not another institution's account, not by non-administrators
+    assert admin.post(f"/admin/users/{users['admin.ali']['id']}/apply-template",
+                      {"template_id": "doctor", "reason": "test"}).status_code == 409
+    other = next(u for u in ok(central("admin.aku").get("/admin/users")) if u["username"] == "staff.aku")
+    assert admin.post(f"/admin/users/{other['id']}/apply-template", {"template_id": "doctor", "reason": "test"}).status_code == 403
+    assert STAFF.post(f"/admin/users/{tech['id']}/apply-template", {"template_id": "doctor", "reason": "test"}).status_code == 403
+
+
 def test_selection_manifest_own_copy_and_purge():
     r = new_referral("Gondal", "akuh", "orthopaedics", "Total knee replacement (right)", SURGERY)
     rid = r["id"]
     retrieved = ok(STAFF.post(f"/referrals/{rid}/retrieve"))
-    assert _ref(rid)["working_set_expires_at"]
+    assert _ref(rid)["working_set_expires_at"] is None  # no time limit until the receiving doctor accepts
 
     # Packet selection: without a model the default stands and the page can say so.
     sel = ok(STAFF.get(f"/referrals/{rid}/selection"))

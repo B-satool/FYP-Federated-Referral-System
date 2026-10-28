@@ -42,7 +42,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from . import adapter
-from .config import CENTRAL_URL, DEFAULT_WINDOW_DAYS, INSTITUTION, INSTITUTION_NAME, LOCAL_ID_PREFIX, AUDIENCE
+from .config import (ACCEPTED_HOLD_DAYS, AUDIENCE, CENTRAL_URL, DEFAULT_WINDOW_DAYS, GRACE_HOURS, INSTITUTION, INSTITUTION_NAME,
+                     LOCAL_ID_PREFIX)
 from .models import (
     AccessGrant,
     AuditEvent,
@@ -453,6 +454,34 @@ def receive_package(raw: dict, db: Session = Depends(get_db), principal: Princip
     return {"status": "received", "case_id": case.id, "version": env.package_version}
 
 
+class ExpiredIn(BaseModel):
+    expire_key: str
+    referral_id: str
+    expired_at: datetime
+
+
+@app.post("/inbound/referral-expired", tags=["inbound (central platform)"])
+def referral_expired(body: ExpiredIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """The referral's time is up: remove this institution's copy of the shared records (the packages and the
+    results forwarded with them). Its own decision, questions and response are its record and are kept."""
+    _require_central(principal)
+    case = db.scalars(select(Case).where(Case.central_referral_id == body.referral_id)).first()
+    if case is None:
+        return {"status": "no_case"}
+    if case.shared_removed_at is None:
+        for p in db.scalars(select(IncomingPackage).where(IncomingPackage.case_id == case.id)):
+            p.envelope = {"referral_id": case.central_referral_id, "package_version": p.version,
+                          "content_hash": p.content_hash, "purged": True,
+                          "note": "shared records removed: the referral's time ended"}
+        for f in db.scalars(select(ForwardedResult).where(ForwardedResult.case_id == case.id)):
+            f.content = {"purged": True}
+        case.shared_removed_at = body.expired_at
+        record_audit(db, AuditEvent, principal, "case.shared_records_removed", "referral", case.central_referral_id,
+                     "success", detail={"expire_key": body.expire_key})
+        db.commit()
+    return {"status": "removed", "case_id": case.id}
+
+
 @app.post("/inbound/orders", tags=["inbound (central platform)"])
 def receive_order(body: DiagnosticOrder, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     _require_central(principal)
@@ -604,6 +633,8 @@ def _case_out(c: Case, db: Session) -> dict:
         "assigned_doctor": c.assigned_doctor, "assigned_by": c.assigned_by, "assigned_at": c.assigned_at,
         "assign_note": c.assign_note, "decision": c.decision,
         "decision_by": c.decision_by, "decision_at": c.decision_at, "decline_reason": c.decline_reason,
+        "completed_by": c.completed_by, "completed_at": c.completed_at, "hold_until": c.hold_until,
+        "shared_removed_at": c.shared_removed_at,
         "received_at": c.received_at, "updated_at": c.updated_at,
         "open_info_requests": db.scalar(select(func.count()).select_from(InfoRequest).where(
             InfoRequest.case_id == c.id, InfoRequest.status == "open")) or 0,
@@ -705,6 +736,8 @@ def decide(case_id: int, body: DecisionIn, db: Session = Depends(get_db), princi
     case.decision, case.decision_by, case.decision_at = target, principal.display_name, utcnow()
     case.decline_reason = body.reason.strip() if body.decision == "decline" else None
     case.status = target
+    if target == "accepted":
+        case.hold_until = case.decision_at + timedelta(days=ACCEPTED_HOLD_DAYS)
     _emit(db, f"{INSTITUTION}:{case.central_referral_id}:{target}", target, case.central_referral_id, principal,
           {"reason": case.decline_reason} if case.decline_reason else {}, case=case)
     record_audit(db, AuditEvent, principal, f"case.{target}", "referral", case.central_referral_id, "success")
@@ -807,6 +840,47 @@ def send_response(case_id: int, body: SendIn, db: Session = Depends(get_db), pri
     record_audit(db, AuditEvent, principal, "response.return", "referral", case.central_referral_id, "success")
     db.commit()
     return _response_out(resp)
+
+
+class ExtendHoldIn(BaseModel):
+    reason: str = Field(min_length=3)
+
+
+@app.post("/cases/{case_id}/complete", tags=["receiving doctor"])
+def complete_case(case_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """The referred doctor has finished with the referral. The shared records are removed 72 hours later."""
+    _require_doctor(principal)
+    case = _get_case(db, case_id, principal)
+    if case.completed_at:
+        return _case_out(case, db)
+    if case.decision != "accepted":
+        raise _conflict("not_accepted", "Only an accepted referral can be marked complete")
+    now = utcnow()
+    case.completed_by, case.completed_at, case.status = principal.display_name, now, "completed"
+    case.hold_until = now + timedelta(hours=GRACE_HOURS)
+    _emit(db, f"{INSTITUTION}:{case.central_referral_id}:completed", "completed", case.central_referral_id, principal,
+          {"records_removed_at": case.hold_until.isoformat()}, case=case)
+    record_audit(db, AuditEvent, principal, "case.complete", "referral", case.central_referral_id, "success",
+                 detail={"records_removed_at": case.hold_until.isoformat()})
+    db.commit()
+    return _case_out(case, db)
+
+
+@app.post("/cases/{case_id}/extend-hold", tags=["receiving doctor"])
+def extend_hold(case_id: int, body: ExtendHoldIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """The referred doctor needs the shared records for longer: kept for another 30 days from now."""
+    _require_doctor(principal)
+    case = _get_case(db, case_id, principal)
+    if case.decision != "accepted" or case.completed_at or case.shared_removed_at:
+        raise _conflict("not_extendable", "Only an accepted referral that is not complete can be extended")
+    now = utcnow()
+    case.hold_until = max(case.hold_until or now, now + timedelta(days=ACCEPTED_HOLD_DAYS))
+    _emit(db, f"{INSTITUTION}:{case.central_referral_id}:extend:{int(now.timestamp())}", "hold_extended",
+          case.central_referral_id, principal, {"until": case.hold_until.isoformat(), "reason": body.reason.strip()}, case=case)
+    record_audit(db, AuditEvent, principal, "case.extend_hold", "referral", case.central_referral_id, "success",
+                 detail={"until": case.hold_until.isoformat(), "reason": body.reason.strip()})
+    db.commit()
+    return _case_out(case, db)
 
 
 # --------------------------------------------------------------------------- laboratory / imaging department

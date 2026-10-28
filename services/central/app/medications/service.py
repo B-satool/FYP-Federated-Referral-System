@@ -78,6 +78,7 @@ def sync_entries(db: Session, referral: Referral) -> None:
             m = index.map(name, entry.brand)
             entry.mapping_status, entry.ingredient, entry.drug_class, entry.mapping_note = (
                 m.status, m.ingredient, m.drug_class, m.note)
+            entry.mapping_choices = list(m.choices) or None
         entry.ingredients = parts.get(entry.ingredient or "", [entry.ingredient] if entry.ingredient else [])
     db.flush()
     # group: same ingredient (or same name when unrecognised)
@@ -162,7 +163,8 @@ def build_input(db: Session, referral: Referral) -> tuple[EvalInput, dict[str, i
     meds = tuple(MedInput(entry_id=e.id, original_name=e.original_name, ingredient=e.ingredient,
                           drug_class=e.drug_class, mapping_status=e.mapping_status, source_label=e.source_label,
                           evidence_ids=tuple(x.evidence_id for x in _group_members(db, e)),
-                          ingredients=tuple(e.ingredients or ([e.ingredient] if e.ingredient else [])))
+                          ingredients=tuple(e.ingredients or ([e.ingredient] if e.ingredient else [])),
+                          mapping_note=e.mapping_note)
                  for e in entries)
     ings = {i for m in meds if m.mapping_status in ("mapped", "staff_mapped") for i in m.ingredients}
     tags = tuple(sorted(referral.procedure_tags or [])) if referral.procedure_status == "planned" else ()

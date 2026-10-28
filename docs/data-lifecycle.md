@@ -1,6 +1,6 @@
 # Data lifecycle: temporary access, temporary working set, minimal storage
 
-This page covers the supervisor's suggestions (`data-lifecycle.patch`) and spec v3, both ported onto v2. The decision and its approval status are in [decisions/2026-10-27-data-lifecycle-and-v3.md](decisions/2026-10-27-data-lifecycle-and-v3.md). For each kind of content, [data-inventory.md](data-inventory.md) says where it is held and for how long.
+This page covers the supervisor's suggestions (`data-lifecycle.patch`) and spec v3, both ported onto v2, with the expiry rules of [decisions/2026-10-28-referral-expiry.md](decisions/2026-10-28-referral-expiry.md). The decision and its approval status are in [decisions/2026-10-27-data-lifecycle-and-v3.md](decisions/2026-10-27-data-lifecycle-and-v3.md). For each kind of content, [data-inventory.md](data-inventory.md) says where it is held and for how long.
 
 ## In one paragraph
 
@@ -17,22 +17,26 @@ Each institution keeps its own database. For a referral, the platform asks each 
 
 | When | What happens |
 | --- | --- |
-| First retrieval, paper or manual entry | `working_set_expires_at` = now + 60 days |
-| Specialist's answer returned, referral closed, declined or cancelled | End moves forward to now + 72 hours (never later than before) |
-| End reached (worker `purge_working_sets`, every 10 minutes) | If every package, order and the clinic's own copy has been delivered, the content is removed (see the inventory). Otherwise the purge waits, and each wait is audited as `deferred`. |
+| Referral sent, not yet accepted | No time limit |
+| Receiving doctor accepts | Kept 30 days after acceptance; they can extend it (30 days from then, with a reason) |
+| Receiving doctor marks it complete (after sending their response) | Removed 72 hours later |
+| Receiving doctor declines | Removed straight away |
+| Referring doctor cancels | Removed 72 hours later |
+| Test request: all results back, closed or cancelled | Removed 72 hours later |
+| End reached (worker `purge_working_sets`, every 10 minutes; at once after a decline) | If every package, order and the clinic's own copy has been delivered, the content is removed (see the inventory), and the receiving hospital is told to remove its copy of the shared records (`POST /inbound/referral-expired`). Otherwise the purge waits, and each wait is audited as `deferred`. |
 | Retrieved again later (an amendment) | A new working set begins and fresh copies are fetched. Removed content is never reused. |
 
 The screens show "Held for this referral until …". After removal they show "Content has been removed. Reference and fingerprint kept." and "These records are no longer held", never an empty list read as "no history".
 
 ## Copies that outlive the working set
 
-- **Receiving institution:** the package it received is part of its own record and follows its own retention policy. The platform never deletes it.
+- **Receiving institution:** keeps its own decision, questions and response. Its copy of the shared records (packages, forwarded results) is removed when the referral expires (2026-10-28 decision).
 - **Sending clinic:** each sent package and each response it receives is also delivered to the clinic's own system (`POST /outbound-copies`, outbox kind `sender_copy`). The purge waits until that delivery is confirmed.
 - **Checking a copy:** `POST /referrals/{id}/packages/{v}/verify` checks any copy against the kept fingerprint, and `.../verify-own-copy` fetches the clinic's copy from its own system and checks it. The sent letter offers this as a button, and shows the copy once it matches.
 
 ## Role templates
 
-`rules/roles/templates.v1.json` defines named bundles of the existing realm roles (front desk, doctor, laboratory and radiology, institution administrator, rule reviewer), with each one's home screen and menu. `GET /me` returns the user's templates, home and menu. The web app builds its navigation from that and opens the home screen after sign-in. Hiding a screen is only a convenience: every API still checks the role itself. An administrator can change a user's role by applying a template (**Accounts** screen). This replaces only the template-managed roles, never service roles, never on oneself, and is audited as `role.assign`.
+`rules/roles/templates.v1.json` defines named bundles of the existing realm roles (front desk, doctor, laboratory and radiology, institution administrator, rule reviewer), with each one's home screen and menu. `GET /me` returns the user's templates, home and menu. The web app builds its navigation from that and opens the home screen after sign-in. Hiding a screen is only a convenience: every API still checks the role itself. An administrator can change a user's role by applying a template (**Accounts** screen). This replaces only the template-managed roles, never service roles, never on oneself, and is audited as `role.assign` (a refused change is audited as `failed`). The change is made in Keycloak, so it reaches the user at their next sign-in, or within about 5 minutes when their token renews. The platform's Keycloak service account needs `view-realm` for this (in the realm file since 2026-10-28; older installs: see the README troubleshooting table).
 
 ## Not built (and why)
 

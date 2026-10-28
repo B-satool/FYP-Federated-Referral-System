@@ -1,4 +1,5 @@
-"""Specialist response, information requests, informing the patient, tasks and closure."""
+"""Information requests, informing the patient, tasks and closure (and the response endpoints, unused for
+referrals since 2026-10-28: the receiving doctor only accepts or declines)."""
 from __future__ import annotations
 
 from datetime import date
@@ -83,7 +84,8 @@ class InformedIn(BaseModel):
 def patient_informed(referral_id: int, body: InformedIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     """Staff record that the patient was told the outcome and what happens next."""
     r = load_referral(db, referral_id, principal, "inform_patient", roles=(STAFF, DOCTOR))
-    if r.status not in ("response_returned", "followup_pending", "declined"):
+    outcome = ("response_returned", "followup_pending") if r.kind == "test" else ("accepted", "followup_pending", "declined")
+    if r.status not in outcome:
         raise error(409, "no_outcome", "There is no outcome to tell the patient yet")
     r.patient_informed_by, r.patient_informed_at, r.patient_informed_note = principal.display_name, utcnow(), body.note.strip()
     event(db, r, "patient_informed", principal.display_name, principal.institution_id, {"note": body.note})
@@ -108,12 +110,12 @@ def tasks(referral_id: int, db: Session = Depends(get_db), principal: Principal 
 def add_task(referral_id: int, body: TaskIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     """Tasks such as a repeat test or making sure the patient attends."""
     r = load_referral(db, referral_id, principal, "followup")
-    if r.status not in ("response_returned", "followup_pending"):
-        raise error(409, "no_response", "Follow-up tasks are added after the specialist's response arrives")
+    if r.status not in (("response_returned", "followup_pending") if r.kind == "test" else ("accepted", "followup_pending")):
+        raise error(409, "no_outcome", "Follow-up tasks are added once the referral is accepted (or the results are back)")
     t = FollowupTask(referral_id=r.id, description=body.description.strip(), specified_by=principal.display_name,
                      assignee_name=body.assignee_name, due_date=body.due_date, created_by=principal.display_name)
     db.add(t)
-    if r.status == "response_returned":
+    if r.status in ("response_returned", "accepted"):
         transition(db, r, "followup_pending", principal.display_name, principal)
     audit(db, principal, "task.create", "followup_task", "new", "success", r.id, {"description": t.description})
     db.commit()
@@ -156,11 +158,8 @@ def close(referral_id: int, body: CloseIn, db: Session = Depends(get_db), princi
                                                             DiagnosticRequest.seen_at.is_(None))).all()
         if r.status != "response_returned" or unseen:
             raise error(409, "outcome_not_seen", "The doctor must see every result before closing")
-    else:
-        reviewed = db.scalars(select(ConsultationResponse).where(ConsultationResponse.referral_id == r.id,
-                                                                 ConsultationResponse.reviewed_at.is_not(None))).first()
-        if reviewed is None:
-            raise error(409, "outcome_not_seen", "The referring doctor must review the specialist's response before closing")
+    elif r.status not in ("accepted", "followup_pending"):
+        raise error(409, "not_accepted", "A referral is closed once the receiving hospital has accepted it")
     if r.patient_informed_at is None:
         raise error(409, "patient_not_informed", "Record that the patient has been told the outcome before closing")
     open_tasks = db.scalars(select(FollowupTask).where(FollowupTask.referral_id == r.id, FollowupTask.status == "open")).all()

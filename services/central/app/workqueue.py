@@ -76,7 +76,7 @@ def work_queue(db: Session = Depends(get_db), principal: Principal = Depends(get
         out["delivery_problems"] = [_ref(r) for r in referrals if r.delivery_status == "failed"]
         out["follow_up"] = []
         for r in referrals:
-            if r.status in ("response_returned", "followup_pending"):
+            if r.status in ("response_returned", "followup_pending") or (r.kind == "referral" and r.status == "accepted"):
                 open_tasks = db.scalars(select(FollowupTask).where(FollowupTask.referral_id == r.id,
                                                                    FollowupTask.status == "open")).all()
                 out["follow_up"].append(_ref(r, patient_informed=r.patient_informed_at is not None,

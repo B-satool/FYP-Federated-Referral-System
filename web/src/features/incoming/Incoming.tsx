@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Link as RouterLink, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -36,12 +36,13 @@ const CASE_STATUS: Record<string, string> = {
   accepted: "accepted",
   declined: "declined",
   responded: "response sent",
+  completed: "complete",
 };
 
 const NEEDS_INTAKE = ["received", "acknowledged"];
 
 function CaseStatusTag({ status }: { status: string }) {
-  const tone = status === "received" ? "warn" : status === "declined" ? "off" : status === "responded" ? "ok" : "info";
+  const tone = status === "received" ? "warn" : status === "declined" ? "off" : ["responded", "completed"].includes(status) ? "ok" : "info";
   return <Tag tone={tone} label={CASE_STATUS[status] ?? status} />;
 }
 
@@ -147,8 +148,6 @@ export function IncomingList() {
   );
 }
 
-type ResponseForm = { assessment: string; plan: string; instructions_for_clinic: string; appointment: string };
-const EMPTY_FORM: ResponseForm = { assessment: "", plan: "", instructions_for_clinic: "", appointment: "" };
 
 function ResponseView({ content }: { content: ConsultationResponse["content"] }) {
   return (
@@ -265,26 +264,11 @@ export function IncomingCase() {
   };
   const [declineOpen, setDeclineOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
-  const [form, setForm] = useState<ResponseForm>(EMPTY_FORM);
   const [version, setVersion] = useState<number | null>(null);
-  const [focusResponse, setFocusResponse] = useState(false);
-  const responseRef = useRef<HTMLDivElement>(null);
-  const firstFieldRef = useRef<HTMLTextAreaElement>(null);
 
   const draft = q.data?.responses.length ? q.data.responses[q.data.responses.length - 1] : null;
-  useEffect(() => {
-    if (draft) setForm({ ...EMPTY_FORM, ...(draft.content as Partial<ResponseForm>) } as ResponseForm);
-  }, [draft?.id, draft?.row_version]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const accepted = q.data?.case.decision === "accepted";
-  // after "Accept referral", bring the response form into view and put the cursor in it
-  useEffect(() => {
-    if (focusResponse && accepted && responseRef.current) {
-      responseRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-      firstFieldRef.current?.focus({ preventScroll: true });
-      setFocusResponse(false);
-    }
-  }, [focusResponse, accepted]);
 
   const acknowledge = useMutation({
     mutationFn: () => api.post(`/cases/${id}/acknowledge`, {}, service),
@@ -293,10 +277,9 @@ export function IncomingCase() {
   });
   const decide = useMutation({
     mutationFn: (body: { decision: "accept" | "decline"; reason?: string }) => api.post(`/cases/${id}/decision`, body, service),
-    meta: { success: "Decision recorded and sent to the referring clinic." },
-    onSuccess: (_, body) => {
+    meta: { success: "Decision recorded. The referring doctor is told." },
+    onSuccess: () => {
       setDeclineOpen(false);
-      if (body.decision === "accept") setFocusResponse(true);
       refresh();
     },
   });
@@ -308,94 +291,45 @@ export function IncomingCase() {
       refresh();
     },
   });
-  const save = useMutation({
-    mutationFn: () => api.put<{ row_version: number }>(`/cases/${id}/response`, { ...form, expected_row_version: draft?.row_version ?? null }, service),
-    meta: { success: "Draft saved." },
+  const [extendOpen, setExtendOpen] = useState(false);
+  const complete = useMutation({
+    mutationFn: () => api.post(`/cases/${id}/complete`, {}, service),
+    meta: { success: "Marked complete. The referring clinic is told; the shared records are removed in 72 hours." },
     onSuccess: refresh,
   });
-  const send = useMutation({
-    mutationFn: async () => {
-      const saved = await api.put<{ row_version: number }>(`/cases/${id}/response`, { ...form, expected_row_version: draft?.row_version ?? null }, service);
-      return api.post(`/cases/${id}/response/send`, { expected_row_version: saved.row_version }, service);
+  const extend = useMutation({
+    mutationFn: (reason: string) => api.post(`/cases/${id}/extend-hold`, { reason }, service),
+    meta: { success: "The shared records are kept for another 30 days." },
+    onSuccess: () => {
+      setExtendOpen(false);
+      refresh();
     },
-    meta: { success: "Response sent to the referring clinic." },
-    onSuccess: refresh,
   });
 
   if (q.isLoading || !me) return <Loading />;
   if (q.error) return <ErrorAlert error={q.error} />;
   const { case: c, packages, info_requests, results } = q.data!;
   const shown = packages.find((p) => p.version === version) ?? packages[0];
-  const env = shown?.envelope;
+  const removed = !!c.shared_removed_at || !!shown?.envelope.purged;
+  const env = removed ? undefined : shown?.envelope;
   const urgency = ref.data?.urgencies[c.urgency];
   const deptName = (code: string | null | undefined) => (code ? ref.data?.departments[code]?.name ?? code : null);
-  const sent = draft?.status === "returned";
-  const hasContent = Object.values(form).some((v) => v.trim());
   const from = env ? `${env.requesting_doctor.name}, ${env.requesting_doctor.institution}` : c.sender_name;
   const decided = !!c.decision;
   const canDecide = doctor && c.status === "assigned" && !decided;
-  const canAsk = doctor && !!c.assigned_doctor && !["responded", "declined"].includes(c.status);
+  const canAsk = doctor && !!c.assigned_doctor && !["responded", "declined", "completed"].includes(c.status);
 
   // ---- intake steps (staff)
   const acked = !!c.acknowledged_at;
   const confirmed = !!c.local_patient_id;
   const assignedStep = !!c.assigned_doctor;
 
-  const responseSection = accepted && (
-    <Box ref={responseRef} sx={{ scrollMarginTop: 80 }}>
-      <Section
-        title="Your response"
-        description={
-          sent
-            ? `Sent by ${draft?.returned_by} on ${fmtDate(draft?.returned_at)}. It cannot be changed.`
-            : "You accepted this referral. Write your assessment and plan; sending signs it off and returns it to the referring clinic."
-        }
-      >
-        {sent ? (
-          <ResponseView content={draft!.content} />
-        ) : (
-          <Stack spacing={1.5}>
-            <TextField
-              label="Assessment"
-              multiline
-              minRows={3}
-              inputRef={firstFieldRef}
-              value={form.assessment}
-              onChange={(e) => setForm({ ...form, assessment: e.target.value })}
-            />
-            <TextField label="Plan" multiline minRows={2} value={form.plan} onChange={(e) => setForm({ ...form, plan: e.target.value })} />
-            <TextField
-              label="Instructions for the referring clinic"
-              multiline
-              minRows={2}
-              value={form.instructions_for_clinic}
-              onChange={(e) => setForm({ ...form, instructions_for_clinic: e.target.value })}
-            />
-            <TextField label="Appointment" placeholder="For example: surgical clinic in 2 weeks" value={form.appointment} onChange={(e) => setForm({ ...form, appointment: e.target.value })} />
-            <ErrorAlert error={save.error || send.error} />
-            {doctor ? (
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Button variant="outlined" onClick={() => save.mutate()} disabled={save.isPending || !hasContent}>
-                  Save draft
-                </Button>
-                <Button variant="contained" onClick={() => send.mutate()} disabled={send.isPending || !hasContent}>
-                  Send response to the referring clinic
-                </Button>
-              </Stack>
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                Only the assigned doctor can write and send the response.
-              </Typography>
-            )}
-            {draft && (
-              <Typography variant="caption" color="text.secondary">
-                Draft saved by {draft.drafted_by}.
-              </Typography>
-            )}
-          </Stack>
-        )}
-      </Section>
-    </Box>
+  // the referral needs no response from here (2026-10-28); one sent before that stays visible
+  const sentResponse = draft?.status === "returned" ? draft : null;
+  const responseSection = sentResponse && (
+    <Section title="Your response" description={`Sent by ${sentResponse.returned_by} on ${fmtDate(sentResponse.returned_at)}.`}>
+      <ResponseView content={sentResponse.content} />
+    </Section>
   );
 
   const infoRequests = info_requests.length > 0 && (
@@ -473,10 +407,47 @@ export function IncomingCase() {
     </Box>
   );
 
-  const resultsSection = results.length > 0 && (
+  const isAssignedDoctor = doctor && !!c.assigned_doctor;
+  const holdSection = (accepted || removed) && (
+    <Section title="Shared records" description="The referral letter and the records sent with it are kept only while you need them. Your decision, questions and response are your own record and are kept.">
+      {removed ? (
+        <Alert severity="info">
+          The shared records were removed{c.shared_removed_at ? ` on ${fmtDate(c.shared_removed_at)}` : ""}. Reference and fingerprint kept. If you need them again, ask the referring clinic to send the referral again.
+        </Alert>
+      ) : c.completed_at ? (
+        <Alert severity="success">
+          Marked complete by {c.completed_by} on {fmtDate(c.completed_at)}. The shared records are removed on {fmtDate(c.hold_until)}.
+        </Alert>
+      ) : (
+        <Stack spacing={1.5}>
+          <Typography variant="body2">
+            Kept until <strong>{fmtDate(c.hold_until)}</strong> (30 days after you accepted). Mark the referral complete when you have finished with it; the shared records are then removed 72 hours later.
+          </Typography>
+          <ErrorAlert error={complete.error || extend.error} />
+          {isAssignedDoctor ? (
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Button variant="contained" onClick={() => complete.mutate()} disabled={complete.isPending}>
+                Mark as complete
+              </Button>
+              <Button variant="outlined" onClick={() => setExtendOpen(true)} disabled={extend.isPending}>
+                Keep for another 30 days
+              </Button>
+            </Stack>
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              Only the assigned doctor can mark it complete or keep the records longer.
+            </Typography>
+          )}
+        </Stack>
+      )}
+    </Section>
+  );
+
+  const shownResults = results.filter((r) => !r.purged);
+  const resultsSection = shownResults.length > 0 && (
     <Section title="Results received" description="Test and scan reports for this referral, sent on to you when they are ready.">
       <Stack spacing={1.5}>
-        {results.map((r) => (
+        {shownResults.map((r) => (
           <ResultReport
             key={r.id}
             title={r.test}
@@ -562,12 +533,11 @@ export function IncomingCase() {
           </Section>
         )}
 
-        {doctor && !sent && responseSection}
 
         {doctor && (canDecide || canAsk || decided) && (
           <Section
             title="Decision"
-            description={canDecide ? "Accept the referral and write your response, decline it with a reason, or ask the referring clinic for more information." : undefined}
+            description={canDecide ? "Accept or decline the referral (with a reason). The referring doctor is told either way. You can also ask the referring clinic for more information." : undefined}
           >
             <ErrorAlert error={decide.error || ask.error} />
             {c.assign_note && !decided && (
@@ -607,10 +577,12 @@ export function IncomingCase() {
 
         {infoRequests}
 
-        {(!doctor || sent) && responseSection}
+        {responseSection}
+
+        {holdSection}
 
         {letter}
-        {!env && <Empty>The referral letter has not been received yet.</Empty>}
+        {!env && !removed && <Empty>The referral letter has not been received yet.</Empty>}
 
         {resultsSection}
 
@@ -630,8 +602,8 @@ export function IncomingCase() {
                 {packages.map((p) => (
                   <TableRow key={p.version}>
                     <TableCell>v{p.version}</TableCell>
-                    <TableCell>{p.envelope.sent_by}</TableCell>
-                    <TableCell>{fmtDate(p.envelope.sent_at)}</TableCell>
+                    <TableCell>{p.envelope.purged ? "removed" : p.envelope.sent_by}</TableCell>
+                    <TableCell>{p.envelope.purged ? "removed" : fmtDate(p.envelope.sent_at)}</TableCell>
                     <TableCell>{fmtDate(p.received_at)}</TableCell>
                     <TableCell>
                       <code title={p.content_hash}>{p.content_hash.slice(0, 12)}…</code>
@@ -652,6 +624,15 @@ export function IncomingCase() {
         onClose={() => setDeclineOpen(false)}
         onConfirm={(reason) => decide.mutate({ decision: "decline", reason })}
         busy={decide.isPending}
+      />
+      <ReasonDialog
+        open={extendOpen}
+        title="Keep the shared records for another 30 days"
+        label="Why do you need them for longer?"
+        confirm="Keep for 30 more days"
+        onClose={() => setExtendOpen(false)}
+        onConfirm={(reason) => extend.mutate(reason)}
+        busy={extend.isPending}
       />
       <ReasonDialog
         open={askOpen}

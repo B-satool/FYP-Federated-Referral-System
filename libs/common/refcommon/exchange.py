@@ -162,6 +162,8 @@ ProviderEventType = Literal[
     "declined",
     "info_requested",
     "response_returned",
+    "completed",  # the receiving doctor has finished with the referral
+    "hold_extended",  # the receiving doctor needs the shared records for longer
     # diagnostic order (laboratory / imaging department)
     "order_accepted",
     "order_rejected",

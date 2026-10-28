@@ -129,33 +129,33 @@ test("referral: doctor requests, staff prepare, doctor reviews flags, staff send
   await expect(aku.getByText(/Dr Naveed Baig/).first()).toBeVisible();
   await shot(aku, "v2-incoming-intake");
 
-  // 6. The surgeon accepts; the response form comes first.
+  // 6. The surgeon accepts (no response to write) and later marks it complete.
   const surgeon = await asUser(browser, "dr.naveed");
   await go(surgeon, "/incoming");
   await surgeon.getByRole("link", { name: reference }).click();
   await surgeon.getByRole("button", { name: "Accept referral" }).click();
-  await expect(surgeon.getByLabel("Assessment")).toBeFocused({ timeout: 15_000 });
-  await surgeon.getByLabel("Assessment").fill("Symptomatic gallstones.");
-  await surgeon.getByLabel("Plan").fill("Laparoscopic cholecystectomy on the elective list.");
-  await surgeon.getByLabel("Instructions for the referring clinic").fill("Cardiology input on antiplatelets before surgery.");
+  await expect(surgeon.getByText(/Kept until/)).toBeVisible({ timeout: 15_000 });
+  await expect(surgeon.getByLabel("Assessment")).toHaveCount(0);
   await shot(surgeon, "v2-incoming-case");
-  await surgeon.getByRole("button", { name: "Send response to the referring clinic" }).click();
-  await expect(surgeon.getByRole("button", { name: "Send response to the referring clinic" })).toHaveCount(0, { timeout: 30_000 });
+  await surgeon.getByRole("button", { name: "Mark as complete" }).click();
+  await expect(surgeon.getByText(/Marked complete by Dr Naveed Baig/)).toBeVisible({ timeout: 30_000 });
+  await shot(surgeon, "v3-receiver-marked-complete");
 
-  // 7. The clinic learns the patient was new there; doctor reviews; staff inform the patient and close.
-  await go(dr, `${url}?tab=response`);
-  await expect(async () => {
-    await dr.reload();
-    await dr.getByRole("button", { name: "I have reviewed the outcome" }).click({ timeout: 3_000 });
-  }).toPass({ timeout: 60_000 });
-  await expect(dr.getByText(/Seen by/)).toBeVisible();
+  // 7. The clinic is told it was accepted; staff tell the patient; the doctor closes it.
   await go(staff, `${url}?tab=response`);
-  await staff.getByRole("button", { name: "Record that the patient was told" }).click();
+  await expect(async () => {
+    await staff.reload();
+    await staff.getByRole("button", { name: "Record that the patient was told" }).click({ timeout: 3_000 });
+  }).toPass({ timeout: 60_000 });
   await staff.getByLabel("How and what (e.g. phoned, clinic date given)").fill("Phoned the patient; surgical clinic date given");
   await staff.getByRole("button", { name: "Record", exact: true }).click();
-  await staff.getByRole("button", { name: "Close referral" }).click();
-  await expect(staff.getByText(/Closed by/)).toBeVisible();
-  await shot(staff, "v2-closed");
+  await expect(staff.getByText(/Patient informed by/)).toBeVisible();
+  await go(dr, `${url}?tab=response`);
+  await expect(dr.getByText(/Accepted by Aga Khan University Hospital/)).toBeVisible();
+  await expect(dr.getByText(/Marked complete by Dr Naveed Baig/).first()).toBeVisible();
+  await dr.getByRole("button", { name: "Close referral" }).click();
+  await expect(dr.getByText(/Closed by Dr Ali Raza/)).toBeVisible();
+  await shot(dr, "v2-closed");
 });
 
 test("test request: MRI at Aga Khan radiology with images, result back to the doctor", async ({ browser }) => {

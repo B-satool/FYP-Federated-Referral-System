@@ -3,7 +3,7 @@ import type { ReferralDetail, RequestKind } from "../../api/types";
 /**
  * A request as a journey. Doctors and staff see different steps.
  * Referral: the doctor requests it; staff gather records, papers and medicines and mark it ready;
- * the doctor reviews the medication flags; staff send it; the response comes back.
+ * the doctor reviews the medication flags; staff send it; the receiving doctor accepts or declines.
  * Test request: the doctor lists the tests; staff send the orders; the results come back.
  * Step keys are also the ?tab= values, so links from notifications open the right step.
  */
@@ -19,7 +19,7 @@ export const STEP_LABEL: Record<StepKey, string> = {
   tests: "Tests & results",
   send: "Check & send",
   summary: "Referral letter",
-  response: "Response & follow-up",
+  response: "Outcome & follow-up",
   audit: "History",
 };
 
@@ -138,7 +138,7 @@ export function computeSteps(r: ReferralDetail, role: Role): Record<StepKey, Ste
     const respMap: Record<string, StepStatus> = {
       submitted: { state: "waiting", note: "Not acknowledged yet" },
       acknowledged: { state: "waiting", note: "Awaiting decision" },
-      accepted: { state: "waiting", note: "Awaiting response" },
+      accepted: { state: "attention", note: r.patient_informed_at ? "Close the referral" : "Accepted: tell the patient" },
       response_returned: { state: "attention", note: role === "doctor" ? "Review the response" : "Response received" },
       followup_pending: { state: "attention", note: "Follow-up" },
       closed: { state: "done", note: "Closed" },
@@ -189,6 +189,10 @@ export function nextStep(r: ReferralDetail, role: Role): NextStep {
     const flags = item(r, "flags");
     if (flags && !flags.ok) return { heading: "Review the medication flags", body: "Staff have gathered everything. Review each flag for this patient; staff send the referral once you have.", tab: "medicines", action: "Go to Medicines & flags", tone: "warn" };
     if (r.status === "response_returned") return { heading: "Review the specialist's response", body: "Record that you have seen the outcome. Staff then inform the patient and follow up.", tab: "response", action: "Go to the response", tone: "warn" };
+    if (["accepted", "followup_pending"].includes(r.status)) {
+      if (!r.patient_informed_at) return { heading: `${r.destination_name} accepted the referral`, body: "Staff tell the patient and record it. Then you or staff can close the referral.", tab: "response", action: "Go to follow-up", tone: "info" };
+      return { heading: "Close the referral", body: "The patient has been told. Close the referral once any follow-up tasks have an outcome.", tab: "response", action: "Go to follow-up", tone: "warn" };
+    }
     if (r.status === "requested") return { heading: "Flags reviewed: staff will send it", body: "Staff send the referral with the patient's details; the receiving side confirms the patient when it arrives.", tab: "summary", action: "See the letter", tone: "ok" };
   } else {
     if (r.amendment_open) return { heading: "Send the new version", body: "Something changed after the referral was sent. Check it and send the new version; the earlier version stays unchanged.", tab: "send", action: "Go to Check & send", tone: "warn" };
@@ -200,15 +204,14 @@ export function nextStep(r: ReferralDetail, role: Role): NextStep {
       const tab = (todo.tab === "request" ? "request" : todo.tab ?? "send") as StepKey;
       return { heading: todo.label, body: todo.detail || (todo.who === "doctor" ? "This needs the doctor." : ""), tab, action: `Go to ${STEP_LABEL[tab]}`, tone: todo.who === "doctor" ? "info" : "warn" };
     }
-    if (["response_returned", "followup_pending"].includes(r.status)) {
-      if (!r.patient_informed_at) return { heading: "Tell the patient the outcome", body: "Inform the patient of the specialist's response and the next steps, then record it.", tab: "response", action: "Go to follow-up", tone: "warn" };
-      return { heading: "Finish the follow-up", body: "Record task outcomes, then close the referral once the doctor has reviewed the response.", tab: "response", action: "Go to follow-up", tone: "info" };
+    if (["accepted", "response_returned", "followup_pending"].includes(r.status)) {
+      if (!r.patient_informed_at) return { heading: "Tell the patient the outcome", body: `${r.destination_name} accepted the referral. Tell the patient and the next steps, then record it.`, tab: "response", action: "Go to follow-up", tone: "warn" };
+      return { heading: "Close the referral", body: "Record any task outcomes, then close the referral.", tab: "response", action: "Go to follow-up", tone: "info" };
     }
   }
   const waiting: Record<string, string> = {
     submitted: `Delivered to ${r.destination_name}. Their staff take it in, confirm the patient and assign a doctor.`,
     acknowledged: `${r.destination_name} received it. Their staff assign a doctor, who accepts, declines or asks for information.`,
-    accepted: `${r.destination_name} accepted the referral. Their response will appear here.`,
   };
   return { heading: `Waiting for ${r.destination_name}`, body: waiting[r.status] ?? "", tab: "response", action: "View progress", tone: "info" };
 }

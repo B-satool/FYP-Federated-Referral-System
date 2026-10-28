@@ -110,24 +110,18 @@ def test_p5_referral_flow():
     ok(aku_staff.post(f"/cases/{case['id']}/assign", {"doctor": "Dr Naveed Baig", "note": "Gallstones"}))
     assert ok(institution("akuh", "dr.faisal").get("/cases")) == []
 
-    # 8. The surgeon accepts and responds.
+    # 8. The surgeon accepts; no response is written. The requesting doctor (and staff) are told.
     mine = ok(surgeon.get("/cases"))
     assert [c["central_referral_id"] for c in mine] == [r["reference"]]
     ok(surgeon.post(f"/cases/{case['id']}/decision", {"decision": "accept"}))
-    resp = ok(surgeon.put(f"/cases/{case['id']}/response", {"assessment": "Symptomatic gallstones.",
-                                                             "plan": "Laparoscopic cholecystectomy on the elective list.",
-                                                             "instructions_for_clinic": "Cardiology input on antiplatelets.",
-                                                             "appointment": "Surgical clinic in 2 weeks"}))
-    ok(surgeon.post(f"/cases/{case['id']}/response/send", {"expected_row_version": resp["row_version"]}))
-    wait_for(lambda: _ref(rid)["status"] == "response_returned", 60, what="response at the clinic")
+    wait_for(lambda: _ref(rid)["status"] == "accepted", 60, what="acceptance at the clinic")
+    assert any("accepted" in n["title"] for n in ok(DOCTOR.get("/notifications")))
 
-    # 9. Doctor reviews, staff inform the patient, then close.
-    response = ok(DOCTOR.get(f"/referrals/{rid}/responses"))[0]
-    assert STAFF.post(f"/referrals/{rid}/close", {"expected_version": _ref(rid)["row_version"]}).status_code == 409
-    ok(DOCTOR.post(f"/responses/{response['id']}/review", {"note": "Plan noted"}))
+    # 9. Staff tell the patient; then the doctor (or staff) close it.
+    assert DOCTOR.post(f"/referrals/{rid}/close", {"expected_version": _ref(rid)["row_version"]}).status_code == 409
     ok(STAFF.post(f"/referrals/{rid}/patient-informed", {"note": "Phoned the patient; clinic date given"}))
-    closed = ok(STAFF.post(f"/referrals/{rid}/close", {"expected_version": _ref(rid)["row_version"]}))
-    assert closed["status"] == "closed"
+    closed = ok(DOCTOR.post(f"/referrals/{rid}/close", {"expected_version": _ref(rid)["row_version"]}))
+    assert closed["status"] == "closed" and closed["closed_by"] == "Dr Ali Raza"
 
 
 def test_p3_test_request_flow():

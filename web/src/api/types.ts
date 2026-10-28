@@ -106,11 +106,19 @@ export type Referral = {
   accepted_at: string | null;
   closed_at: string | null;
   closed_by: string | null;
-  /** the temporary working set: content is held until this time, then removed */
+  /** the shared records are held until this time, then removed (null: no limit yet) */
   working_set_expires_at: string | null;
   working_set_purged_at: string | null;
+  /** the receiving doctor marked the referral complete */
+  receiver_completed_at: string | null;
+  receiver_completed_by: string | null;
   created_at: string;
   updated_at: string;
+};
+
+/** GET /referrals rows: a test request lists where its orders go. */
+export type ReferralRow = Referral & {
+  test_destinations?: { institution_id: string; institution_name: string; department_name: string | null; tests: string[] }[];
 };
 
 export type Retrieval = {
@@ -360,6 +368,8 @@ export type MedicationEntry = {
   drug_class_label: string | null;
   mapping_status: string;
   mapping_note: string | null;
+  /** a DRAP brand name used for different products: pick the one on the pack (known = in the app's medicine list) */
+  mapping_choices?: { ingredient: string; company: string; drap_reg_no: string; strength: string; dosage_form: string; known?: boolean }[] | null;
   duplicate_of: number | null;
   dose_differs: boolean;
   excluded: boolean;
@@ -579,6 +589,13 @@ export type Case = {
   decision_by: string | null;
   decision_at: string | null;
   decline_reason: string | null;
+  /** the referred doctor has finished; the shared records are removed 72 hours later */
+  completed_by: string | null;
+  completed_at: string | null;
+  /** until when the shared records are kept (30 days after acceptance, extendable; 72 hours after completion) */
+  hold_until: string | null;
+  /** set once the shared records were removed here (the decision, questions and response are kept) */
+  shared_removed_at: string | null;
   received_at: string;
   updated_at: string;
   open_info_requests: number;
@@ -669,7 +686,7 @@ export type CaseDetail = {
   packages: { version: number; received_at: string; content_hash: string; envelope: PackageEnvelope }[];
   info_requests: { id: number; package_version: number; question: string; status: string; created_by: string; created_at: string; answer: string | null; answered_by: string | null; answered_at: string | null }[];
   responses: { id: number; package_version: number; content: ConsultationResponse["content"]; status: string; drafted_by: string; row_version: number; returned_by: string | null; returned_at: string | null }[];
-  results: { id: number; received_at: string; order_ref: string; test: string; performed_by_institution: string; report_text: string; values: { test: string; value: string; unit?: string; reference?: string; flag?: string }[]; reported_by: string; reported_at: string }[];
+  results: { id: number; received_at: string; purged?: boolean; order_ref: string; test: string; performed_by_institution: string; report_text: string; values: { test: string; value: string; unit?: string; reference?: string; flag?: string }[]; reported_by: string; reported_at: string }[];
 };
 
 export type Order = {

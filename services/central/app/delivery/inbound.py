@@ -11,11 +11,13 @@ from sqlalchemy.orm import Session
 from ..config import institution_name
 from ..db import get_db
 from ..diagnostics.router import apply_order_event
+from ..lifecycle import working_set
 from ..models import Clarification, ConsultationResponse, DiagnosticRequest, InboundMessage, Outbox, Referral
 from ..notifications import notify_doctor, notify_staff
 from ..referrals.state import event as add_event
 from ..referrals.state import transition
 from ..security import audit, error, get_principal, require_service
+from ..tasks import enqueue
 
 router = APIRouter(prefix="/inbound", tags=["inbound (institution services)"])
 
@@ -30,6 +32,7 @@ def provider_event(body: ProviderEvent, db: Session = Depends(get_db), principal
     referral = db.scalars(select(Referral).where(Referral.reference == body.referral_id)).first()
     if referral is None:
         raise error(404, "unknown_referral", "No such referral")
+    purge_now = False
     db.add(InboundMessage(message_key=body.event_key, message_type=body.type, referral_id=referral.id,
                           payload=body.model_dump(mode="json")))
     inst_name = institution_name(body.institution_id)
@@ -58,12 +61,15 @@ def provider_event(body: ProviderEvent, db: Session = Depends(get_db), principal
                 transition(db, referral, "acknowledged", actor_label, None, detail, institution=body.institution_id)
             transition(db, referral, "accepted", actor_label, None, detail, institution=body.institution_id)
             notify_doctor(db, referral, "referral_accepted", f"{referral.reference} accepted by {inst_name}",
-                          referral.patient_name)
+                          f"{referral.patient_name}. Accepted by {body.actor_name}.", tab="response")
+            notify_staff(db, referral, "referral_accepted", f"{referral.reference} accepted by {inst_name}",
+                         f"{referral.patient_name}. Tell the patient, then close the referral.", tab="response")
         elif body.type == "declined":
             referral.decline_reason = body.data.get("reason")
             transition(db, referral, "declined", actor_label, None, detail, institution=body.institution_id)
+            purge_now = True  # a declined referral's shared records are removed straight away
             notify_doctor(db, referral, "referral_declined", f"{referral.reference} declined by {inst_name}",
-                          f"Reason: {referral.decline_reason}")
+                          f"Reason: {referral.decline_reason}", tab="response")
             notify_staff(db, referral, "referral_declined", f"{referral.reference} declined by {inst_name}",
                          f"Reason: {referral.decline_reason}")
         elif body.type == "info_requested":
@@ -98,10 +104,29 @@ def provider_event(body: ProviderEvent, db: Session = Depends(get_db), principal
                        institution=body.institution_id)
             notify_doctor(db, referral, "response_returned", f"Specialist response: {referral.reference}",
                           f"{referral.patient_name}, from {inst_name}.", tab="response")
+        elif body.type == "completed":
+            if referral.status not in ("accepted", "response_returned", "followup_pending", "closed"):
+                raise error(409, "not_accepted", "Only an accepted referral can be marked complete")
+            if referral.receiver_completed_at is None:
+                referral.receiver_completed_at, referral.receiver_completed_by = body.occurred_at, actor_label
+                working_set.complete(referral, body.occurred_at)
+                add_event(db, referral, "completed_by_receiver", actor_label, body.institution_id,
+                          {**detail, "records_removed_at": referral.working_set_expires_at.isoformat()})
+                when = referral.working_set_expires_at.strftime("%d %b %Y, %H:%M")
+                for notify in (notify_doctor, notify_staff):
+                    notify(db, referral, "referral_completed", f"{referral.reference} marked complete by {inst_name}",
+                           f"{body.actor_name} has finished with this referral. The shared records are removed on {when} (UTC).",
+                           tab="response")
+        elif body.type == "hold_extended":
+            until = working_set.extend(referral, body.occurred_at)
+            add_event(db, referral, "hold_extended_by_receiver", actor_label, body.institution_id,
+                      {**detail, "records_kept_until": until.isoformat() if until else None})
     audit(db, None, f"inbound.{body.type}", "referral", referral.reference, "success", referral.id, detail, actor=actor)
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
         return {"status": "duplicate", "event_key": body.event_key}
+    if purge_now:
+        enqueue("purge_working_sets")
     return {"status": "applied", "event_key": body.event_key}

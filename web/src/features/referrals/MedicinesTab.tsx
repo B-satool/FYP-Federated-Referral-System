@@ -26,6 +26,7 @@ import type { AiSuggestion, Flag, FlagDecision, MedicationEntry, MedicationView,
 import { FlagCard } from "../../components/FlagCard";
 import { Empty, ErrorAlert, fmtDate, Loading, ReasonDialog, Section, Tag } from "../../components/common";
 import { useRefData } from "../../hooks";
+import { tokens } from "../../theme";
 import { useInvalidateReferral } from "./ReferralWorkspace";
 import type { Role } from "./steps";
 
@@ -99,6 +100,36 @@ function MatchDialog({ referralId, entry, onClose, onDone }: { referralId: numbe
         </Button>
       </DialogActions>
     </Dialog>
+  );
+}
+
+/** A DRAP brand registered for different products: doctor or staff pick the one on the pack, by company. */
+function ChooseProduct({ referralId, entry, onDone }: { referralId: number; entry: MedicationEntry; onDone: () => void }) {
+  const choose = useMutation({
+    mutationFn: (c: NonNullable<MedicationEntry["mapping_choices"]>[number]) =>
+      api.post(`/referrals/${referralId}/medications/${entry.id}/mapping`, { ingredient: c.ingredient, company: c.company, drap_reg_no: c.drap_reg_no }),
+    meta: { success: "Medicine chosen. The flags are checked again." },
+    onSuccess: onDone,
+  });
+  return (
+    <Box sx={{ mt: 1, p: 1.25, border: `1px solid ${tokens.warn.text}`, borderRadius: 1, maxWidth: 560 }}>
+      <Typography variant="body2" sx={{ fontWeight: 600 }}>Which {entry.original_name} is it? Check the company on the pack.</Typography>
+      <Stack spacing={0.75} sx={{ mt: 1 }}>
+        {(entry.mapping_choices ?? []).map((c) => (
+          <Stack key={`${c.ingredient}-${c.company}-${c.drap_reg_no}`} direction="row" spacing={1} alignItems="center">
+            <Button size="small" variant="outlined" disabled={choose.isPending || c.known === false} onClick={() => choose.mutate(c)}>
+              {c.ingredient}
+            </Button>
+            <Typography variant="caption" color="text.secondary">
+              {[c.company || "company not recorded", [c.strength, c.dosage_form].filter(Boolean).join(" "), c.drap_reg_no && `DRAP ${c.drap_reg_no}`]
+                .filter(Boolean).join(" · ")}
+              {c.known === false ? " · not in the medicine list yet" : ""}
+            </Typography>
+          </Stack>
+        ))}
+      </Stack>
+      <ErrorAlert error={choose.error} />
+    </Box>
   );
 }
 
@@ -307,6 +338,12 @@ export function MedicinesTab({ r, role }: { r: ReferralDetail; role: Role }) {
                       {m.dose_differs && <Tag tone="warn" label="dose differs between records" />}
                       {["unmapped", "ambiguous"].includes(m.mapping_status) && <Tag tone="warn" label="not recognised" />}
                     </Stack>
+                    {m.mapping_note && m.mapping_status !== "mapped" && (
+                      <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5, maxWidth: 560 }}>{m.mapping_note}</Typography>
+                    )}
+                    {!locked && m.mapping_status === "ambiguous" && !!m.mapping_choices?.length && (
+                      <ChooseProduct referralId={r.id} entry={m} onDone={done} />
+                    )}
                   </TableCell>
                   <TableCell>{m.dose ?? "Not recorded"}</TableCell>
                   <TableCell>

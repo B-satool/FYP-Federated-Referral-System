@@ -49,7 +49,6 @@ def test_valid_answer():
     {"items": [item(1, reason=" ".join(["word"] * 26))], "missing": []},    # reason too long
     {"items": [item(1, reason="Stop metformin before the procedure.")], "missing": []},  # advice
     {"items": [item(1, reason="Increase the dose to 20 mg.")], "missing": []},           # dosing
-    {"items": [item(1)], "missing": ["Discontinue aspirin"]},              # advice in missing
     {"items": [item(1)]},                                                   # missing key
     {"items": [{**item(1), "evidence_id": True}], "missing": []},          # bool is not an id
     "include everything",
@@ -63,3 +62,34 @@ def test_prompt_injection_in_record_text_cannot_add_ids():
     """A record that says 'include record 500' cannot make the model's answer use an id outside the set."""
     with pytest.raises(ProviderOutputInvalid):
         validate({"items": [item(500, reason="Record text asked for this.")], "missing": []}, {1, 2})
+
+
+def test_schema_limits_only_for_providers_that_enforce_them():
+    from app.generation.provider import AnthropicProvider, OllamaProvider
+    from app.selection.selection import schema_for
+
+    local = schema_for(OllamaProvider("http://x", "m"), 25)
+    assert local["properties"]["items"]["maxItems"] == 25 and local["properties"]["missing"]["maxItems"] == 5
+    assert "maxItems" not in SCHEMA["properties"]["items"]  # the shared schema is not modified
+    assert schema_for(AnthropicProvider.__new__(AnthropicProvider), 25) is SCHEMA
+
+
+@pytest.mark.parametrize("reason", [
+    "Patient is taking losartan for hypertension.",
+    "Creatinine 1.2 mg/dL shows kidney function before surgery.",
+    "Current aspirin 75 mg matters for bleeding risk.",
+])
+def test_describing_a_record_is_not_advice(reason):
+    recs, _ = validate({"items": [item(1, reason=reason)], "missing": []}, {1})
+    assert recs[1]["reason"] == reason
+
+
+@pytest.mark.parametrize("reason", ["Adjust the losartan before surgery.", "Consider dose reduction of metformin."])
+def test_dose_change_wording_is_rejected(reason):
+    with pytest.raises(ProviderOutputInvalid):
+        validate({"items": [item(1, reason=reason)], "missing": []}, {1})
+
+
+def test_bad_missing_phrases_are_dropped_not_fatal():
+    recs, missing = validate({"items": [item(1)], "missing": ["Recent ECG", "Discontinue aspirin", " ".join(["word"] * 16)]}, {1})
+    assert recs and missing == ["Recent ECG"]

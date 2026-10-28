@@ -38,8 +38,13 @@ class Settings:
     # this many days after the first retrieval.
     working_set_grace_hours = int(os.environ.get("WORKING_SET_GRACE_HOURS", "72"))
     working_set_max_days = int(os.environ.get("WORKING_SET_MAX_DAYS", "60"))
-    # How far back retrieval asks each source (the 6-month window is the default selection, not a fetch limit)
+    # How far back retrieval asks each source (the 6-month window is the default selection, not a fetch limit),
+    # for a destination with no entry in SPECIALTY_HISTORY_YEARS
     history_years = int(os.environ.get("REFERRAL_HISTORY_YEARS", "3"))
+    # Retrieval asks every linked institution, up to this many besides the referring one (most recently
+    # visited first), so the AI recommendation stays within what it can read. The rest are listed as
+    # not retrieved, never as "no records".
+    max_retrieval_sources = int(os.environ.get("MAX_RETRIEVAL_SOURCES", "5"))
 
     run_jobs_inline = _bool("RUN_JOBS_INLINE", False)
 
@@ -82,6 +87,21 @@ HOSPITAL_CLINICAL = ["cardiology", "gastro_hepatology", "general_surgery", "orth
                      "urology", "neurology", "pulmonology", "endocrinology", "obgyn", "ent", "ophthalmology",
                      "dermatology", "oncology", "paediatrics", "psychiatry"]
 HOSPITAL_DIAGNOSTIC = ["laboratory", "radiology", "cardiac_diagnostics"]
+
+# Years of visits, results and imaging retrieved for a referral to each specialty. Conditions, surgeries
+# and current medicines are retrieved whatever their date. Placeholders until a clinician confirms them
+# (docs/decisions/2026-10-28-retrieval-all-sources.md); others use REFERRAL_HISTORY_YEARS.
+SPECIALTY_HISTORY_YEARS: dict[str, int] = {
+    "cardiology": 5, "endocrinology": 5, "nephrology": 5, "oncology": 5, "neurology": 5,
+    "gastro_hepatology": 3, "general_surgery": 3, "orthopaedics": 3, "pulmonology": 3, "urology": 3,
+    "psychiatry": 3, "paediatrics": 3, "general_practice": 3,
+    "obgyn": 2, "ent": 2, "ophthalmology": 2, "dentistry": 2,
+    "dermatology": 1,
+}
+
+
+def history_years_for(department: str | None) -> int:
+    return SPECIALTY_HISTORY_YEARS.get(department or "", settings.history_years)
 
 # Institutions in the demonstration (synthetic data; names are used only as source-system names).
 INSTITUTIONS: dict[str, dict] = {

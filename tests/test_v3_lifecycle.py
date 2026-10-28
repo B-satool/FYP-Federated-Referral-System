@@ -133,7 +133,7 @@ def test_default_selection_matches_seed_expected_view(code):
     r = new_referral(name, dest, dept, None)
     used = {x["source_institution"] for x in ok(STAFF.post(f"/referrals/{r['id']}/retrieve"))["results"]
             if x["status"] in ("successful", "partial")}
-    # v2 retrieves only the most recently visited hospital, so a skipped one's visits are not expected
+    # a source beyond MAX_RETRIEVAL_SOURCES (or unavailable) is not read, so its visits are not expected
     expected = {v["date"] for v in seed["expected_retrieval_view"].get("visits_last_6_months", [])
                 if SEED_SOURCE.get(v["source"], v["source"]) in used}
     visits = [e for e in ok(STAFF.get(f"/referrals/{r['id']}/evidence", params={"category": "visit"})) if e["origin"] == "source"]

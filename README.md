@@ -4,7 +4,7 @@
 A web application for referring a patient from one clinic or hospital in Karachi to a doctor or department at another, or for requesting a test or scan from a laboratory or radiology department elsewhere.
 - **Doctor:** chooses a referral or a test/scan request and fills it in. For a referral, the doctor later reviews the medication flags.
 - **Referring staff:**
-  - gather the patient's records from the most recently visited hospital, clinic and laboratory
+  - gather the patient's records from every linked hospital, clinic and laboratory (up to five, most recently visited first)
   - check the papers the patient brought (OCR)
   - confirm the current medicines, including over-the-counter ones
   - mark the referral ready for the doctor, then send it once the doctor has reviewed the flags

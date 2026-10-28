@@ -93,7 +93,7 @@ export function OtherPlaces({ r }: { r: ReferralDetail }) {
         </TableBody>
       </Table>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-        Only the most recently visited hospital, clinic and laboratory are used for the referral.
+        Records are read from every linked institution, up to five besides yours, the most recently visited first.
       </Typography>
     </Section>
   );

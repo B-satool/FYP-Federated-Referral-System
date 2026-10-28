@@ -1,14 +1,16 @@
-"""Referral-specific retrieval: the most recent record of each kind of institution.
+"""Referral-specific retrieval: the patient's history from every linked institution.
 
 * The referring institution's own record is always included.
-* For each other linked institution (verified links only) the platform asks when the
-  patient was last seen there. It then retrieves from the most recently visited
-  hospital, clinic and laboratory only. Older ones are listed as skipped, with the dates.
+* For each other linked institution (verified links only) the platform asks when the patient was
+  last seen there, then retrieves from all of them in parallel, up to MAX_RETRIEVAL_SOURCES besides
+  the referring one, most recently visited first. Any beyond the limit are listed as skipped, with
+  the date, so the referral shows they exist and were not read.
 * A source that is unavailable or denies access is never skipped silently: it is
   recorded with that outcome, which the referral carries as a limitation.
-* Each institution returns only what a referral needs: current medicines, conditions, and visits,
-  results and imaging from the last few years (REFERRAL_HISTORY_YEARS). Only the last 6 months
-  are selected by default; older records are offered for staff (and the AI recommendation) to add.
+* Each institution returns only what a referral needs: conditions, surgeries and current medicines
+  whatever their date, and visits, results and imaging from the years set for the destination
+  specialty (SPECIALTY_HISTORY_YEARS). Only the last 6 months are selected by default; older records
+  are offered for staff (and the AI recommendation) to add.
 """
 from __future__ import annotations
 
@@ -20,7 +22,7 @@ from refcommon.db import utcnow
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..config import INSTITUTIONS, SOURCES, settings
+from ..config import INSTITUTIONS, SOURCES, history_years_for, settings
 from ..identity.links import links_for, verified_counterparts
 from ..models import EvidenceItem, Referral, SourceRetrieval
 from ..security import audit
@@ -35,9 +37,10 @@ def window_start() -> date:
     return date.today() - timedelta(days=settings.referral_window_days)
 
 
-def history_start() -> date:
-    """How far back records are retrieved (the working set; older ones start unselected)."""
-    return date.today() - timedelta(days=365 * settings.history_years)
+def history_start(referral: Referral | None = None) -> date:
+    """How far back visits, results and imaging are retrieved for this referral's specialty."""
+    years = history_years_for(referral.destination_department if referral else None)
+    return date.today() - timedelta(days=365 * years)
 
 
 def linked_sources(db: Session, referral: Referral) -> list[tuple[str, str, int | None]]:
@@ -74,15 +77,15 @@ def retrieve(db: Session, referral: Referral, principal: Principal) -> list[Sour
     start(referral)  # the temporary working set begins (or begins again after a purge)
     targets = linked_sources(db, referral)
     own, others = targets[0], targets[1:]
-    since = history_start().isoformat()
+    since = history_start(referral).isoformat()
     with ThreadPoolExecutor(max_workers=max(1, len(others))) as pool:
         activity = list(pool.map(lambda t: sources.last_activity(t[0], t[1], principal, referral.reference), others))
 
-    # choose the most recently visited institution of each kind
+    # every reachable institution, most recently visited first, up to the limit
     chosen: list[tuple[str, str, int | None]] = [own]
     chosen_dates: dict[str, str | None] = {}
     results: list[SourceRetrieval] = []
-    by_kind: dict[str, list[tuple[tuple[str, str, int | None], str | None]]] = {}
+    reachable: list[tuple[tuple[str, str, int | None], str | None]] = []
     for t, (status, last, message) in zip(others, activity):
         kind = INSTITUTIONS[t[0]]["kind"]
         if status != "successful":
@@ -91,18 +94,19 @@ def retrieve(db: Session, referral: Referral, principal: Principal) -> list[Sour
             if status in ("denied", "expired"):
                 _revoke_retained(db, referral, t[0], principal)
             continue
-        by_kind.setdefault(kind, []).append((t, last))
-    for kind, items in by_kind.items():
-        items.sort(key=lambda x: x[1] or "", reverse=True)
-        (best, best_date), rest = items[0], items[1:]
-        chosen.append(best)
-        for t, last in rest:
-            note = (f"Not retrieved: last seen here on {last}" if last else "Not retrieved: no visits, tests or scans recorded here")
-            note += (f". {sources.source_name(best[0])} is the most recently visited {KIND_WORD.get(kind, kind)}"
-                     f" ({best_date or 'date not recorded'}), so its records are used instead.")
-            results.append(_row(referral, t, principal, "skipped", note, kind, last, since))
-            _deselect(db, referral, t[0])
-        chosen_dates[best[0]] = best_date
+        reachable.append((t, last))
+    reachable.sort(key=lambda x: x[1] or "", reverse=True)
+    limit = max(0, settings.max_retrieval_sources)
+    for t, last in reachable[:limit]:
+        chosen.append(t)
+        chosen_dates[t[0]] = last
+    for t, last in reachable[limit:]:
+        kind = INSTITUTIONS[t[0]]["kind"]
+        note = (f"Not retrieved: last seen here on {last}" if last else "Not retrieved: no visits, tests or scans recorded here")
+        note += (f". Records are read from at most {limit} other institutions, the most recently visited first;"
+                 f" this {KIND_WORD.get(kind, kind)} was visited less recently.")
+        results.append(_row(referral, t, principal, "skipped", note, kind, last, since))
+        _deselect(db, referral, t[0])
 
     with ThreadPoolExecutor(max_workers=len(chosen)) as pool:
         calls = list(pool.map(lambda t: sources.fetch_records(t[0], t[1], principal, referral.reference, since), chosen))
@@ -195,7 +199,7 @@ def _import(db: Session, referral: Referral, inst: str, local_id: str, link_id: 
 
 
 def _deselect(db: Session, referral: Referral, inst: str) -> None:
-    """Records from a source that is no longer the most recent of its kind stop being used."""
+    """Records from a source that is no longer among those read stop being used."""
     for ev in db.scalars(select(EvidenceItem).where(EvidenceItem.referral_id == referral.id,
                                                     EvidenceItem.source_institution == inst,
                                                     EvidenceItem.origin == "source", EvidenceItem.selected.is_(True))):

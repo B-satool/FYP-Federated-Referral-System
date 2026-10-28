@@ -83,9 +83,10 @@ def test_procedure_without_features_is_not_checked():
     assert "confirmed" not in kinds and "procedure_not_checked" in kinds
 
 
-def test_p2_last_visited_hospital_and_stopped_medicine():
-    """P2 was seen at AKUH (Aug 2026) and at Ziauddin radiology (Oct 2026): only Ziauddin is used.
-    Diclofenac was stopped and must not appear as a current medicine."""
+def test_p2_every_linked_hospital_and_stopped_medicine():
+    """P2 was seen at AKUH (Aug 2026) and at Ziauddin radiology (Oct 2026): both are read, so his
+    history is not cut to the last hospital visited. Diclofenac was stopped and must not appear as a
+    current medicine."""
     r = new_referral("Tariq", "ziauddin", "cardiology", "Coronary angiography", ANGIO)
     # Staff ask Ziauddin for his records there (a records request: match a record or say there is none).
     link = ok(STAFF.post(f"/referrals/{r['id']}/links", {"target_institution": "ziauddin"}), 201)
@@ -98,7 +99,8 @@ def test_p2_last_visited_hospital_and_stopped_medicine():
                 {"local_patient_id": cands[0]["local_patient_id"], "note": "CNIC, name and date of birth match"}))
     res = {x["source_institution"]: x for x in ok(STAFF.post(f"/referrals/{r['id']}/retrieve"))["results"]}
     assert res["ziauddin"]["status"] == "successful" and res["ziauddin"]["last_activity"] == "2026-10-10"
-    assert res["akuh"]["status"] == "skipped" and "2026-08-30" in res["akuh"]["message"]
+    assert res["akuh"]["status"] in ("successful", "partial") and res["akuh"]["last_activity"] == "2026-08-30"
+    assert not [x for x in res.values() if x["status"] == "skipped"]
     meds = ok(STAFF.get(f"/referrals/{r['id']}/medications"))["entries"]
     assert "diclofenac" not in {m["ingredient"] for m in meds}
     # older results are retrieved for staff to add, but only the last 6 months are selected by default

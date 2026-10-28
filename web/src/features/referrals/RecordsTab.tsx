@@ -122,7 +122,7 @@ export function RecordsTab({ r }: { r: ReferralDetail }) {
       <OtherPlaces r={r} />
       <Section
         title="Where the records come from"
-        description={`Your own record, plus the most recently visited hospital, clinic and laboratory among the linked ones. Visits, results and imaging from the last few years; those from the last ${window ? Math.round(window / 30.4) : 6} months are ticked by default. Current medicines only.`}
+        description={`Your own record, plus every linked institution (up to five, the most recently visited first). Conditions and current medicines whatever their date; visits, results and imaging from the years set for this specialty; those from the last ${window ? Math.round(window / 30.4) : 6} months are ticked by default. Current medicines only.`}
         actions={
           <Button variant="contained" startIcon={<Sync />} disabled={retrieve.isPending || locked || r.status === "draft"} onClick={() => retrieve.mutate()}>
             {used.length ? "Retrieve again" : "Retrieve records"}

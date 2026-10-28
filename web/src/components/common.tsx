@@ -193,7 +193,7 @@ export function RetrievalStatus({ status }: { status: string }) {
     not_retrieved: "wait",
     skipped: "off",
   };
-  const labels: Record<string, string> = { skipped: "not the most recent", successful: "retrieved" };
+  const labels: Record<string, string> = { skipped: "not read (limit reached)", successful: "retrieved" };
   return <Tag tone={tones[status] ?? "neutral"} label={labels[status] ?? status.replace(/_/g, " ")} />;
 }
 

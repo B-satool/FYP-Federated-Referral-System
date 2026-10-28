@@ -192,7 +192,7 @@ python -m venv .venv
 .\.venv\Scripts\pip install httpx pytest
 
 # API checks: P5 referral, P3 test request with an image, every patient's expected flags, OCR merge,
-# temporary grants, role menus and role assignment, packet selection, the package fingerprint, the clinic's own copy and the purge (resets demo data first). Expect: 21 passed
+# temporary grants, role menus and role assignment, packet selection, the package fingerprint, the clinic's own copy and the purge (resets demo data first). Expect: 22 passed
 .\.venv\Scripts\python -m pytest tests -q
 
 # Medication-rule logic, interactions, label rules, the extraction validator, AI selection checks, grant expiry,

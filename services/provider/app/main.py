@@ -855,9 +855,6 @@ def complete_case(case_id: int, db: Session = Depends(get_db), principal: Princi
         return _case_out(case, db)
     if case.decision != "accepted":
         raise _conflict("not_accepted", "Only an accepted referral can be marked complete")
-    resp = _current_response(db, case)
-    if resp is None or resp.status != "returned":
-        raise _conflict("no_response", "Send your response to the referring clinic first")
     now = utcnow()
     case.completed_by, case.completed_at, case.status = principal.display_name, now, "completed"
     case.hold_until = now + timedelta(hours=GRACE_HOURS)

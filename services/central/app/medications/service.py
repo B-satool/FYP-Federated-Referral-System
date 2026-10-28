@@ -78,6 +78,7 @@ def sync_entries(db: Session, referral: Referral) -> None:
             m = index.map(name, entry.brand)
             entry.mapping_status, entry.ingredient, entry.drug_class, entry.mapping_note = (
                 m.status, m.ingredient, m.drug_class, m.note)
+            entry.mapping_choices = list(m.choices) or None
         entry.ingredients = parts.get(entry.ingredient or "", [entry.ingredient] if entry.ingredient else [])
     db.flush()
     # group: same ingredient (or same name when unrecognised)

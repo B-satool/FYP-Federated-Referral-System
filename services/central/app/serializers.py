@@ -107,7 +107,7 @@ def medication_out(m: MedicationEntry) -> dict:
         "start_date": m.start_date, "over_the_counter": m.over_the_counter, "source_label": m.source_label,
         "ingredient": m.ingredient, "drug_class": m.drug_class,
         "drug_class_label": DRUG_CLASSES.get(m.drug_class or "", m.drug_class),
-        "mapping_status": m.mapping_status, "mapping_note": m.mapping_note, "duplicate_of": m.duplicate_of,
+        "mapping_status": m.mapping_status, "mapping_note": m.mapping_note, "mapping_choices": m.mapping_choices, "duplicate_of": m.duplicate_of,
         "dose_differs": m.dose_differs, "excluded": m.excluded, "excluded_by": m.excluded_by,
         "excluded_reason": m.excluded_reason,
     }

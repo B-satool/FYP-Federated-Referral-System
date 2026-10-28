@@ -2,9 +2,11 @@
 
   python scripts/import_brands.py <file.csv>            # report what would change
   python scripts/import_brands.py <file.csv> --write    # update the rules files
-  python scripts/import_brands.py <file.csv> --register --write
+  python scripts/import_brands.py <file.csv> --register --write [--human-only]
       # register names (the DRAP snapshot): kept apart from the hand-checked brands, in each entry's
-      # "register_brands", and matched more strictly (see app/medications/mapping.py)
+      # "register_brands", and matched more strictly (see app/medications/mapping.py). Products whose DRAP
+      # page says they are not for human use (veterinary) are always left out; --human-only also leaves out
+      # products whose page has not been fetched yet (python scripts/scrape_drap.py details).
 
 Use a file you are allowed to use: an export DRAP or DrugsInfo Pakistan sends you, rows you type in
 from the pack or the DRAP search page yourself, or rules/terminology/drap/brand-import.csv from
@@ -39,8 +41,24 @@ LEDGER = ROOT / "rules" / "terminology" / "brand-sources.csv"
 FIELDS = ["brand_name", "ingredients", "strength", "dosage_form", "drug_class", "company", "drap_reg_no", "source", "retrieved_on", "checked_by"]
 
 
-def main(path: Path, write: bool, register: bool = False) -> None:
+DETAILS = ROOT / "rules" / "terminology" / "drap" / "details.jsonl"
+
+
+def used_for() -> dict[str, str]:
+    """DRAP registration number -> "Human", "Veterinary", ... (from the fetched product pages)."""
+    if not DETAILS.exists():
+        return {}
+    out = {}
+    for line in DETAILS.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            d = json.loads(line)
+            out[d.get("registration_no", "")] = (d.get("used_for") or "").strip()
+    return out
+
+
+def main(path: Path, write: bool, register: bool = False, human_only: bool = False) -> None:
     field = "register_brands" if register else "brands"
+    use = used_for()
     names = json.loads(NAMES.read_text(encoding="utf-8"))
     ings = json.loads(INGREDIENTS.read_text(encoding="utf-8"))
     by_ing = {e["ingredient"]: e for e in names["entries"]}
@@ -50,6 +68,20 @@ def main(path: Path, write: bool, register: bool = False) -> None:
     added, skipped, conflicts, ledger = [], [], [], []
     with path.open(encoding="utf-8-sig") as fh:
         rows = list(csv.DictReader(fh))
+    not_human = unchecked = 0
+    kept = []
+    for row in rows:
+        regs = [x.strip() for x in (row.get("drap_reg_no") or "").split(";") if x.strip()]
+        kinds = {use.get(x, "") for x in regs} - {""}
+        if kinds and kinds != {"Human"}:
+            not_human += 1  # veterinary (or otherwise not for people)
+            continue
+        if human_only and not kinds:
+            unchecked += 1
+            continue
+        kept.append(row)
+    rows_in = len(rows)
+    rows = kept
     for row in rows:
         brand = row["brand_name"].strip()
         parts = [p.strip().lower() for p in row["ingredients"].split(";") if p.strip()]
@@ -97,17 +129,25 @@ def main(path: Path, write: bool, register: bool = False) -> None:
             if e.get(field):
                 e[field] = [b for b in e[field] if b.lower() not in clash]
         # keep them as known-ambiguous names, so staff are told what the name could mean
-        options: dict[str, set[str]] = {}
+        # one option per medicine and company, so staff can pick by the company on the pack
+        options: dict[str, dict[tuple[str, str], dict]] = {}
         for row in rows:
             brand = row["brand_name"].strip()
             if brand.lower() in clash:
                 parts = sorted(p.strip().lower() for p in row["ingredients"].split(";") if p.strip())
-                options.setdefault(brand, set()).add(" + ".join(parts))
-        names["register_ambiguous"] = [{"brand": b, "options": sorted(o)} for b, o in sorted(options.items())
-                                       if len(o) > 1]
+                ingredient = parts[0] if len(parts) == 1 else "/".join(parts)
+                company = (row.get("company") or "").strip()
+                options.setdefault(brand, {}).setdefault((ingredient, company.lower()), {
+                    "ingredient": ingredient, "company": company, "drap_reg_no": (row.get("drap_reg_no") or "").strip(),
+                    "strength": (row.get("strength") or "").strip(), "dosage_form": (row.get("dosage_form") or "").strip()})
+        names["register_ambiguous"] = [
+            {"brand": b, "options": sorted(o.values(), key=lambda x: (x["ingredient"], x["company"]))}
+            for b, o in sorted(options.items()) if len({i for i, _ in o}) > 1]
         added = [a for a in added if a.split(" -> ")[0].lower() not in clash]
         ledger = [row for row in ledger if row["brand_name"].lower() not in clash]
-    print(f"{len(rows)} rows: {len(added)} brands to add, {len(skipped)} skipped, {len(conflicts)} conflicts"
+    print(f"{rows_in} rows: {not_human} not for human use (veterinary) left out"
+          + (f", {unchecked} not yet checked left out (--human-only)" if human_only else "") + ". "
+          + f"Of the rest: {len(added)} brands to add, {len(skipped)} skipped, {len(conflicts)} conflicts"
           + (" (dropped: a register name for two different medicines is ambiguous)" if register and conflicts else ""))
     for line in added:
         print("  add", line)
@@ -130,4 +170,4 @@ def main(path: Path, write: bool, register: bool = False) -> None:
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         sys.exit(__doc__)
-    main(Path(sys.argv[1]), "--write" in sys.argv[2:], "--register" in sys.argv[2:])
+    main(Path(sys.argv[1]), "--write" in sys.argv[2:], "--register" in sys.argv[2:], "--human-only" in sys.argv[2:])

@@ -51,6 +51,7 @@ class MappingResult:
     ingredient: str | None = None
     drug_class: str | None = None
     note: str | None = None
+    choices: tuple[dict, ...] = ()  # a DRAP brand used for different products: what it could be
 
 
 def normalize(name: str) -> str:
@@ -97,7 +98,8 @@ class NameIndex:
             if clash and not matched:
                 options = clash[0].ingredient.replace(" | ", " or ")
                 return MappingResult("ambiguous", note=f"{clash[0].display} is registered in Pakistan for different medicines: "
-                                     f"{options}. Check the pack or ask the patient, then add the generic name.")
+                                     f"{options}. Check the company on the pack and choose which one it is.",
+                                     choices=tuple(getattr(clash[0], "options", None) or ()))
             hits = {(r.ingredient, r.drug_class) for r in matched}
             if len(hits) == 1:
                 ingredient, drug_class = hits.pop()

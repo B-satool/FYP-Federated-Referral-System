@@ -22,9 +22,16 @@
   - 645 combination products whose combination is not in the app yet. Procedure rules match one drug class per
     medicine, so a two-drug product could miss a rule without anyone noticing. As "not recognised" it is visible.
   - 21 names that DRAP lists for **two different medicines** (for example, Glare is both gliclazide and
-    ibuprofen). These are recorded in `register_ambiguous`. A medicine written with such a name is reported as
-    "registered in Pakistan for different medicines: … Check the pack or ask the patient", on the medicine and
-    on its flag. It is never guessed.
+    ibuprofen). These are recorded in `register_ambiguous`, one option per medicine and company, with the DRAP
+    number, strength and form. Such a name is never guessed. The medicine and its flag say "registered in
+    Pakistan for different medicines", and on the Medicines tab the **doctor or staff** pick the product by the
+    company on the pack (`POST /referrals/{id}/medications/{entry}/mapping` with `company` and `drap_reg_no`).
+    The choice is recorded on the medicine ("… chosen by …") and audited, and the flags are checked again.
+- **Veterinary products:** decided 2026-10-28. Products whose DRAP page says they are not for human use are always
+  left out; the import counts them. 5,434 rows have never had their DRAP page fetched, so they could still include
+  veterinary products. They are loaded anyway, by decision. To check them, run
+  `python scripts/scrape_drap.py details` (about 4-5 hours), then re-run the import; `--human-only` loads only
+  rows confirmed for human use.
 
 ## Safeguards in matching (`app/medications/mapping.py`, `app/seed.py`)
 

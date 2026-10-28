@@ -5932,148 +5932,400 @@
     {
       "brand": "Amepine",
       "options": [
-        "amlodipine",
-        "amlodipine + omeprazole"
+        {
+          "ingredient": "amlodipine",
+          "company": "Panacea Pharmaceuticals",
+          "drap_reg_no": "081427",
+          "strength": "10 mg",
+          "dosage_form": "tablet"
+        },
+        {
+          "ingredient": "amlodipine/omeprazole",
+          "company": "Panacea Pharmaceuticals",
+          "drap_reg_no": "111590",
+          "strength": "20 mg + 5 mg",
+          "dosage_form": "tablet"
+        }
       ]
     },
     {
       "brand": "Amlostat",
       "options": [
-        "amlodipine",
-        "amlodipine + atorvastatin"
+        {
+          "ingredient": "amlodipine",
+          "company": "Lowitt Pharma (Pvt) Ltd",
+          "drap_reg_no": "004483-EX; 004482-EX",
+          "strength": "10 mg; 5 mg",
+          "dosage_form": "film-coated tablet"
+        },
+        {
+          "ingredient": "amlodipine/atorvastatin",
+          "company": "Pharmatec Pakistan (Pvt.) Limited",
+          "drap_reg_no": "061676; 061677; 061678; 061673; 061674; 061675",
+          "strength": "10 mg + 10 mg; 10 mg + 20 mg; 10 mg + 40 mg; 5 mg + 10 mg; 5 mg + 20 mg; 5 mg + 40 mg",
+          "dosage_form": "tablet"
+        }
       ]
     },
     {
       "brand": "Capzol",
       "options": [
-        "esomeprazole",
-        "omeprazole"
+        {
+          "ingredient": "esomeprazole",
+          "company": "Benson Pharmaceuticals",
+          "drap_reg_no": "086156",
+          "strength": "",
+          "dosage_form": ""
+        },
+        {
+          "ingredient": "omeprazole",
+          "company": "Benson Pharmaceuticals",
+          "drap_reg_no": "086156",
+          "strength": "",
+          "dosage_form": ""
+        }
       ]
     },
     {
       "brand": "Carefen",
       "options": [
-        "diclofenac",
-        "ibuprofen"
+        {
+          "ingredient": "diclofenac",
+          "company": "P.D.H Pharmaceuticals (Pvt) Ltd",
+          "drap_reg_no": "020981-EX",
+          "strength": "",
+          "dosage_form": ""
+        },
+        {
+          "ingredient": "ibuprofen",
+          "company": "Well Care Pharmaceuticals",
+          "drap_reg_no": "066500",
+          "strength": "",
+          "dosage_form": ""
+        }
       ]
     },
     {
       "brand": "Emflo-M XR",
       "options": [
-        "empagliflozin",
-        "empagliflozin + metformin"
+        {
+          "ingredient": "empagliflozin",
+          "company": "Wnsfeild Pharmaceuticals",
+          "drap_reg_no": "125164",
+          "strength": "",
+          "dosage_form": ""
+        },
+        {
+          "ingredient": "empagliflozin/metformin",
+          "company": "Wnsfeild Pharmaceuticals",
+          "drap_reg_no": "125162; 125163",
+          "strength": "",
+          "dosage_form": ""
+        }
       ]
     },
     {
       "brand": "Exidol",
       "options": [
-        "paracetamol",
-        "paracetamol + tramadol"
+        {
+          "ingredient": "paracetamol",
+          "company": "Karachi Chemical Industries Pvt. Ltd.",
+          "drap_reg_no": "129429; 003410; 003420",
+          "strength": "",
+          "dosage_form": ""
+        },
+        {
+          "ingredient": "paracetamol/tramadol",
+          "company": "Aulton Pharmaceuticals",
+          "drap_reg_no": "010863-EX",
+          "strength": "",
+          "dosage_form": ""
+        }
       ]
     },
     {
       "brand": "Glare",
       "options": [
-        "gliclazide",
-        "ibuprofen"
+        {
+          "ingredient": "gliclazide",
+          "company": "Mass Pharma (Pvt) Ltd.",
+          "drap_reg_no": "034846",
+          "strength": "",
+          "dosage_form": ""
+        },
+        {
+          "ingredient": "ibuprofen",
+          "company": "shrooq pharmaceuticals pvt ltd",
+          "drap_reg_no": "040319",
+          "strength": "",
+          "dosage_form": ""
+        }
       ]
     },
     {
       "brand": "Gluconorm",
       "options": [
-        "gliclazide",
-        "glimepiride"
+        {
+          "ingredient": "gliclazide",
+          "company": "AGP Limited",
+          "drap_reg_no": "014242",
+          "strength": "",
+          "dosage_form": ""
+        },
+        {
+          "ingredient": "glimepiride",
+          "company": "AGP Limited",
+          "drap_reg_no": "055114; 055115; 055116; 055117",
+          "strength": "",
+          "dosage_form": ""
+        }
       ]
     },
     {
       "brand": "Lofen",
       "options": [
-        "diclofenac",
-        "ibuprofen"
+        {
+          "ingredient": "diclofenac",
+          "company": "SHAWAN PHARMACEUTICALS",
+          "drap_reg_no": "049385",
+          "strength": "",
+          "dosage_form": ""
+        },
+        {
+          "ingredient": "ibuprofen",
+          "company": "Lawari international",
+          "drap_reg_no": "011290-EX",
+          "strength": "",
+          "dosage_form": ""
+        }
       ]
     },
     {
       "brand": "Macedol",
       "options": [
-        "paracetamol",
-        "paracetamol + tramadol"
+        {
+          "ingredient": "paracetamol",
+          "company": "ICU Pharmaceuticals (SMC-Private) Limited",
+          "drap_reg_no": "136767",
+          "strength": "",
+          "dosage_form": ""
+        },
+        {
+          "ingredient": "paracetamol/tramadol",
+          "company": "ICU Pharmaceuticals (SMC-Private) Limited; Weather Folds Pharmaceuticals",
+          "drap_reg_no": "119662; 078490",
+          "strength": "",
+          "dosage_form": ""
+        }
       ]
     },
     {
       "brand": "Medifen",
       "options": [
-        "diclofenac",
-        "ibuprofen"
+        {
+          "ingredient": "diclofenac",
+          "company": "3S Pharmaceuticals (Pvt) Ltd.",
+          "drap_reg_no": "109328",
+          "strength": "",
+          "dosage_form": ""
+        },
+        {
+          "ingredient": "ibuprofen",
+          "company": "Medicon Pharmaceutical Industries (pvt) Ltd.",
+          "drap_reg_no": "009887",
+          "strength": "",
+          "dosage_form": ""
+        }
       ]
     },
     {
       "brand": "Moven",
       "options": [
-        "diclofenac",
-        "glimepiride"
+        {
+          "ingredient": "diclofenac",
+          "company": "shrooq pharmaceuticals pvt ltd",
+          "drap_reg_no": "042843; 040304",
+          "strength": "",
+          "dosage_form": ""
+        },
+        {
+          "ingredient": "glimepiride",
+          "company": "Werrick Pharmaceuticals",
+          "drap_reg_no": "027033; 027034; 027035; 027036",
+          "strength": "",
+          "dosage_form": ""
+        }
       ]
     },
     {
       "brand": "Omitid",
       "options": [
-        "esomeprazole",
-        "omeprazole"
+        {
+          "ingredient": "esomeprazole",
+          "company": "Cell Health Sciences,",
+          "drap_reg_no": "098343",
+          "strength": "",
+          "dosage_form": ""
+        },
+        {
+          "ingredient": "omeprazole",
+          "company": "Cell Health Sciences,",
+          "drap_reg_no": "072147",
+          "strength": "",
+          "dosage_form": ""
+        }
       ]
     },
     {
       "brand": "Paramol",
       "options": [
-        "paracetamol",
-        "paracetamol + tramadol"
+        {
+          "ingredient": "paracetamol",
+          "company": "Paramount Pharmaceuitcals",
+          "drap_reg_no": "037198",
+          "strength": "",
+          "dosage_form": ""
+        },
+        {
+          "ingredient": "paracetamol/tramadol",
+          "company": "Trigon Pharmaceuticals (Private) Ltd",
+          "drap_reg_no": "011597-EX",
+          "strength": "",
+          "dosage_form": ""
+        }
       ]
     },
     {
       "brand": "Paratom",
       "options": [
-        "paracetamol",
-        "paracetamol + tramadol"
+        {
+          "ingredient": "paracetamol",
+          "company": "Winthrox Laboratories Pvt. Ltd",
+          "drap_reg_no": "015926-EX",
+          "strength": "",
+          "dosage_form": ""
+        },
+        {
+          "ingredient": "paracetamol/tramadol",
+          "company": "Winthrox Laboratories Pvt. Ltd",
+          "drap_reg_no": "074934",
+          "strength": "",
+          "dosage_form": ""
+        }
       ]
     },
     {
       "brand": "Provanol",
       "options": [
-        "naproxen",
-        "propranolol"
+        {
+          "ingredient": "naproxen",
+          "company": "Novamed Pharmaceuticals (Pvt.) Ltd",
+          "drap_reg_no": "076831",
+          "strength": "",
+          "dosage_form": ""
+        },
+        {
+          "ingredient": "propranolol",
+          "company": "Novamed Pharmaceuticals (Pvt.) Ltd",
+          "drap_reg_no": "076832",
+          "strength": "",
+          "dosage_form": ""
+        }
       ]
     },
     {
       "brand": "Ronate",
       "options": [
-        "alendronic acid",
-        "ibandronic acid"
+        {
+          "ingredient": "alendronic acid",
+          "company": "ELKO ORGANIZATION (PRIVATE) LIMITED; Goodman Laboratories Pvt. Ltd",
+          "drap_reg_no": "055130; 003031-EX",
+          "strength": "",
+          "dosage_form": ""
+        },
+        {
+          "ingredient": "ibandronic acid",
+          "company": "Amarant Pharmaceuticals Private Limited",
+          "drap_reg_no": "067022",
+          "strength": "",
+          "dosage_form": ""
+        }
       ]
     },
     {
       "brand": "Smep",
       "options": [
-        "esomeprazole",
-        "omeprazole"
+        {
+          "ingredient": "esomeprazole",
+          "company": "CRYSTOLITE PHARMACEUTICALS",
+          "drap_reg_no": "124142",
+          "strength": "",
+          "dosage_form": ""
+        },
+        {
+          "ingredient": "omeprazole",
+          "company": "CRYSTOLITE PHARMACEUTICALS",
+          "drap_reg_no": "124138",
+          "strength": "",
+          "dosage_form": ""
+        }
       ]
     },
     {
       "brand": "Tenevas",
       "options": [
-        "empagliflozin",
-        "empagliflozin + metformin"
+        {
+          "ingredient": "empagliflozin",
+          "company": "Genome Pharmaceuticals (Pvt.) Ltd,",
+          "drap_reg_no": "010920-EX",
+          "strength": "",
+          "dosage_form": ""
+        },
+        {
+          "ingredient": "empagliflozin/metformin",
+          "company": "Genome Pharmaceuticals (Pvt.) Ltd,",
+          "drap_reg_no": "010921-EX",
+          "strength": "",
+          "dosage_form": ""
+        }
       ]
     },
     {
       "brand": "Tesso",
       "options": [
-        "esomeprazole",
-        "omeprazole"
+        {
+          "ingredient": "esomeprazole",
+          "company": "Pharmawise Labs. Private Limited",
+          "drap_reg_no": "012071-EX",
+          "strength": "",
+          "dosage_form": ""
+        },
+        {
+          "ingredient": "omeprazole",
+          "company": "TRISON RESEARCH LABORATORIES PRIVATE LIMITED",
+          "drap_reg_no": "131752",
+          "strength": "",
+          "dosage_form": ""
+        }
       ]
     },
     {
       "brand": "Xenglu",
       "options": [
-        "empagliflozin",
-        "empagliflozin + metformin"
+        {
+          "ingredient": "empagliflozin",
+          "company": "Hilton Pharma (Pvt) Limited.",
+          "drap_reg_no": "093065; 093066",
+          "strength": "",
+          "dosage_form": ""
+        },
+        {
+          "ingredient": "empagliflozin/metformin",
+          "company": "Hilton Pharma (Pvt) Limited.",
+          "drap_reg_no": "093104",
+          "strength": "",
+          "dosage_form": ""
+        }
       ]
     }
   ]

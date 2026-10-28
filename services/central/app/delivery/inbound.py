@@ -61,13 +61,15 @@ def provider_event(body: ProviderEvent, db: Session = Depends(get_db), principal
                 transition(db, referral, "acknowledged", actor_label, None, detail, institution=body.institution_id)
             transition(db, referral, "accepted", actor_label, None, detail, institution=body.institution_id)
             notify_doctor(db, referral, "referral_accepted", f"{referral.reference} accepted by {inst_name}",
-                          referral.patient_name)
+                          f"{referral.patient_name}. Accepted by {body.actor_name}.", tab="response")
+            notify_staff(db, referral, "referral_accepted", f"{referral.reference} accepted by {inst_name}",
+                         f"{referral.patient_name}. Tell the patient, then close the referral.", tab="response")
         elif body.type == "declined":
             referral.decline_reason = body.data.get("reason")
             transition(db, referral, "declined", actor_label, None, detail, institution=body.institution_id)
             purge_now = True  # a declined referral's shared records are removed straight away
             notify_doctor(db, referral, "referral_declined", f"{referral.reference} declined by {inst_name}",
-                          f"Reason: {referral.decline_reason}")
+                          f"Reason: {referral.decline_reason}", tab="response")
             notify_staff(db, referral, "referral_declined", f"{referral.reference} declined by {inst_name}",
                          f"Reason: {referral.decline_reason}")
         elif body.type == "info_requested":

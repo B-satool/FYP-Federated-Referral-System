@@ -36,7 +36,8 @@ TRANSITIONS: dict[str, set[str]] = {
     "requested": {"submitted", "draft", "cancelled"},
     "submitted": {"acknowledged", "declined", "cancelled", "response_returned"},  # tests go straight to results
     "acknowledged": {"accepted", "declined", "cancelled"},
-    "accepted": {"response_returned", "cancelled"},
+    # a referral needs no specialist response: once accepted, the clinic tells the patient and closes it
+    "accepted": {"followup_pending", "closed", "cancelled", "response_returned"},
     "response_returned": {"followup_pending", "closed"},
     "followup_pending": {"closed"},
     "closed": set(),

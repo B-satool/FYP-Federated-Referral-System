@@ -70,8 +70,7 @@ def test_accept_extend_complete_then_expire():
     assert abs(hold - (datetime.now(timezone.utc) + timedelta(days=30))) < timedelta(minutes=5)
     assert abs(_at(ok(SURGEON.get(f"/cases/{case['id']}"))["case"]["hold_until"]) - hold) < timedelta(minutes=5)
 
-    # only once the response is sent can it be marked complete; extending is allowed meanwhile, with a reason
-    assert SURGEON.post(f"/cases/{case['id']}/complete").status_code == 409
+    # extending needs a reason and the assigned doctor
     assert SURGEON.post(f"/cases/{case['id']}/extend-hold", {"reason": ""}).status_code == 422
     assert AKU_STAFF.post(f"/cases/{case['id']}/extend-hold", {"reason": "need more time"}).status_code == 403
     ok(SURGEON.post(f"/cases/{case['id']}/extend-hold", {"reason": "Waiting for the anaesthetic review"}))
@@ -79,8 +78,8 @@ def test_accept_extend_complete_then_expire():
              60, what="extension at the platform")
     assert _at(_ref(rid)["working_set_expires_at"]) >= hold
 
-    resp = ok(SURGEON.put(f"/cases/{case['id']}/response", {"assessment": "Severe osteoarthritis of the right knee.", "plan": "Elective list."}))
-    ok(SURGEON.post(f"/cases/{case['id']}/response/send", {"expected_row_version": resp["row_version"]}))
+    # no response is needed: the doctor marks it complete when they have finished (it never happens by itself)
+    assert not ok(SURGEON.get(f"/cases/{case['id']}"))["case"]["completed_at"]
     done = ok(SURGEON.post(f"/cases/{case['id']}/complete"))
     assert done["status"] == "completed" and done["completed_by"] == "Dr Salman Akhtar"
     completed = wait_for(lambda: (x := _ref(rid))["receiver_completed_at"] and x, 60, what="completion at the platform")
@@ -89,8 +88,8 @@ def test_accept_extend_complete_then_expire():
     assert any("marked complete" in n["title"] for n in ok(DOCTOR.get("/notifications")))
     assert SURGEON.post(f"/cases/{case['id']}/extend-hold", {"reason": "too late"}).status_code == 409
 
-    # the time is up: the platform's copy and AKUH's copy of the shared records go; AKUH keeps its response
-    # (removal waits until everything sent has been delivered, including the clinic's copy of the response)
+    # the time is up: the platform's copy and AKUH's copy of the shared records go; AKUH keeps its decision
+    # (removal waits until everything sent has been delivered)
     wait_for(lambda: all(b["status"] == "sent" for b in ok(STAFF.get(f"/referrals/{rid}/delivery"))), 60, what="deliveries")
     _expire_now(rid)
     assert _ref(rid)["working_set_purged_at"]
@@ -98,7 +97,7 @@ def test_accept_extend_complete_then_expire():
                       60, what="removal at AKUH")
     assert all(p["envelope"].get("purged") for p in detail["packages"])
     assert detail["packages"][0]["content_hash"]  # the fingerprint stays
-    assert detail["responses"][0]["content"]["assessment"] == "Severe osteoarthritis of the right knee."
+    assert detail["case"]["decision"] == "accepted" and detail["case"]["completed_by"] == "Dr Salman Akhtar"
 
 
 def test_decline_removes_the_shared_records_straight_away():

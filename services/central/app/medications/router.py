@@ -39,8 +39,9 @@ def medications(referral_id: int, db: Session = Depends(get_db), principal: Prin
     entries = service.all_entries(db, r.id)
     excluded = [e for e in db.scalars(select(MedicationEntry).where(MedicationEntry.referral_id == r.id,
                                                                     MedicationEntry.excluded.is_(True)))]
+    known = _known_ingredients(db) if any(m.mapping_choices for m in entries) else set()
     return {
-        "entries": [medication_out(m) for m in entries if not m.excluded],
+        "entries": [_with_choices(medication_out(m), known) for m in entries if not m.excluded],
         "excluded": [medication_out(m) for m in excluded],
         "meds_checked": {"by": r.meds_checked_by, "at": r.meds_checked_at, "note": r.meds_checked_note},
         "evaluation": None if run is None else {
@@ -182,26 +183,55 @@ def restore_medicine(referral_id: int, entry_id: int, db: Session = Depends(get_
     return medication_out(m)
 
 
+def _known_ingredients(db: Session) -> set[str]:
+    return set(db.scalars(select(MedicineName.ingredient).where(MedicineName.status == "active",
+                                                                MedicineName.kind != "register_ambiguous")))
+
+
+def _with_choices(out: dict, known: set[str]) -> dict:
+    """An ambiguous DRAP brand lists the products it could be; each says whether the app knows that medicine."""
+    if out.get("mapping_choices"):
+        out["mapping_choices"] = [{**c, "known": c["ingredient"] in known} for c in out["mapping_choices"]]
+    return out
+
+
 class MapIn(BaseModel):
     ingredient: str
+    # for a DRAP brand used for different products: which one (by the company on the pack)
+    company: str | None = None
+    drap_reg_no: str | None = None
 
 
 @router.post("/referrals/{referral_id}/medications/{entry_id}/mapping")
 def set_mapping(referral_id: int, entry_id: int, body: MapIn, db: Session = Depends(get_db),
                 principal: Principal = Depends(get_principal)):
-    """Staff resolve an unrecognised name by choosing a medicine from the reviewed name list."""
+    """Doctor or staff resolve a name: choose a medicine from the name list, or, for a DRAP brand name used
+    for different products, the product it is (by the company on the pack)."""
     r = load_referral(db, referral_id, principal, "map_medication")
     ensure_clinical_edit_allowed(r)
     m = _entry(db, r, entry_id)
+    choice = None
+    if body.company or body.drap_reg_no:
+        choice = next((c for c in (m.mapping_choices or []) if c["ingredient"] == body.ingredient
+                       and c.get("company") == body.company and c.get("drap_reg_no") == body.drap_reg_no), None)
+        if choice is None:
+            raise error(422, "unknown_choice", "That product is not one of the options for this name")
     known = db.scalars(select(MedicineName).where(MedicineName.ingredient == body.ingredient,
-                                                  MedicineName.status == "active")).first()
+                                                  MedicineName.status == "active",
+                                                  MedicineName.kind != "register_ambiguous")).first()
     if known is None:
-        raise error(422, "unknown_ingredient", "Choose a medicine from the medicine name list")
+        raise error(422, "unknown_ingredient", "That medicine is not in the medicine name list yet; ask a clinical reviewer to add it")
     prior = {"status": m.mapping_status, "ingredient": m.ingredient}
     m.mapping_status, m.ingredient, m.drug_class = "staff_mapped", known.ingredient, known.drug_class
-    m.mapping_note = f"Matched by {principal.display_name}"
+    if choice:
+        reg = f", DRAP {choice['drap_reg_no']}" if choice.get("drap_reg_no") else ""
+        m.mapping_note = (f"{m.original_name}: {known.ingredient} ({choice.get('company') or 'company not recorded'}{reg}),"
+                          f" chosen by {principal.display_name}")
+    else:
+        m.mapping_note = f"Matched by {principal.display_name}"
     audit(db, principal, "medication.mapping", "medication_entry", m.id, "success", r.id,
-          {"from": prior, "to": known.ingredient, "original_name": m.original_name})
+          {"from": prior, "to": known.ingredient, "original_name": m.original_name,
+           "company": body.company, "drap_reg_no": body.drap_reg_no})
     after_change(db, r, "medicine_mapping_changed", principal)
     db.commit()
     return medication_out(m)

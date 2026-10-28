@@ -368,6 +368,8 @@ export type MedicationEntry = {
   drug_class_label: string | null;
   mapping_status: string;
   mapping_note: string | null;
+  /** a DRAP brand name used for different products: pick the one on the pack (known = in the app's medicine list) */
+  mapping_choices?: { ingredient: string; company: string; drap_reg_no: string; strength: string; dosage_form: string; known?: boolean }[] | null;
   duplicate_of: number | null;
   dose_differs: boolean;
   excluded: boolean;

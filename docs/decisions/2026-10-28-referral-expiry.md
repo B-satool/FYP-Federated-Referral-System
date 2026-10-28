@@ -16,7 +16,7 @@ and the sent package. They are held on the platform and in the receiving hospita
 | Sent, not yet accepted | Kept, with no time limit |
 | Receiving doctor **accepts** | Kept, with a safety limit of 30 days after acceptance (`ACCEPTED_HOLD_DAYS`) |
 | Receiving doctor **extends** (with a reason; any number of times) | The limit becomes 30 days from then (never shorter) |
-| Receiving doctor **marks it complete** (only after sending their response) | Removed 72 hours later (`WORKING_SET_GRACE_HOURS`) |
+| Receiving doctor **marks it complete** (any time after accepting; never automatic) | Removed 72 hours later (`WORKING_SET_GRACE_HOURS`) |
 | Receiving doctor **declines** | Removed straight away |
 | Referring doctor **cancels** | Removed 72 hours later |
 | Test request (lab, radiology, ECG) | Removed 72 hours after all results are back, or after it is closed or cancelled |

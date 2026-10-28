@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Link as RouterLink, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -148,8 +148,6 @@ export function IncomingList() {
   );
 }
 
-type ResponseForm = { assessment: string; plan: string; instructions_for_clinic: string; appointment: string };
-const EMPTY_FORM: ResponseForm = { assessment: "", plan: "", instructions_for_clinic: "", appointment: "" };
 
 function ResponseView({ content }: { content: ConsultationResponse["content"] }) {
   return (
@@ -266,26 +264,11 @@ export function IncomingCase() {
   };
   const [declineOpen, setDeclineOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
-  const [form, setForm] = useState<ResponseForm>(EMPTY_FORM);
   const [version, setVersion] = useState<number | null>(null);
-  const [focusResponse, setFocusResponse] = useState(false);
-  const responseRef = useRef<HTMLDivElement>(null);
-  const firstFieldRef = useRef<HTMLTextAreaElement>(null);
 
   const draft = q.data?.responses.length ? q.data.responses[q.data.responses.length - 1] : null;
-  useEffect(() => {
-    if (draft) setForm({ ...EMPTY_FORM, ...(draft.content as Partial<ResponseForm>) } as ResponseForm);
-  }, [draft?.id, draft?.row_version]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const accepted = q.data?.case.decision === "accepted";
-  // after "Accept referral", bring the response form into view and put the cursor in it
-  useEffect(() => {
-    if (focusResponse && accepted && responseRef.current) {
-      responseRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-      firstFieldRef.current?.focus({ preventScroll: true });
-      setFocusResponse(false);
-    }
-  }, [focusResponse, accepted]);
 
   const acknowledge = useMutation({
     mutationFn: () => api.post(`/cases/${id}/acknowledge`, {}, service),
@@ -294,10 +277,9 @@ export function IncomingCase() {
   });
   const decide = useMutation({
     mutationFn: (body: { decision: "accept" | "decline"; reason?: string }) => api.post(`/cases/${id}/decision`, body, service),
-    meta: { success: "Decision recorded and sent to the referring clinic." },
-    onSuccess: (_, body) => {
+    meta: { success: "Decision recorded. The referring doctor is told." },
+    onSuccess: () => {
       setDeclineOpen(false);
-      if (body.decision === "accept") setFocusResponse(true);
       refresh();
     },
   });
@@ -308,11 +290,6 @@ export function IncomingCase() {
       setAskOpen(false);
       refresh();
     },
-  });
-  const save = useMutation({
-    mutationFn: () => api.put<{ row_version: number }>(`/cases/${id}/response`, { ...form, expected_row_version: draft?.row_version ?? null }, service),
-    meta: { success: "Draft saved." },
-    onSuccess: refresh,
   });
   const [extendOpen, setExtendOpen] = useState(false);
   const complete = useMutation({
@@ -328,14 +305,6 @@ export function IncomingCase() {
       refresh();
     },
   });
-  const send = useMutation({
-    mutationFn: async () => {
-      const saved = await api.put<{ row_version: number }>(`/cases/${id}/response`, { ...form, expected_row_version: draft?.row_version ?? null }, service);
-      return api.post(`/cases/${id}/response/send`, { expected_row_version: saved.row_version }, service);
-    },
-    meta: { success: "Response sent to the referring clinic." },
-    onSuccess: refresh,
-  });
 
   if (q.isLoading || !me) return <Loading />;
   if (q.error) return <ErrorAlert error={q.error} />;
@@ -345,8 +314,6 @@ export function IncomingCase() {
   const env = removed ? undefined : shown?.envelope;
   const urgency = ref.data?.urgencies[c.urgency];
   const deptName = (code: string | null | undefined) => (code ? ref.data?.departments[code]?.name ?? code : null);
-  const sent = draft?.status === "returned";
-  const hasContent = Object.values(form).some((v) => v.trim());
   const from = env ? `${env.requesting_doctor.name}, ${env.requesting_doctor.institution}` : c.sender_name;
   const decided = !!c.decision;
   const canDecide = doctor && c.status === "assigned" && !decided;
@@ -357,61 +324,12 @@ export function IncomingCase() {
   const confirmed = !!c.local_patient_id;
   const assignedStep = !!c.assigned_doctor;
 
-  const responseSection = accepted && (
-    <Box ref={responseRef} sx={{ scrollMarginTop: 80 }}>
-      <Section
-        title="Your response"
-        description={
-          sent
-            ? `Sent by ${draft?.returned_by} on ${fmtDate(draft?.returned_at)}. It cannot be changed.`
-            : "You accepted this referral. Write your assessment and plan; sending signs it off and returns it to the referring clinic."
-        }
-      >
-        {sent ? (
-          <ResponseView content={draft!.content} />
-        ) : (
-          <Stack spacing={1.5}>
-            <TextField
-              label="Assessment"
-              multiline
-              minRows={3}
-              inputRef={firstFieldRef}
-              value={form.assessment}
-              onChange={(e) => setForm({ ...form, assessment: e.target.value })}
-            />
-            <TextField label="Plan" multiline minRows={2} value={form.plan} onChange={(e) => setForm({ ...form, plan: e.target.value })} />
-            <TextField
-              label="Instructions for the referring clinic"
-              multiline
-              minRows={2}
-              value={form.instructions_for_clinic}
-              onChange={(e) => setForm({ ...form, instructions_for_clinic: e.target.value })}
-            />
-            <TextField label="Appointment" placeholder="For example: surgical clinic in 2 weeks" value={form.appointment} onChange={(e) => setForm({ ...form, appointment: e.target.value })} />
-            <ErrorAlert error={save.error || send.error} />
-            {doctor ? (
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Button variant="outlined" onClick={() => save.mutate()} disabled={save.isPending || !hasContent}>
-                  Save draft
-                </Button>
-                <Button variant="contained" onClick={() => send.mutate()} disabled={send.isPending || !hasContent}>
-                  Send response to the referring clinic
-                </Button>
-              </Stack>
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                Only the assigned doctor can write and send the response.
-              </Typography>
-            )}
-            {draft && (
-              <Typography variant="caption" color="text.secondary">
-                Draft saved by {draft.drafted_by}.
-              </Typography>
-            )}
-          </Stack>
-        )}
-      </Section>
-    </Box>
+  // the referral needs no response from here (2026-10-28); one sent before that stays visible
+  const sentResponse = draft?.status === "returned" ? draft : null;
+  const responseSection = sentResponse && (
+    <Section title="Your response" description={`Sent by ${sentResponse.returned_by} on ${fmtDate(sentResponse.returned_at)}.`}>
+      <ResponseView content={sentResponse.content} />
+    </Section>
   );
 
   const infoRequests = info_requests.length > 0 && (
@@ -508,7 +426,7 @@ export function IncomingCase() {
           <ErrorAlert error={complete.error || extend.error} />
           {isAssignedDoctor ? (
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <Button variant="contained" onClick={() => complete.mutate()} disabled={complete.isPending || !sent}>
+              <Button variant="contained" onClick={() => complete.mutate()} disabled={complete.isPending}>
                 Mark as complete
               </Button>
               <Button variant="outlined" onClick={() => setExtendOpen(true)} disabled={extend.isPending}>
@@ -518,11 +436,6 @@ export function IncomingCase() {
           ) : (
             <Typography variant="body2" color="text.secondary">
               Only the assigned doctor can mark it complete or keep the records longer.
-            </Typography>
-          )}
-          {isAssignedDoctor && !sent && (
-            <Typography variant="caption" color="text.secondary">
-              Send your response first; then you can mark the referral complete.
             </Typography>
           )}
         </Stack>
@@ -620,12 +533,11 @@ export function IncomingCase() {
           </Section>
         )}
 
-        {doctor && !sent && responseSection}
 
         {doctor && (canDecide || canAsk || decided) && (
           <Section
             title="Decision"
-            description={canDecide ? "Accept the referral and write your response, decline it with a reason, or ask the referring clinic for more information." : undefined}
+            description={canDecide ? "Accept or decline the referral (with a reason). The referring doctor is told either way. You can also ask the referring clinic for more information." : undefined}
           >
             <ErrorAlert error={decide.error || ask.error} />
             {c.assign_note && !decided && (
@@ -665,7 +577,7 @@ export function IncomingCase() {
 
         {infoRequests}
 
-        {(!doctor || sent) && responseSection}
+        {responseSection}
 
         {holdSection}
 

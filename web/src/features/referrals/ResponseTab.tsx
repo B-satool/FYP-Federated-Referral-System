@@ -8,11 +8,11 @@ import { useInvalidateReferral } from "./ReferralWorkspace";
 import type { Role } from "./steps";
 import { HoldNotice } from "./HoldNotice";
 
+// The receiving doctor accepts or declines; no response is written (2026-10-28).
 const PROGRESS = [
   ["submitted", "Delivered"],
   ["acknowledged", "Acknowledged"],
   ["accepted", "Accepted"],
-  ["response_returned", "Response received"],
   ["closed", "Closed"],
 ] as const;
 const ORDER = ["requested", "submitted", "acknowledged", "accepted", "response_returned", "followup_pending", "closed"];
@@ -58,7 +58,8 @@ export function ResponseTab({ r, role }: { r: ReferralDetail; role: Role }) {
   const idx = ORDER.indexOf(r.status);
   const response = responses.data?.[responses.data.length - 1];
   const openTasks = (tasks.data ?? []).filter((t) => t.status === "open");
-  const canFollowUp = ["response_returned", "followup_pending"].includes(r.status);
+  const canFollowUp = ["accepted", "response_returned", "followup_pending"].includes(r.status);
+  const canInform = canFollowUp || r.status === "declined";
 
   return (
     <Stack spacing={2}>
@@ -93,11 +94,19 @@ export function ResponseTab({ r, role }: { r: ReferralDetail; role: Role }) {
         </Section>
       )}
 
-      <Section title="Specialist's response">
+      <Section title="Outcome">
         <ErrorAlert error={responses.error || act.error} />
-        {!response ? (
-          <Empty>{r.submitted_package_version ? "No response yet." : "The response appears here after the referral is sent."}</Empty>
+        {r.status === "declined" ? (
+          <Typography variant="body2">Declined by {r.destination_name}. Reason: {r.decline_reason}</Typography>
+        ) : r.accepted_at ? (
+          <Typography variant="body2">
+            Accepted by {r.destination_name} on {fmtDate(r.accepted_at)}.
+            {r.receiver_completed_at ? ` Marked complete by ${r.receiver_completed_by} on ${fmtDate(r.receiver_completed_at)}.` : ""}
+          </Typography>
         ) : (
+          <Empty>{r.submitted_package_version ? `Waiting for ${r.destination_name} to accept or decline.` : "The outcome appears here after the referral is sent."}</Empty>
+        )}
+        {response && ( /* a specialist response sent before 2026-10-28 */
           <Stack spacing={1.5}>
             <KeyValue items={[
               ["From", `${response.specialist_name}, ${r.destination_name}`],
@@ -123,14 +132,14 @@ export function ResponseTab({ r, role }: { r: ReferralDetail; role: Role }) {
         )}
       </Section>
 
-      {(canFollowUp || r.status === "closed") && (
+      {(canInform || r.status === "closed") && (
         <Section title="Follow-up">
           <Stack spacing={2}>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "center" }}>
               {r.patient_informed_at ? (
                 <Tag tone="ok" label={`Patient informed by ${r.patient_informed_by}, ${fmtDate(r.patient_informed_at)}`} />
               ) : (
-                <Button variant="contained" onClick={() => setInforming(true)} disabled={!canFollowUp}>
+                <Button variant="contained" onClick={() => setInforming(true)} disabled={!canInform}>
                   Record that the patient was told
                 </Button>
               )}
@@ -160,12 +169,12 @@ export function ResponseTab({ r, role }: { r: ReferralDetail; role: Role }) {
             {canFollowUp && (
               <>
                 <Button variant="contained" color="success" sx={{ alignSelf: "start" }}
-                  disabled={!response?.reviewed_at || !r.patient_informed_at || openTasks.length > 0 || act.isPending}
+                  disabled={!r.patient_informed_at || openTasks.length > 0 || act.isPending}
                   onClick={() => act.mutate({ path: `/referrals/${r.id}/close`, body: { expected_version: r.row_version } })}>
                   Close referral
                 </Button>
                 <Typography variant="caption" color="text.secondary">
-                  Close once the doctor has reviewed the outcome, the patient has been told, and every task has an outcome. Closing does not describe the patient's condition.
+                  The doctor or staff can close the referral once the patient has been told and every task has an outcome. Closing does not describe the patient's condition.
                 </Typography>
               </>
             )}

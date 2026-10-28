@@ -69,8 +69,9 @@ def seed_names(db) -> int:
         key = mapping.normalize(a["brand"])
         if key and key not in seen and mapping.usable_register_name(key):
             seen.add(key)
-            db.add(MedicineName(name=key, display=a["brand"], ingredient=" | ".join(a["options"])[:100], drug_class="",
-                                kind=mapping.AMBIGUOUS_KIND, added_by="DRAP product register snapshot"))
+            ingredients = sorted({o["ingredient"] for o in a["options"]})
+            db.add(MedicineName(name=key, display=a["brand"], ingredient=" | ".join(ingredients)[:100], drug_class="",
+                                kind=mapping.AMBIGUOUS_KIND, options=a["options"], added_by="DRAP product register snapshot"))
     return len(seen)
 
 

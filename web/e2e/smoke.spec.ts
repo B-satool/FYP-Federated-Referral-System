@@ -44,7 +44,7 @@ async function registerNew(page: Page, note: string) {
   await expect(page.getByText(/Patient confirmed/).first()).toBeVisible({ timeout: 30_000 });
 }
 
-test("referral: doctor requests, staff prepare, doctor reviews flags, staff send, hospital takes it in and responds", async ({ browser }) => {
+test("referral: doctor requests, staff prepare, doctor reviews flags, staff send, hospital accepts and completes, doctor closes", async ({ browser }) => {
   // 1. The doctor chooses what they need, then fills in the referral.
   const dr = await asUser(browser, "dr.ali");
   await go(dr, "/referrals/new");

@@ -1,80 +1,172 @@
-# Architecture and Stage 0 decisions
+# Architecture (version 2, as of 2026-10-28)
 
-> **Version 1 document.** Version 2 changed the institutions, roles, linking, retrieval, medicines and sending; see [v2-changes.md](v2-changes.md) for what differs. This page has not been rewritten for v2 yet.
-
-This file records the implementable scope agreed in Stage 0 (Roadmap §7) and the system boundaries (Roadmap §1). Items marked **(provisional)** are reasonable defaults chosen so the prototype could be built. They still require confirmation by the supervisor and a clinical reviewer, as SRS §12 requires.
+How the platform is built and the rules it keeps. Why things changed since v1 is in [v2-changes.md](v2-changes.md),
+and each decision is recorded in [decisions/](decisions/). Items marked **(provisional)** are defaults chosen so the
+prototype could be built. The supervisor and a clinical reviewer still have to confirm them.
 
 ## 1. System boundaries
 
 | Component | Owns | Talks to |
 |---|---|---|
-| Clinic A service (`services/clinic`) | `clinic_db`: patients, encounters, conditions, prescriptions, patient-reported medication, document metadata, access grants, audit | Nobody. It answers authorized requests only. |
-| Lab B service (`services/lab`) | `lab_db`: patients, results, reports, result revisions, access grants, audit | Nobody |
-| Specialist C service (`services/specialist`) | `specialist_db`: patients, prior consultations, received package versions, decisions, flag acknowledgments, clarifications, responses, outbox | Central `/inbound/specialist-events` (service token) |
-| Central platform (`services/central`) | `central_db`: users, patient links, referrals, evidence, documents, extraction, medication entries, rule approvals, flags, reviews, briefs, packages, outbox, responses, tasks, audit; plus the protected document volume | Source APIs only (forwarded user token or service token) |
-| Worker (same image, `celery -A app.tasks`) | Nothing of its own; job state lives in `central_db` | OCR, LLM provider, specialist inbound API |
-| Keycloak | Its own `keycloak` database | — |
+| **Institution service** (`services/provider`), run four times: Dr Ali's Clinic `drali`, Chughtai Lab `chughtai`, Ziauddin `ziauddin`, Aga Khan `akuh` | Its own database (`<id>_db`): patients and their records (visits, conditions, surgery, medicines, labs, imaging), access grants, incoming referrals (`cases`), orders and results, its copy of what it sent (`sent_copies`), audit | Answers authorized requests. Sends events (acknowledged, accepted, declined, completed, hold extended, order updates) to central `/inbound/provider-events` with its service token. |
+| **Central platform** (`services/central`) | `central_db`: users, patient links, referrals, retrieved records (`evidence_items`), papers and OCR, medicine list, rules and medicine names, flags and reviews, packet selection, sent packages and manifests, outbox, notifications, tasks, audit; the protected file store | Institution APIs only, with the user's own token or its service token. **Never an institution's database.** |
+| **Worker** (same image, `celery -A app.tasks`) | Nothing of its own; job state lives in `central_db` | Delivers the outbox every 5 s; runs OCR, the AI selection, the purge (every 10 min) and grant close-out (every minute) |
+| **Web app** (`web/`) | Nothing (one React app for every role) | Central and the user's own institution service |
+| **Keycloak** | Its `keycloak` database: accounts, roles, institution and department groups | — |
+| **Outside services (optional)** | — | A language model through Ollama (local, or `:cloud` models on ollama.com) or Anthropic; Google Cloud Vision for handwriting. Only when configured, and see §6. |
 
-There is one PostgreSQL server with **separate databases and separate logins** per owner (`infra/postgres/init`). The central service is configured only with `central_db` credentials. Redis is only the job queue, never a source of truth.
+There is one PostgreSQL server with **separate databases and logins** per owner (`infra/postgres/init`). Central has
+only `central_db` credentials. Redis is only the job queue.
 
 ## 2. Identity and authorization
 
-- Browser sign-in uses OIDC authorization code with PKCE (public client `referral-web`). Institution comes from Keycloak group membership; roles are realm roles.
-- Every service verifies the JWT signature, issuer and **its own audience**. It then **introspects** the token with Keycloak, cached for 10 s. A disabled account or ended session therefore stops working at the source services within seconds.
-- The central platform also checks its own `users.account_status` on every request. Disabling an account blocks access to centrally retained data immediately (FR-05).
-- **Source authorization (FR-03, FR-04).** A source allows a request when either:
-  - the caller belongs to the source's own institution, filtered by role category (clinic staff do not receive `conditions`); or
-  - the source's administrator has granted an access grant for that patient and category (`access_grants` table, managed in each source's admin screen).
+- **Sign-in:** OIDC authorization code with PKCE (client `referral-web`). Institution and department come from
+  Keycloak groups; roles are realm roles.
+- **Token checks:** every service verifies the JWT and its own audience, then introspects the token, cached for 10 s.
+  A disabled account stops working within seconds. Central also checks its own `users.account_status`.
+- **Roles:**
+  - `clinician`: referring or receiving doctor.
+  - `clinic_staff`: prepares and sends; takes referrals in.
+  - `diagnostics_staff`: laboratory, radiology and ECG.
+  - `institution_admin`: accounts, roles, record sharing and audit, but no clinical records.
+  - `rule_reviewer`: medication rules and medicine names.
+- **Role templates** (`rules/roles/templates.v1.json`): named bundles of these roles, each with a home screen and a
+  menu.
+  - Admins apply a template on **Accounts and roles**. The platform changes the user's Keycloak roles; this needs
+    `view-realm` and `manage-users` on central's service account.
+  - It never changes the admin's own account, another institution's account or a service role, and it is audited.
+  - The menu only hides screens. Every API still checks the role itself.
+- **Source authorization:** each institution decides for itself.
+  - Its own staff are allowed by role.
+  - Anyone else needs an **access grant** for that patient and category. A grant is created when that institution's
+    staff confirm a patient link.
+  - Grants **expire**: 14 days by default, 30 at most. Administrators can extend them, and they are revoked at every
+    institution when the referral finishes.
+  - Central forwards the user's own token, so the institution decides about that user. Identity headers sent by a
+    browser are never trusted.
+- **Service calls:** central → institutions with `svc_central`, institutions → central with `svc_provider`.
 
-  The central platform forwards the user's own token, so the source decides about that user.
-- **Service-to-service calls.** Central delivers packages to the specialist with the `central-api` client-credentials token (role `svc_central`). The specialist returns events with the `specialist-api` token (role `svc_specialist`). Browser-supplied identity headers are never trusted.
-- **Administrators.** An administrator manages accounts, grants and link corrections, but receives no clinical record access (central `load_referral` requires a clinical role).
-- **Rule approval.** Only the `rule_reviewer` role can approve medication rules.
+## 3. The flows
 
-## 3. Stage 0 decisions
+### Referral (`REF-…`)
+1. **Request:** the doctor fills in the form: destination hospital and department (optionally a doctor), reason,
+   urgency, and the procedure in their own words with the features it involves (surgery, anaesthesia, contrast,
+   bleeding risk …).
+2. **Linking:** staff ask other institutions to confirm the patient (records request). Linking is never done on
+   matching names or IDs, and only `verified` links are used.
+3. **Retrieval** (`integration/retrieval.py`):
+   - It asks every linked institution: up to `MAX_RETRIEVAL_SOURCES` (5), most recently visited first. The rest are
+     listed as skipped.
+   - Visits, results and imaging go back the years set for the specialty (`SPECIALTY_HISTORY_YEARS`). Conditions and
+     current medicines come whatever their date.
+   - Unavailable, denied or expired sources are shown as such, never as "no history".
+4. **Packet selection** (`selection/selection.py`):
+   - A rule-based default ticks current conditions, previous surgery, current medicines, staff-added items, and the
+     last 6 months of visits, results and imaging.
+   - A model, if configured, may recommend adding records, with a reason. It never removes a default item, and
+     records it leaves out are listed under "Not included".
+   - **Staff decide.** Every choice is recorded.
+5. **Papers** (`documents/processing.py`): OCR with Tesseract (printed text) or Google Cloud Vision (also handwriting).
+   Medicine and lab fields are proposed, and staff check each against the page image.
+6. **Medicines and flags:** see §4.
+7. **Ready → review → send:**
+   - Staff mark it ready, the doctor reviews every flag (Reviewed, Ignore or Research), and staff send.
+   - The package (`sending/packages.py`) gets a SHA-256 fingerprint and a manifest. It is delivered to the receiving
+     institution, and a copy goes to the sending clinic's own system.
+8. **Receiving side:**
+   - Staff acknowledge it, confirm the patient on arrival (match or register as new) and assign a doctor.
+   - The doctor **accepts or declines** (with a reason) and can ask questions. There is **no written response**
+     ([decision](decisions/2026-10-28-no-specialist-response.md)).
+   - The requesting doctor and staff are notified.
+   - The receiving doctor presses **Mark as complete** when finished. It is never automatic.
+9. **Follow-through:** staff record that the patient was told; follow-up tasks are optional; the **doctor or staff**
+   close it.
 
-| Decision (SRS §12) | Choice |
+### Test or scan request (`TST-…`)
+1. The doctor lists tests, each sent by staff as an order to a laboratory, radiology or ECG department.
+2. The department confirms the patient, then accepts or rejects, schedules and reports. A report needs values, or
+   findings, an impression and images.
+3. Results come back to the doctor. Staff tell the patient and close it.
+
+### Status model (`referrals/state.py`)
+`draft → requested → submitted → acknowledged → accepted → (followup_pending) → closed`, with `declined` and
+`cancelled` ending a referral, and `submitted → response_returned → closed` for test requests (results back). Every
+change carries `expected_version` (a stale save gets 409). A clinical change after sending opens an **amendment**:
+a new version is sent and the earlier one stays unchanged.
+
+## 4. Medicines and flags (`medications/`)
+
+- **Names → ingredients** (`mapping.py`):
+  - **Hand-checked names** (`rules/terminology/medicine-names.pk.json`, `brands`) match anywhere in what was written.
+  - **DRAP register brands** (`register_brands`, about 5,000) match only at the **start** of the written name. Short
+    names and ordinary words are not loaded, and the hand-checked list wins.
+  - Names DRAP uses for two medicines (e.g. Glare) are never guessed: doctor or staff pick the product by company.
+  - An unrecognised medicine is flagged and never treated as safe.
+- **Flags** come only from the deterministic evaluator (`evaluator.py`):
+  - reviewer-approved procedure rules (drug class × procedure feature);
+  - DDInter drug–drug interactions;
+  - warnings read from US drug labels, with the quote.
+  - Each flag shows its source. "Reviewed" means seen, not cleared, and no flag advises changing a medicine.
+- **AI suggestions:** an offline model suggests possible clashes for pairs DDInter doesn't cover. They are labelled
+  "AI suggestion, not verified", never flags, and are sent in the package with the doctor's decision.
+
+Details and coverage figures are in [medication-flagging.md](medication-flagging.md).
+
+## 5. Data lifecycle ([data-lifecycle.md](data-lifecycle.md), [data-inventory.md](data-inventory.md))
+
+| When | Shared records (**provisional numbers**) |
 |---|---|
-| Specialty | **Orthodontics** (single specialty), destination Specialist C **(provisional)** |
-| Procedure contexts | orthodontic assessment, fixed appliance, tooth extraction, mini-implant placement, orthognathic surgery. The procedure may be **explicitly unknown**; "not stated" blocks submission. |
-| Medication classes covered by rules | anticoagulant, antiplatelet, bisphosphonate, systemic corticosteroid **(provisional)** |
-| Rule files | `rules/medication/orthodontics.v1.json`. Shipped as **drafts**. A rule is active only after a `rule_reviewer` approves that exact version in-app; the approval stores reviewer, reference checked and content hash. Editing the file invalidates the approval. **The listed references must be confirmed by the clinical reviewer.** |
-| Clinical rule reviewer | Role `rule_reviewer` (demo account `dr.reviewer`). A named clinician must be identified before any real use. |
-| Mapping source | Local reviewed dictionary `rules/terminology/medication-dictionary.v1.json` (RxNorm RxCUI and ATC codes recorded as identifiers). Entries marked `suggested` are never treated as verified mappings. |
-| Checklist | `rules/checklists/orthodontics.v1.json`. Required and non-overridable: reason, clinician-selected priority, procedure stated or unknown, referring clinician. Blocking but overridable by a clinician with rationale: documented history, medication use verified, document/manual fields verified, discrepancies reviewed. Non-blocking limitations: source outages. **(provisional)** |
-| Supported discrepancy types | Same ingredient with a different dose instruction in current records; same lab test on the same collection date with different values. Values that differ across dates are never flagged. |
-| Documents | English; PDF, PNG and JPEG; up to 10 MB and 10 pages; types prescription, laboratory report, referral/clinic note **(provisional)** |
-| OCR / HTR | **Tesseract 5 (LSTM)** behind `extract_document()`. Embedded text is used for digital PDFs. It was chosen over TrOCR because TrOCR needs a separate line-segmentation step and more memory than the 4 GB demo budget allows. The interface allows replacement (Azure Read or TrOCR). |
-| Field extraction | The language model with a strict JSON schema and line-ID allowlist when configured, otherwise the deterministic `rules-extractor/1`. Both propose only supported medication and laboratory fields. |
-| Language model | Behind `LLMProvider`, chosen with `LLM_PROVIDER`. `anthropic`: `claude-opus-5-5` via the Anthropic SDK, using structured JSON-schema output with server-side refusal fallback. `ollama`: open models via Ollama's `/api/chat`, e.g. `gemma4:cloud`. Ollama's cloud does not enforce the schema, so the schema goes in the prompt and every reply is checked against it (`check_schema`) before use. Optional: everything works without it (FR-58). |
-| FHIR | R4 **4.0.1**, limited subset (docs/fhir-subset.md). Custom project endpoints return FHIR content; package and event envelopes are labelled *project API contract*. |
-| Patient-link verification | A clinician or institution administrator verifies a proposed link and records the basis. An optional source-side identity check returns field-match booleans only. Identical local IDs never link automatically. |
-| Retention | Each referral's retrieved content is a temporary working set, removed 72 hours after the answer is returned or the referral ends, or at most 60 days after the first retrieval, and only once deliveries are confirmed. The platform keeps the reference, status, audit, package manifest and SHA-256. The receiving institution and the sending clinic (`sent_copies`) keep the content. Access grants expire. See `data-lifecycle.md` and `data-inventory.md`. **(provisional; needs institutional policy before hosted use)** |
-| Packet selection | Retrieval reads every linked institution, up to `MAX_RETRIEVAL_SOURCES` (5) besides the referring one, most recently visited first. Any beyond that are listed as skipped. Visits, results and imaging go back the years set for the destination specialty (`SPECIALTY_HISTORY_YEARS`, otherwise `REFERRAL_HISTORY_YEARS`, 3). Conditions and current medicines come whatever their date. A rule-based default always selects current conditions, previous surgery, current medicines, results ordered for the referral, staff-added items, and visits, results and imaging from the last 6 months. If a model is configured, an AI recommendation (`selection/selection.py`, structured JSON, validated in code, record text treated as data, no tools) may add records or mark them low relevance, but it never removes a default item. What it leaves out is listed under "Not included". Staff decide. Each choice (default / AI / staff, who and when) and the model and prompt version go into the package `selection` field. |
-| Role screens | `rules/roles/templates.v1.json` gives each role template a home screen and menu. `GET /me` returns them and the web app builds its navigation from that. The API checks stay the real enforcement. |
-| Dataset | A hand-built synthetic population with partitioned histories across the three sources. Synthea was not used, to keep setup offline and small; the seed scripts are the single source of truth. The expected-link map exists only in `services/central/app/seed.py` and the tests. |
-| Quality thresholds | Baseline measured (docs/evaluation.md); numeric acceptance thresholds still to be agreed with the supervisor. |
+| Sent, not yet accepted | Kept, no limit |
+| Accepted | Safety limit `ACCEPTED_HOLD_DAYS` (30); the receiving doctor can extend it by 30 days, with a reason |
+| Marked complete | Removed `WORKING_SET_GRACE_HOURS` (72) later |
+| Declined | Removed straight away |
+| Cancelled | Removed 72 hours later |
+| Test request | Removed 72 hours after the results are back or it ends |
 
-## 4. Status model and invariants
+- Removal clears the content **on the platform and at the receiving institution**. The receiver keeps its own
+  decision and questions.
+- What stays: the reference, status, audit, the package manifest and its fingerprint. The screens say "no longer
+  held", never "none".
+- Removal waits until everything sent has been delivered.
 
-Referral status (SRS §6) is enforced on the server in `services/central/app/referrals/state.py`:
+## 6. Language models and privacy ([decision](decisions/2026-10-28-cloud-model-privacy.md))
 
-`draft → awaiting_information ⇄ awaiting_approval → approved → submitted → acknowledged → accepted → response_returned → followup_pending → closed`, with `declined` and `cancelled` as terminal states that record reasons.
+- **Providers** sit behind `LLMProvider` (`generation/provider.py`), chosen with `LLM_PROVIDER`:
+  - `ollama`: a local model (e.g. `medgemma:4b`) or a `:cloud` model such as `gemma4:cloud`;
+  - `anthropic`: `claude-opus-5-5`;
+  - `openai_compatible`: e.g. vLLM or Kimi.
+- **What the model does:** recommends records for the packet, and reads fields from papers when
+  `EXTRACTION_MODE=auto`. Its output is checked in code; anything that fails is discarded, and the rule-based
+  result stands. The model has no tools.
+- **Privacy** (`generation/privacy.py`):
+  - Input is always de-identified: no name, CNIC, record numbers or date of birth (age and sex instead); doctors' and
+    institutions' names removed; dates as days before the referral.
+  - A model outside this computer is used only with `LLM_EXTERNAL_ALLOWED=true`, and only over https.
+  - Each call is audited with its destination; content is never logged.
+- **Handwriting OCR:** `OCR_ENGINE=google_vision` sends page images to Google, and these cannot be de-identified
+  ([decision](decisions/2026-10-28-handwriting-ocr.md)).
+- **Synthetic data only.** Everything works without a model or a Vision key (FR-58).
 
-Invariants:
-- **Submitted means received.** "Submitted" is set only when the specialist service confirms receipt. Delivery, human acknowledgment and acceptance are stored separately.
-- **Edits after approval.** Any clinical edit after approval returns an unsent approved version to draft. After submission it opens an **amendment** (`amendment_open`), so a new package version must be approved and sent while the submitted version stays untouched (FR-15, FR-70).
-- **Concurrent edits.** Every edit carries `expected_version` (optimistic concurrency) and is rejected with 409 if stale.
-- **Immutable packages.** A package stores a SHA-256 over the approved content. The specialist recomputes it and rejects any mismatch.
-- **Idempotent delivery.** The delivery key is `sender:referral:version`. Retries reuse it, and the specialist returns the original result for repeats. Inbound events are deduplicated by event key.
-- **Separate statuses.** Clarification requests and delivery errors have their own statuses and never erase referral progress.
+## 7. Invariants (AGENTS.md)
 
-## 5. Module ownership (three members)
+- **Sent means received:** "Submitted" is set only when the receiving institution confirms receipt. Retries reuse the
+  delivery key, and inbound events are deduplicated by event key.
+- **Immutable packages:** the SHA-256 and manifest never change. A copy can be checked against them at any time
+  (`POST /referrals/{id}/packages/{v}/verify`).
+- **Never overwrite original data:** corrections create revisions, and source records keep every version.
+- **Unavailable is never "none":** an unavailable, denied, expired or not-retrieved source never becomes "no history"
+  or "safe".
+- **Audit:** every access, retrieval, link change, correction, decision, delivery, role change, removal and model call
+  is recorded with actor, institution, action, target, time and outcome.
+
+## 8. Module ownership (three members)
 
 | Member | Owns |
 |---|---|
-| Member 1 – workflow & UX | `services/central/app/referrals`, `approvals`, `reviews/router.py`, `generation/router.py`, `audit_router.py`, `web/src/features/{referrals,brief,reviews,specialist,workqueue}`, shared components |
-| Member 2 – federation & platform | `services/{clinic,lab,specialist}`, `libs/common`, `services/central/app/{integration,identity,delivery}`, `infra/`, `scripts/` (seed, backup, FHIR), `web/src/features/{identity,lab,admin}` |
-| Member 3 – documents & medication rules | `services/central/app/{documents,medications,reviews/checklist.py,generation/brief.py,generation/provider.py,tasks.py}`, `rules/`, `evaluation/`, `web/src/features/{documents,medications,rules}` |
+| Member 1: workflow and UX | `services/central/app/{referrals,followup,sending,selection,workqueue.py,audit_router.py}`, `web/src/features/{referrals,incoming,workqueue}`, shared components |
+| Member 2: federation and platform | `services/provider`, `libs/common`, `services/central/app/{integration,identity,delivery,lifecycle}`, `infra/`, `scripts/` (seed, backup, deployment), `web/src/features/{identity,admin,orders}` |
+| Member 3: documents and medication rules | `services/central/app/{documents,medications,generation,diagnostics,tasks.py}`, `rules/`, `evaluation/`, `web/src/features/{documents,rules}` |
 
-Contract changes (`libs/common/refcommon/exchange.py`, `contracts/`) need approval from the consuming member (see AGENTS.md).
+Changes to shared contracts (`libs/common/refcommon/exchange.py`, `contracts/`), schemas and authentication need the
+consuming member's approval (AGENTS.md). The changes made on 2026-10-27/28 are listed for review in the decision
+records.

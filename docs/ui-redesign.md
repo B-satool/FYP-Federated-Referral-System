@@ -1,5 +1,7 @@
 # Web app redesign: issues found, new flow, and compliance notes
 
+> **Historical (v1).** This page records the v1 interface redesign. The v2 screens differ: separate doctor and staff work queues, role-template menus, and the receiving doctor accepting or declining with no response form. See [v2-changes.md](v2-changes.md).
+
 Branch: `redesign/web-ui`. Scope: presentation and navigation only. No API, contract, migration, authorization, approval, flag or audit logic was changed (AGENTS.md invariants 1 to 11 are untouched).
 
 ## 1. Issues found in the previous interface

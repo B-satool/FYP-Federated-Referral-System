@@ -11,7 +11,7 @@ The services may run on one machine. Independence is a service and ownership bou
 
 ### Hosted deployment checklist (TLS and secrets)
 
-1. **Secrets.** Copy `.env.example` to `.env` on the host and generate every secret (`openssl rand -hex 24`). Never commit `.env`.
+1. **Secrets.** Copy `.env.example` to `.env` on the host and generate every secret (`openssl rand -hex 24`). Never commit `.env`. Model and OCR keys (`ANTHROPIC_API_KEY`, `OLLAMA_API_KEY`, `GOOGLE_VISION_API_KEY`) also live only in `.env`. Leave `LLM_EXTERNAL_ALLOWED=false` and `OCR_ENGINE=tesseract` unless the operating institution has agreed to send (de-identified) data to an outside model, and page images to Google.
 2. **TLS.** Put a TLS-terminating proxy (Caddy, nginx or Traefik) in front of `web` (port 3000) and `keycloak` (port 8080) on HTTPS hostnames.
 3. **Keycloak.** Set `KC_HOSTNAME=https://id.example.org`, switch the command to `start` (production mode, not `start-dev`) and keep `sslRequired=external`.
 4. **Redirect URIs.** In the realm, update `referral-web` redirect URIs and web origins to the HTTPS web hostname. Set `KEYCLOAK_PUBLIC_URL` and the web build arg `VITE_OIDC_AUTHORITY` accordingly.

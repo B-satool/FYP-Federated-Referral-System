@@ -1,6 +1,6 @@
 # Data inventory: where clinical content lives and for how long
 
-Spec v3, work package A, step 1. "Working set" means the content is removed when the working set ends (`lifecycle/working_set.py`): 72 hours after the specialist's answer is returned or the referral ends, and at most 60 days after the first retrieval. Removal waits until every package, order and the clinic's own copy has been delivered.
+Spec v3, work package A, step 1, updated 2026-10-28. "Working set" means the content is removed when the working set ends (`lifecycle/working_set.py`, [decision](decisions/2026-10-28-referral-expiry.md)): 72 hours after the receiving doctor marks the referral complete, straight away if declined, 72 hours after a cancel, and at the latest 30 days after acceptance unless the receiving doctor extends it. Test requests end 72 hours after the results are back. Removal waits until everything sent has been delivered.
 
 ## Central platform (`central_db`)
 
@@ -14,7 +14,8 @@ Spec v3, work package A, step 1. "Working set" means the content is removed when
 | `briefs` | brief sections | Letter text | Working set | Package |
 | `referral_packages.envelope` | full sent package | What was sent | Working set. Afterwards only ids, hash and sender stay, plus `manifest` (references only). | Receiving institution; sending clinic (`sent_copies`) |
 | `outbox.payload`, `inbound_messages.payload` | package, response, order | Delivery | Working set | Receiver / sender |
-| `consultation_responses`, `clarifications` | answer, questions | Specialist's reply | Working set | Receiving institution; sending clinic copy |
+| `clarifications` | questions and answers | Questions from the receiving doctor | Working set | Receiving institution |
+| `consultation_responses` | a written response | Only responses sent before 2026-10-28 (the response step was removed) | Working set | Receiving institution; sending clinic copy |
 | `diagnostic_requests` (report, attachments) | results, images | Test results | Working set | Laboratory or radiology |
 | `referrals.reason` | reason text | Request | Working set | Package |
 | `selection_runs` | model, prompt version and hash, "missing" phrases | AI recommendation record | Kept (no record values) | — |
@@ -28,5 +29,13 @@ Spec v3, work package A, step 1. "Working set" means the content is removed when
 | Patient records (visits, labs, imaging, medicines, conditions) | The institution's own record | The institution's own policy (never changed by the platform) |
 | `access_grants` | Who may read which categories, and for which referral | Expire (14 days by default, at most 30) and are revoked when the referral finishes |
 | `sent_copies` (sending clinic) | The clinic's copy of each package it sent and each response it received | The clinic's own record |
-| `cases` / package versions (receiving institution) | The referral it received | The receiving hospital's record and retention policy |
+| `cases` (receiving institution) | Its intake, decision, questions, completion and hold dates | The receiving hospital's own record and retention policy |
+| `incoming_packages`, `forwarded_results` (receiving institution) | Its copy of the shared records | Removed when the referral expires (`POST /inbound/referral-expired`); the fingerprint stays |
 | Orders and results (laboratory, radiology) | Orders received and results reported | The institution's own record |
+
+## What leaves this computer (only when configured)
+
+| Where | What | Safeguard |
+| --- | --- | --- |
+| A language model outside this computer (`gemma4:cloud` via Ollama, Anthropic) | De-identified record text for the packet selection, and de-identified OCR lines for paper reading | Only with `LLM_EXTERNAL_ALLOWED=true` and over https; no name, CNIC, record numbers, birth date, doctors' or institutions' names; audited (`generation/privacy.py`) |
+| Google Cloud Vision | The page image of an uploaded paper | Only with `OCR_ENGINE=google_vision` and a key; the image cannot be de-identified, so synthetic papers only |

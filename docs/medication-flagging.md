@@ -123,24 +123,38 @@ Built on 2026-10-27, at the project lead's request. It is offline and small, and
 
 ## 7. Pakistani brand data
 
-DrugsInfo Pakistan (drugsinfo.pk) says it imports brand, composition, pack and DRAP registration data from DRAP's registry. Its site has a search but no download, no published terms page, and its robots.txt disallows `/api/`. DRAP's own search page offers no export and restricts use of its list. So neither site is scraped. To bring real Pakistani brand data in:
-
-1. **Ask for a file.** Use the contact page at drugsinfo.pk/contact (or the supervisor's or faculty contact with DRAP). Ask for an export of brand name, generic composition with strengths, dosage form, company and DRAP registration number, for non-commercial academic use, and keep their written permission.
-2. **Or build the file by hand** for the brands you need (for example those in the seed patients' prescriptions), reading DrugsInfo or DRAP search results or the packs. Use `rules/terminology/brand-import-template.csv`.
-3. **Import it:**
-   - Run `python scripts/import_brands.py <file.csv>` to see the report: brands added, combination products recognised by their parts, unknown ingredients, and brand names that would become ambiguous.
-   - Then run it again with `--write`.
-   - Each imported brand's source, DRAP number and checker are kept in `rules/terminology/brand-sources.csv`.
-   - New ingredients then need the code, DDInter and label scripts to be run again (section 9) before they are checked.
-
+- **Hand-checked names:** the 99 names in `rules/terminology/medicine-names.pk.json` (`brands`). They match
+  anywhere in what was written.
+- **DRAP register:** DRAP did not answer the formal request, so the team agreed a rate-limited snapshot of DRAP's
+  public register (`scripts/scrape_drap.py`, [decision](decisions/2026-10-28-drap-register-snapshot.md)).
+  DrugsInfo is not scraped. On 2026-10-28, **5,398 brands** whose ingredient the app knows were loaded as verified,
+  by the project lead's decision ([decision](decisions/2026-10-28-drap-brands-loaded.md)):
+  - They are kept in `register_brands`, apart from the hand-checked list, which always wins.
+  - They match only where the written name **starts** with the brand. Names with fewer than 3 letters and ordinary
+    words are not loaded.
+  - A medicine mapped this way says "Brand from the DRAP product register".
+  - **21 names** that DRAP uses for two different medicines (e.g. Glare: gliclazide or ibuprofen) are never guessed.
+    The Medicines tab lists each product with its company and DRAP number, and **doctor or staff** pick. The choice
+    is recorded and the flags are checked again.
+  - Products DRAP marks as not for human use (veterinary) are left out. 5,434 rows have never had their DRAP page
+    fetched, so they could still include some.
+  - 645 combination products are not loaded: procedure rules match one drug class per medicine, so a two-drug
+    product could miss a rule without anyone noticing.
+- **Refresh or check:**
+  1. `python scripts/scrape_drap.py list`, then `details` (about 4–5 hours for the unchecked pages), then `export`.
+  2. `python scripts/import_brands.py <file.csv> --register` shows the report. Add `--write` to save it, and
+     `--human-only` to load only rows confirmed for human use.
+  3. Reseed.
+- **Other files** (e.g. a DRAP or DrugsInfo export with permission, or rows typed from packs) use
+  `rules/terminology/brand-import-template.csv` and `import_brands.py` without `--register`. Each imported brand's
+  source, DRAP number and checker go into `rules/terminology/brand-sources.csv`.
 ## 8. Not done
 
-- **Language-model extraction** is not used: no model key is configured. The fixed patterns are reproducible, and any model output would have to pass the same validator.
-- **DRAP / DrugsInfo Pakistan brand data:** needs a file or written permission (section 7).
-- **Pharmacist sign-off** of the demo flags and the curated brand list.
+- **Pharmacist sign-off** of the demo flags, the hand-checked brand list and the loaded DRAP brands.
+- **Combination products** from DRAP, and checking the DRAP pages not yet fetched (section 7).
 - **Mechanism and management text** for interactions: DDInter's download does not include it.
-- `docs/architecture.md` and the SRS traceability still describe the v1 rule approval (FR-61); the change for imported rules must be reflected there once the supervisor confirms gate 2.
-
+- **Model-based paper reading** is built (`EXTRACTION_MODE=auto` with a configured model, de-identified input) but
+  has not run live; without a model the fixed patterns are used, and both pass the same validator.
 ## 9. Refreshing the data
 
 ```powershell

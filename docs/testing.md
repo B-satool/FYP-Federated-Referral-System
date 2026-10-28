@@ -1,44 +1,56 @@
-# Testing checkpoints (Roadmap T0–T7)
-
-Testing is kept proportionate (Roadmap §15):
-- **Every PR:** build, type and lint checks, plus the checks affected by the change.
-- **Stage gates:** the shared scenario for that stage.
-- **Deployment:** a short smoke check.
-
-Paid model calls happen only at model or prompt changes.
+# Testing (version 2, as of 2026-10-28)
 
 ## How to run
 
 ```powershell
 docker compose up -d --build
 python -m venv .venv; .\.venv\Scripts\pip install httpx pytest
-.\.venv\Scripts\python -m pytest tests -q          # reseeds every database first (SKIP_RESET=1 to keep data)
+
+# API tests against the running stack (reseed first; SKIP_RESET=1 keeps the data)
+.\.venv\Scripts\python -m pytest tests -q
+
+# Unit tests inside the central image (no network, no keys, no cost)
 docker compose run --rm --no-deps -v ${PWD}/services/central/tests:/srv/tests central python -m pytest tests -q
-cd web; npx playwright install chromium; npx playwright test e2e/smoke.spec.ts
+
+# Browser journeys (reseed first)
+cd web; npx playwright install chromium; npx playwright test; cd ..
+
+# Web type check and build
+cd web; npm run typecheck; npm run build; cd ..
 ```
 
-The integration tests stop and start the `lab` and `clinic` containers to simulate outages, so the Docker CLI must be available.
+**With a cloud model configured**, every test referral queues an AI recommendation. The tests pass either way, but
+for quick runs switch the model off: `$env:LLM_PROVIDER="anthropic"; docker compose up -d central worker`.
 
-## Checkpoints
+**Test order matters a little:** API tests run in alphabetical file order. `test_referral_expiry.py` uses Rubina and
+Dr Salman, so that the patients and doctor `test_v2_flow.py` expects to be new at Aga Khan (Imtiaz, Gondal,
+Dr Naveed) stay untouched.
 
-| Gate | What is checked | Where |
-|---|---|---|
-| **T0** Feasibility | One patient traced clinic → specialist with sample JSON (`contracts/examples`); one OCR sample; one generated brief (with a key) | `scripts/export_contract_examples.py`, `scripts/evaluate_ocr.py`, T6 generation |
-| **T1** Foundation & access | Fresh start and seed; allowed vs cross-institution denied at central **and** at each source; unauthenticated and forged tokens rejected; admin has no clinical access; disabled account rejected at central immediately and at sources after the introspection cache; job status visible | `tests/test_t1_foundation.py`, T4 jobs |
-| **T2** Federation & identity | Only verified links import evidence; Clinic A/MR-102 ≠ Lab B/MR-102; invalidated link unused; repeat retrieval creates no duplicates; denied ≠ unavailable, other evidence kept, bounded retry and recovery; identity check, verify, invalidate with affected referrals and history; lab correction → new record version; HL7 validation of representative resources | `tests/test_t2_federation.py`, `scripts/fhir-validate.ps1` |
-| **T3** Manual journey | create → retrieve → verify → flags → template brief → approval → edit approved (→ draft, v2) → stale save rejected → send → duplicate send ignored → tampered package rejected → acknowledge → flag reviews → accept → response approval enforced → return → clinic receipt / review → task → close; decline and cancel reasons; search and filters; audit coverage | `tests/test_t3_manual_flow.py` |
-| **T4** Documents | Digital PDF (embedded text), scanned image (OCR with regions), unreadable sample, rejected file; correction keeps prior value; clinician-only verification; authenticated downloads; dose discrepancy across sources; same test on different dates is not a conflict; manual transcription | `tests/test_t4_documents.py`, `scripts/evaluate_ocr.py` |
-| **T5** Medication flags | Table: confirmed, stopped, uncertain, unverified, ambiguous mapping, missing procedure, denied/unavailable source, no match, procedure outside rule, specialty-only rule, deterministic repeat, changed rule version, no rules (unsupported coverage), evaluation failure, no medication-change advice. Integrated: reviewer-only activation, procedure context changes, no duplicate flags, incomplete history coexists, changed flag after submission → amendment, new package version, version-specific specialist review, specialist clarification relay | `services/central/tests/test_evaluator.py`, `tests/test_t5_medication_flags.py` |
-| **T6** Full workflow | Missing-information request to Lab B answered in the lab work queue (lab sees only its own ID); checklist missing items and non-overridable fields; clinician-only priority; brief generation (visible failure and manual fallback without a key; real model and citation checks with a key); guardrail unit tests | `tests/test_t6_full_flow.py`, `services/central/tests/test_brief_validation.py` |
-| **T7** Stabilization | Three browser smoke journeys; backup → restore into a disposable environment; 10-user load test against the p95 < 2 s target; regression of earlier checks | `web/e2e/smoke.spec.ts`, `scripts/backup.ps1` + `scripts/restore-check.ps1`, `scripts/loadtest.py`, all of the above |
+## What is covered
 
-## Latest recorded results
+| Suite | Covers |
+|---|---|
+| `tests/test_v2_flow.py` | P5 referral end to end: roles, linking on arrival, accept, the doctor closes. P3 test request with an image. |
+| `tests/test_v2_scenarios.py` | Each seed patient's expected flags; DDInter and label flags with sources; Ignore and Research logged; a procedure without features is not checked; every linked hospital and a stopped medicine; a paper merging with the recorded medicines |
+| `tests/test_v3_lifecycle.py` | Temporary grants; role menus; an admin assigning a role in Keycloak; packet selection, manifest, the clinic's own copy, removal and refetch; the default selection matching each seed patient's expected view |
+| `tests/test_referral_expiry.py` | Accept → 30-day limit → extend → mark complete → 72 h → removal on the platform and at the hospital; decline removes straight away |
+| `tests/test_drap_brands.py` | A DRAP brand maps and is checked against DDInter; an ambiguous name is chosen by company (staff and doctor); a wrong choice is refused |
+| `services/central/tests` (unit) | Evaluator and flags; mapping and DRAP register names; AI suggestions never change flags; AI selection validation and application; model providers (Anthropic, Ollama local and cloud, OpenAI-compatible) against fake servers; de-identification and the external-model switch; Google Vision against a fake server; grant expiry and close-out; working-set timing; manifests; role templates |
+| `web/e2e/smoke.spec.ts` | Referral across seven accounts (prepare, review flags, send, intake, accept, mark complete, tell the patient, the doctor closes); test request with an MRI image |
+| `web/e2e/admin.spec.ts` | An administrator changes a role; the menu follows on the next sign-in |
 
-The results of the v1.0-demo build are recorded in `docs/release-notes.md`:
-- T1–T6: 29 passed, 1 skipped (live LLM, no key)
-- unit checks: 37 passed
-- browser smoke: 3 passed
-- restore check: passed
-- load: p95 90 ms
+## Latest results (2026-10-28)
 
-Raw outputs are in `evaluation/results/`.
+- Unit: **130 passed**
+- API: **22 passed**
+- Browser: **3 passed**
+- Type check and build: clean
+
+## Not covered by automatic tests
+
+- **Live model and live Vision calls:** these need Ollama credits and a Vision key. The request shapes and failure
+  handling are tested against fake servers.
+- **Some v1 tests were not ported:** disabled-account revocation at the sources, link invalidation, load test and
+  backup/restore check. The scripts still exist (`scripts/loadtest.py`, `scripts/restore-check.ps1`) but have not
+  been re-run on v2.
+- **OCR accuracy on real handwriting:** not measured. `evaluation/` covers machine-rendered samples only.

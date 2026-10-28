@@ -2,7 +2,7 @@
 
 Result: a link such as **`https://129-146-12-34.sslip.io`** that anyone can open in a browser, with no Docker or installation on their side.
 
-- **Why Oracle:** its Always Free tier includes an ARM server with up to 4 CPUs and 24 GB RAM, free with no time limit. That's enough for all 9 containers. Other free tiers offer 1 GB, which is too small.
+- **Why Oracle:** its Always Free tier includes an ARM server with up to 4 CPUs and 24 GB RAM, free with no time limit. That's enough for all 11 containers. Other free tiers offer 1 GB, which is too small.
 - **The address:** `sslip.io` turns the server's IP into a free hostname, and Caddy fetches a free HTTPS certificate for it automatically. No domain purchase is needed.
 
 ## Part 1: create the server (you, about 20 minutes)

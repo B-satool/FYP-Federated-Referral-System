@@ -22,7 +22,7 @@ from ..integration import sources
 from ..models import (DiagnosticRequest, EvidenceItem, PatientLink, PatientLinkEvent, Referral, ReferralEvent,
                       ReferralPackage, User)
 from ..notifications import notify
-from ..security import audit, error, get_principal, kc_config, require_roles, service_tokens, verifier
+from ..security import audit, audit_now, error, get_principal, kc_config, require_roles, service_tokens, verifier
 from . import role_templates
 from .links import link_out, links_for, open_request
 
@@ -428,15 +428,24 @@ def apply_role_template(user_id: str, body: ApplyTemplateIn, db: Session = Depen
         raise error(403, "forbidden", "You can only manage accounts of your own institution")
     if user_id == principal.subject:
         raise error(409, "self", "You cannot change your own roles")
-    before = _kc_realm_roles(user_id)
-    add, remove = role_templates.plan_change(before, template)
     base = kc_config.admin_url
-    if add:
-        httpx.post(f"{base}/users/{user_id}/role-mappings/realm", json=_kc_role_reps(add),
-                   headers=_kc_headers(), timeout=10).raise_for_status()
-    if remove:
-        httpx.request("DELETE", f"{base}/users/{user_id}/role-mappings/realm", json=_kc_role_reps(remove),
-                      headers=_kc_headers(), timeout=10).raise_for_status()
+    try:
+        before = _kc_realm_roles(user_id)
+        add, remove = role_templates.plan_change(before, template)
+        # look up every role first, so a refusal cannot leave the user half-changed
+        add_reps, remove_reps = _kc_role_reps(add), _kc_role_reps(remove)
+        if add:
+            httpx.post(f"{base}/users/{user_id}/role-mappings/realm", json=add_reps,
+                       headers=_kc_headers(), timeout=10).raise_for_status()
+        if remove:
+            httpx.request("DELETE", f"{base}/users/{user_id}/role-mappings/realm", json=remove_reps,
+                          headers=_kc_headers(), timeout=10).raise_for_status()
+    except httpx.HTTPError as exc:
+        audit_now(principal, "role.assign", "user", kc_user["username"], "failed",
+                  detail={"template": template.template_id, "error": f"{type(exc).__name__}: {exc}"[:300]})
+        raise error(502, "identity_provider_refused",
+                    "The sign-in service did not accept the role change. No roles were changed if this failed before "
+                    "the update; check the account and try again, or ask the platform operator.") from exc
     verifier.invalidate_cache()  # applies on the user's next request
     audit(db, principal, "role.assign", "user", kc_user["username"], "success",
           detail={"template": template.template_id, "added": add, "removed": remove, "reason": body.reason})

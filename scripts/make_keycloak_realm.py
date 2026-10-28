@@ -103,7 +103,7 @@ realm = {
         for u, f, l, roles, g in USERS
     ] + [
         {"username": "service-account-central-api", "enabled": True, "serviceAccountClientId": "central-api",
-         "realmRoles": ["svc_central"], "clientRoles": {"realm-management": ["view-users", "query-users", "manage-users"]}},
+         "realmRoles": ["svc_central"], "clientRoles": {"realm-management": ["view-users", "query-users", "manage-users", "view-realm"]}},
     ] + [
         {"username": f"service-account-{p}-api", "enabled": True, "serviceAccountClientId": f"{p}-api",
          "realmRoles": ["svc_provider"]}

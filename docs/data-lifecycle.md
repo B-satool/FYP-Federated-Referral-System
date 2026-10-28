@@ -32,7 +32,7 @@ The screens show "Held for this referral until …". After removal they show "Co
 
 ## Role templates
 
-`rules/roles/templates.v1.json` defines named bundles of the existing realm roles (front desk, doctor, laboratory and radiology, institution administrator, rule reviewer), with each one's home screen and menu. `GET /me` returns the user's templates, home and menu. The web app builds its navigation from that and opens the home screen after sign-in. Hiding a screen is only a convenience: every API still checks the role itself. An administrator can change a user's role by applying a template (**Accounts** screen). This replaces only the template-managed roles, never service roles, never on oneself, and is audited as `role.assign`.
+`rules/roles/templates.v1.json` defines named bundles of the existing realm roles (front desk, doctor, laboratory and radiology, institution administrator, rule reviewer), with each one's home screen and menu. `GET /me` returns the user's templates, home and menu. The web app builds its navigation from that and opens the home screen after sign-in. Hiding a screen is only a convenience: every API still checks the role itself. An administrator can change a user's role by applying a template (**Accounts** screen). This replaces only the template-managed roles, never service roles, never on oneself, and is audited as `role.assign` (a refused change is audited as `failed`). The change is made in Keycloak, so it reaches the user at their next sign-in, or within about 5 minutes when their token renews. The platform's Keycloak service account needs `view-realm` for this (in the realm file since 2026-10-28; older installs: see the README troubleshooting table).
 
 ## Not built (and why)
 

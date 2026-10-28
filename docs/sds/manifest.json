@@ -1,0 +1,1693 @@
+{
+  "fingerprints": {
+    "sections": "4ee51ec82da973ff2d4c63c5041b82851ef56dd2aa496aeaacb5e3fc72b7da36",
+    "source": "030b32b1838a02314166af5cc0421612060b5337874ca9d73b47588cd9d3d6b9",
+    "structure": "86ca352465c3512242b7e28db79ecee15123666a68cae16ae44c394df1f45fa9"
+  },
+  "history": [
+    {
+      "changes": 1,
+      "date": "2026-10-29",
+      "summary": "First complete Software Design Specification of the v2 code base: architecture, components, data model, workflows, security, AI, medication flagging, interfaces, reliability, operations, testing and limitations, with generated ERDs, API, contracts, configuration and inventories.",
+      "version": "1.0.0"
+    }
+  ],
+  "inventory": {
+    "compose_services": {},
+    "decisions": [
+      "[2026-10-27-data-lifecycle-and-v3](../decisions/2026-10-27-data-lifecycle-and-v3.md)",
+      "[2026-10-28-cloud-model-privacy](../decisions/2026-10-28-cloud-model-privacy.md)",
+      "[2026-10-28-drap-brands-loaded](../decisions/2026-10-28-drap-brands-loaded.md)",
+      "[2026-10-28-drap-register-snapshot](../decisions/2026-10-28-drap-register-snapshot.md)",
+      "[2026-10-28-handwriting-ocr](../decisions/2026-10-28-handwriting-ocr.md)",
+      "[2026-10-28-no-specialist-response](../decisions/2026-10-28-no-specialist-response.md)",
+      "[2026-10-28-referral-access-window](../decisions/2026-10-28-referral-access-window.md)",
+      "[2026-10-28-referral-expiry](../decisions/2026-10-28-referral-expiry.md)",
+      "[2026-10-28-retrieval-all-sources](../decisions/2026-10-28-retrieval-all-sources.md)"
+    ],
+    "dependencies": {
+      "libs/common/pyproject.toml": [
+        "fastapi>=0.115",
+        "httpx>=0.27"
+      ],
+      "services/central/requirements.txt": [
+        "fastapi==0.115.6",
+        "uvicorn[standard]==0.32.1",
+        "sqlalchemy==2.0.36",
+        "psycopg[binary]==3.2.3",
+        "alembic==1.14.0",
+        "httpx==0.28.1",
+        "pyjwt[crypto]==2.10.1",
+        "pydantic==2.10.3",
+        "python-multipart==0.0.19",
+        "celery[redis]==5.4.0",
+        "anthropic==1.11.0",
+        "pypdfium2==4.30.0",
+        "pytesseract==0.3.13",
+        "pillow==11.0.0",
+        "reportlab==4.2.5",
+        "pytest==8.3.4"
+      ],
+      "services/provider/requirements.txt": [
+        "fastapi==0.115.6",
+        "uvicorn[standard]==0.32.1",
+        "sqlalchemy==2.0.36",
+        "psycopg[binary]==3.2.3",
+        "alembic==1.14.0",
+        "httpx==0.28.1",
+        "pyjwt[crypto]==2.10.1",
+        "pydantic==2.10.3"
+      ]
+    },
+    "endpoint_access": {
+      "central GET /admin/audit": [
+        "require_roles(institution_admin, action=admin.audit)"
+      ],
+      "central GET /admin/role-templates": [
+        "require_roles(institution_admin, action=admin.role_templates)"
+      ],
+      "central GET /admin/users": [
+        "require_roles(institution_admin, action=admin.users)"
+      ],
+      "central GET /diagnostics/{dx_id}/attachments/{n}": [
+        "_load \u2192 load_referral()"
+      ],
+      "central GET /documents/{document_id}": [
+        "_load_doc \u2192 load_referral()"
+      ],
+      "central GET /documents/{document_id}/file": [
+        "_load_doc \u2192 load_referral()"
+      ],
+      "central GET /documents/{document_id}/pages/{page}": [
+        "_load_doc \u2192 load_referral()"
+      ],
+      "central GET /drug-classes": [
+        "valid access token (any role)"
+      ],
+      "central GET /evidence/{evidence_id}": [
+        "_load \u2192 load_referral()"
+      ],
+      "central GET /health": [
+        "public (no token)"
+      ],
+      "central GET /institutions": [
+        "valid access token (any role)"
+      ],
+      "central GET /jobs/{job_id}": [
+        "load_referral(view)"
+      ],
+      "central GET /me": [
+        "valid access token (any role)"
+      ],
+      "central GET /medicine-names": [
+        "role rule_reviewer required"
+      ],
+      "central GET /notifications": [
+        "_mine()"
+      ],
+      "central GET /patient-links": [
+        "require_roles(clinic_staff, clinician, institution_admin, diagnostics_staff, action=patient_link.view)"
+      ],
+      "central GET /patient-links/incoming": [
+        "require_roles(clinic_staff, clinician, institution_admin, diagnostics_staff, action=patient_link.incoming)"
+      ],
+      "central GET /patient-links/outgoing": [
+        "require_roles(clinic_staff, clinician, institution_admin, diagnostics_staff, action=patient_link.outgoing)"
+      ],
+      "central GET /patients/search": [
+        "require_roles(clinic_staff, clinician, institution_admin, diagnostics_staff, action=patients.search)"
+      ],
+      "central GET /ready": [
+        "public (no token)"
+      ],
+      "central GET /reference-data": [
+        "valid access token (any role)"
+      ],
+      "central GET /referrals": [
+        "require_roles(clinic_staff, clinician, action=referral.search)",
+        "role clinician required"
+      ],
+      "central GET /referrals/{referral_id}": [
+        "load_referral(view)",
+        "role clinician required"
+      ],
+      "central GET /referrals/{referral_id}/audit": [
+        "load_referral(view_audit)"
+      ],
+      "central GET /referrals/{referral_id}/brief-preview": [
+        "load_referral(view)"
+      ],
+      "central GET /referrals/{referral_id}/delivery": [
+        "load_referral(view)"
+      ],
+      "central GET /referrals/{referral_id}/diagnostics": [
+        "load_referral(view)"
+      ],
+      "central GET /referrals/{referral_id}/documents": [
+        "load_referral(view)"
+      ],
+      "central GET /referrals/{referral_id}/events": [
+        "load_referral(view)"
+      ],
+      "central GET /referrals/{referral_id}/evidence": [
+        "load_referral(view)"
+      ],
+      "central GET /referrals/{referral_id}/jobs": [
+        "load_referral(view)"
+      ],
+      "central GET /referrals/{referral_id}/medications": [
+        "load_referral(view)"
+      ],
+      "central GET /referrals/{referral_id}/packages/{version}": [
+        "load_referral(view)"
+      ],
+      "central GET /referrals/{referral_id}/readiness": [
+        "load_referral(view)"
+      ],
+      "central GET /referrals/{referral_id}/responses": [
+        "load_referral(view)"
+      ],
+      "central GET /referrals/{referral_id}/retrievals": [
+        "load_referral(view)"
+      ],
+      "central GET /referrals/{referral_id}/selection": [
+        "load_referral(view)"
+      ],
+      "central GET /referrals/{referral_id}/tasks": [
+        "load_referral(view)"
+      ],
+      "central GET /rules": [
+        "require_roles(rule_reviewer, action=rule.list)",
+        "role rule_reviewer required"
+      ],
+      "central GET /rules/ai": [
+        "require_roles(rule_reviewer, action=rule.list)"
+      ],
+      "central GET /rules/interactions": [
+        "require_roles(rule_reviewer, action=rule.list)"
+      ],
+      "central GET /rules/label-rules": [
+        "require_roles(rule_reviewer, action=rule.list)"
+      ],
+      "central GET /work-queue": [
+        "require_roles(clinician, clinic_staff, action=work_queue)",
+        "role clinic_staff required",
+        "role clinician required"
+      ],
+      "central PATCH /referrals/{referral_id}": [
+        "check_version()",
+        "load_referral(edit)"
+      ],
+      "central POST /admin/users/{user_id}/apply-template": [
+        "require_roles(institution_admin, action=admin.apply_template)"
+      ],
+      "central POST /admin/users/{user_id}/disable": [
+        "_set_status \u2192 require_roles(institution_admin, action=admin.user_status)"
+      ],
+      "central POST /admin/users/{user_id}/enable": [
+        "_set_status \u2192 require_roles(institution_admin, action=admin.user_status)"
+      ],
+      "central POST /clarifications/{clarification_id}/answer": [
+        "load_referral(answer_info_request)"
+      ],
+      "central POST /diagnostics/{dx_id}/cancel": [
+        "_load \u2192 load_referral()"
+      ],
+      "central POST /diagnostics/{dx_id}/seen": [
+        "_load \u2192 load_referral()"
+      ],
+      "central POST /diagnostics/{dx_id}/send": [
+        "_load \u2192 load_referral()"
+      ],
+      "central POST /documents/{document_id}/reprocess": [
+        "_load_doc \u2192 load_referral()"
+      ],
+      "central POST /evidence/{evidence_id}/correct": [
+        "_load \u2192 load_referral()"
+      ],
+      "central POST /evidence/{evidence_id}/exclude": [
+        "_set_state \u2192 _load \u2192 load_referral()"
+      ],
+      "central POST /evidence/{evidence_id}/restore": [
+        "_set_state \u2192 _load \u2192 load_referral()"
+      ],
+      "central POST /evidence/{evidence_id}/select": [
+        "_load \u2192 load_referral()",
+        "ensure_clinical_edit_allowed()"
+      ],
+      "central POST /evidence/{evidence_id}/unresolve": [
+        "_set_state \u2192 _load \u2192 load_referral()"
+      ],
+      "central POST /evidence/{evidence_id}/verify": [
+        "_load \u2192 load_referral()"
+      ],
+      "central POST /inbound/provider-events": [
+        "require_service(svc_provider)"
+      ],
+      "central POST /medicine-names": [
+        "require_roles(rule_reviewer, action=medicine_name.add)"
+      ],
+      "central POST /medicine-names/{name_id}/retire": [
+        "require_roles(rule_reviewer, action=medicine_name.retire)"
+      ],
+      "central POST /notifications/read-all": [
+        "_mine()"
+      ],
+      "central POST /notifications/{notification_id}/read": [
+        "_mine()"
+      ],
+      "central POST /patient-links": [
+        "require_roles(clinic_staff, clinician, action=patient_link.request)"
+      ],
+      "central POST /patient-links/{link_id}/approve": [
+        "require_roles(clinic_staff, institution_admin, diagnostics_staff, action=patient_link.approve)"
+      ],
+      "central POST /patient-links/{link_id}/invalidate": [
+        "require_roles(clinician, institution_admin, clinic_staff, action=patient_link.invalidate)"
+      ],
+      "central POST /patient-links/{link_id}/lookup": [
+        "require_roles(clinic_staff, institution_admin, diagnostics_staff, action=patient_link.lookup)"
+      ],
+      "central POST /patient-links/{link_id}/reject": [
+        "require_roles(clinic_staff, institution_admin, diagnostics_staff, action=patient_link.reject)"
+      ],
+      "central POST /referrals": [
+        "require_roles(clinician, action=referral.create)"
+      ],
+      "central POST /referrals/{referral_id}/ai-suggestions/review": [
+        "load_referral(review_ai_suggestion, roles=('clinician',))"
+      ],
+      "central POST /referrals/{referral_id}/cancel": [
+        "check_version()",
+        "load_referral(cancel)"
+      ],
+      "central POST /referrals/{referral_id}/close": [
+        "check_version()",
+        "load_referral(close)"
+      ],
+      "central POST /referrals/{referral_id}/diagnostics": [
+        "load_referral(add_diagnostic)"
+      ],
+      "central POST /referrals/{referral_id}/documents": [
+        "ensure_clinical_edit_allowed()",
+        "load_referral(upload)"
+      ],
+      "central POST /referrals/{referral_id}/evidence/manual": [
+        "ensure_clinical_edit_allowed()",
+        "load_referral(edit)"
+      ],
+      "central POST /referrals/{referral_id}/flags/{flag_id}/acknowledge": [
+        "load_referral(acknowledge_flag, roles=('clinician',))"
+      ],
+      "central POST /referrals/{referral_id}/links": [
+        "load_referral(link)"
+      ],
+      "central POST /referrals/{referral_id}/medications/checked": [
+        "ensure_clinical_edit_allowed()",
+        "load_referral(edit)"
+      ],
+      "central POST /referrals/{referral_id}/medications/manual": [
+        "ensure_clinical_edit_allowed()",
+        "load_referral(edit, roles=('clinic_staff',))"
+      ],
+      "central POST /referrals/{referral_id}/medications/{entry_id}/exclude": [
+        "ensure_clinical_edit_allowed()",
+        "load_referral(edit)"
+      ],
+      "central POST /referrals/{referral_id}/medications/{entry_id}/mapping": [
+        "ensure_clinical_edit_allowed()",
+        "load_referral(map_medication)"
+      ],
+      "central POST /referrals/{referral_id}/medications/{entry_id}/restore": [
+        "ensure_clinical_edit_allowed()",
+        "load_referral(edit)"
+      ],
+      "central POST /referrals/{referral_id}/packages/{version}/verify": [
+        "load_referral(view)"
+      ],
+      "central POST /referrals/{referral_id}/packages/{version}/verify-own-copy": [
+        "load_referral(view)"
+      ],
+      "central POST /referrals/{referral_id}/patient-informed": [
+        "load_referral(inform_patient)"
+      ],
+      "central POST /referrals/{referral_id}/prepared": [
+        "check_version()",
+        "load_referral(prepare)"
+      ],
+      "central POST /referrals/{referral_id}/recommend": [
+        "load_referral(prepare, roles=('clinic_staff',))"
+      ],
+      "central POST /referrals/{referral_id}/retrieve": [
+        "load_referral(retrieve)"
+      ],
+      "central POST /referrals/{referral_id}/retry-delivery": [
+        "load_referral(send)"
+      ],
+      "central POST /referrals/{referral_id}/send": [
+        "check_version()",
+        "load_referral(send)"
+      ],
+      "central POST /referrals/{referral_id}/submit": [
+        "check_version()",
+        "load_referral(submit_request)"
+      ],
+      "central POST /referrals/{referral_id}/tasks": [
+        "load_referral(followup)"
+      ],
+      "central POST /responses/{response_id}/review": [
+        "load_referral(review_response)"
+      ],
+      "central POST /rules": [
+        "require_roles(rule_reviewer, action=rule.create)"
+      ],
+      "central POST /rules/{rule_id}/versions/{version}/decision": [
+        "require_roles(rule_reviewer, action=rule.decision)"
+      ],
+      "central POST /tasks/{task_id}/outcome": [
+        "load_referral(followup)"
+      ],
+      "central PUT /rules/{rule_id}": [
+        "require_roles(rule_reviewer, action=rule.edit)"
+      ],
+      "institution GET /admin/audit": [
+        "require_admin()"
+      ],
+      "institution GET /admin/grants": [
+        "require_admin()"
+      ],
+      "institution GET /cases": [
+        "_visible \u2192 _is_intake \u2192 has_any(clinic_staff, institution_admin)",
+        "_visible \u2192 role clinician required",
+        "require_own(clinician, clinic_staff, institution_admin, what=see incoming referrals)"
+      ],
+      "institution GET /cases/{case_id}": [
+        "_get_case()",
+        "require_own(clinician, clinic_staff, institution_admin, what=see incoming referrals)"
+      ],
+      "institution GET /fhir/patients/{local_id}/records": [
+        "decide_access()",
+        "forbid()"
+      ],
+      "institution GET /health": [
+        "public (no token)"
+      ],
+      "institution GET /orders": [
+        "_require_diagnostics()"
+      ],
+      "institution GET /orders/{order_id}": [
+        "_get_order()",
+        "_require_diagnostics()"
+      ],
+      "institution GET /orders/{order_id}/attachments/{attachment_id}": [
+        "_get_order()",
+        "_require_diagnostics()"
+      ],
+      "institution GET /outbound-copies": [
+        "require_own(clinician, clinic_staff, what=read our copies of sent referrals)"
+      ],
+      "institution GET /patients": [
+        "require_own(clinic_staff, clinician, institution_admin, diagnostics_staff, what=search the patient index)"
+      ],
+      "institution GET /patients/{local_id}": [
+        "require_own(clinic_staff, clinician, institution_admin, diagnostics_staff, what=view patient details)"
+      ],
+      "institution GET /patients/{local_id}/activity": [
+        "decide_access()",
+        "forbid()"
+      ],
+      "institution GET /ready": [
+        "public (no token)"
+      ],
+      "institution POST /admin/grants": [
+        "require_admin()"
+      ],
+      "institution POST /admin/grants/{grant_id}/extend": [
+        "require_admin()"
+      ],
+      "institution POST /admin/grants/{grant_id}/revoke": [
+        "require_admin()"
+      ],
+      "institution POST /cases/{case_id}/acknowledge": [
+        "_get_case()",
+        "require_own(clinic_staff, institution_admin, what=acknowledge a referral)"
+      ],
+      "institution POST /cases/{case_id}/assign": [
+        "_get_case()",
+        "require_own(clinic_staff, institution_admin, what=assign a referral)"
+      ],
+      "institution POST /cases/{case_id}/complete": [
+        "_get_case()",
+        "_require_doctor \u2192 require_own(clinician, what=act on incoming referrals)"
+      ],
+      "institution POST /cases/{case_id}/decision": [
+        "_get_case()",
+        "_require_doctor \u2192 require_own(clinician, what=act on incoming referrals)"
+      ],
+      "institution POST /cases/{case_id}/extend-hold": [
+        "_get_case()",
+        "_require_doctor \u2192 require_own(clinician, what=act on incoming referrals)"
+      ],
+      "institution POST /cases/{case_id}/info-requests": [
+        "_get_case()",
+        "_require_doctor \u2192 require_own(clinician, what=act on incoming referrals)"
+      ],
+      "institution POST /cases/{case_id}/response/send": [
+        "_get_case()",
+        "_require_doctor \u2192 require_own(clinician, what=act on incoming referrals)"
+      ],
+      "institution POST /grants/revoke-by-referral": [
+        "forbid(Only the central platform service can close grants by referral)",
+        "role svc_central required"
+      ],
+      "institution POST /identity/lookup": [
+        "require_own(clinic_staff, clinician, institution_admin, diagnostics_staff, what=look up a patient for a link request)"
+      ],
+      "institution POST /identity/register": [
+        "require_own(clinic_staff, institution_admin, diagnostics_staff, what=register a new patient)"
+      ],
+      "institution POST /inbound/clarification-answers": [
+        "_require_central()"
+      ],
+      "institution POST /inbound/orders": [
+        "_require_central()"
+      ],
+      "institution POST /inbound/referral-expired": [
+        "_require_central()"
+      ],
+      "institution POST /inbound/referrals": [
+        "_require_central()"
+      ],
+      "institution POST /inbound/results": [
+        "_require_central()"
+      ],
+      "institution POST /intake/patient": [
+        "require_own(clinic_staff, institution_admin, diagnostics_staff, what=confirm an arriving patient)"
+      ],
+      "institution POST /orders/{order_id}/accept": [
+        "_get_order()",
+        "_require_diagnostics()"
+      ],
+      "institution POST /orders/{order_id}/done": [
+        "_get_order()",
+        "_require_diagnostics()"
+      ],
+      "institution POST /orders/{order_id}/reject": [
+        "_get_order()",
+        "_require_diagnostics()"
+      ],
+      "institution POST /orders/{order_id}/report": [
+        "_get_order()",
+        "_require_diagnostics()"
+      ],
+      "institution POST /orders/{order_id}/schedule": [
+        "_get_order()",
+        "_require_diagnostics()"
+      ],
+      "institution POST /outbound-copies": [
+        "_require_central()"
+      ],
+      "institution POST /outbox/{item_id}/retry": [
+        "require_own(clinician, diagnostics_staff, institution_admin, what=retry delivery)"
+      ],
+      "institution POST /sharing/grants": [
+        "require_own(clinic_staff, institution_admin, what=share patient records)"
+      ],
+      "institution PUT /cases/{case_id}/response": [
+        "_get_case()",
+        "_require_doctor \u2192 require_own(clinician, what=act on incoming referrals)"
+      ]
+    },
+    "endpoints": [
+      "central GET /admin/audit",
+      "central GET /admin/role-templates",
+      "central GET /admin/users",
+      "central GET /diagnostics/{dx_id}/attachments/{n}",
+      "central GET /documents/{document_id}",
+      "central GET /documents/{document_id}/file",
+      "central GET /documents/{document_id}/pages/{page}",
+      "central GET /drug-classes",
+      "central GET /evidence/{evidence_id}",
+      "central GET /health",
+      "central GET /institutions",
+      "central GET /jobs/{job_id}",
+      "central GET /me",
+      "central GET /medicine-names",
+      "central GET /notifications",
+      "central GET /patient-links",
+      "central GET /patient-links/incoming",
+      "central GET /patient-links/outgoing",
+      "central GET /patients/search",
+      "central GET /ready",
+      "central GET /reference-data",
+      "central GET /referrals",
+      "central GET /referrals/{referral_id}",
+      "central GET /referrals/{referral_id}/audit",
+      "central GET /referrals/{referral_id}/brief-preview",
+      "central GET /referrals/{referral_id}/delivery",
+      "central GET /referrals/{referral_id}/diagnostics",
+      "central GET /referrals/{referral_id}/documents",
+      "central GET /referrals/{referral_id}/events",
+      "central GET /referrals/{referral_id}/evidence",
+      "central GET /referrals/{referral_id}/jobs",
+      "central GET /referrals/{referral_id}/medications",
+      "central GET /referrals/{referral_id}/packages/{version}",
+      "central GET /referrals/{referral_id}/readiness",
+      "central GET /referrals/{referral_id}/responses",
+      "central GET /referrals/{referral_id}/retrievals",
+      "central GET /referrals/{referral_id}/selection",
+      "central GET /referrals/{referral_id}/tasks",
+      "central GET /rules",
+      "central GET /rules/ai",
+      "central GET /rules/interactions",
+      "central GET /rules/label-rules",
+      "central GET /work-queue",
+      "central PATCH /referrals/{referral_id}",
+      "central POST /admin/users/{user_id}/apply-template",
+      "central POST /admin/users/{user_id}/disable",
+      "central POST /admin/users/{user_id}/enable",
+      "central POST /clarifications/{clarification_id}/answer",
+      "central POST /diagnostics/{dx_id}/cancel",
+      "central POST /diagnostics/{dx_id}/seen",
+      "central POST /diagnostics/{dx_id}/send",
+      "central POST /documents/{document_id}/reprocess",
+      "central POST /evidence/{evidence_id}/correct",
+      "central POST /evidence/{evidence_id}/exclude",
+      "central POST /evidence/{evidence_id}/restore",
+      "central POST /evidence/{evidence_id}/select",
+      "central POST /evidence/{evidence_id}/unresolve",
+      "central POST /evidence/{evidence_id}/verify",
+      "central POST /inbound/provider-events",
+      "central POST /medicine-names",
+      "central POST /medicine-names/{name_id}/retire",
+      "central POST /notifications/read-all",
+      "central POST /notifications/{notification_id}/read",
+      "central POST /patient-links",
+      "central POST /patient-links/{link_id}/approve",
+      "central POST /patient-links/{link_id}/invalidate",
+      "central POST /patient-links/{link_id}/lookup",
+      "central POST /patient-links/{link_id}/reject",
+      "central POST /referrals",
+      "central POST /referrals/{referral_id}/ai-suggestions/review",
+      "central POST /referrals/{referral_id}/cancel",
+      "central POST /referrals/{referral_id}/close",
+      "central POST /referrals/{referral_id}/diagnostics",
+      "central POST /referrals/{referral_id}/documents",
+      "central POST /referrals/{referral_id}/evidence/manual",
+      "central POST /referrals/{referral_id}/flags/{flag_id}/acknowledge",
+      "central POST /referrals/{referral_id}/links",
+      "central POST /referrals/{referral_id}/medications/checked",
+      "central POST /referrals/{referral_id}/medications/manual",
+      "central POST /referrals/{referral_id}/medications/{entry_id}/exclude",
+      "central POST /referrals/{referral_id}/medications/{entry_id}/mapping",
+      "central POST /referrals/{referral_id}/medications/{entry_id}/restore",
+      "central POST /referrals/{referral_id}/packages/{version}/verify",
+      "central POST /referrals/{referral_id}/packages/{version}/verify-own-copy",
+      "central POST /referrals/{referral_id}/patient-informed",
+      "central POST /referrals/{referral_id}/prepared",
+      "central POST /referrals/{referral_id}/recommend",
+      "central POST /referrals/{referral_id}/retrieve",
+      "central POST /referrals/{referral_id}/retry-delivery",
+      "central POST /referrals/{referral_id}/send",
+      "central POST /referrals/{referral_id}/submit",
+      "central POST /referrals/{referral_id}/tasks",
+      "central POST /responses/{response_id}/review",
+      "central POST /rules",
+      "central POST /rules/{rule_id}/versions/{version}/decision",
+      "central POST /tasks/{task_id}/outcome",
+      "central PUT /rules/{rule_id}",
+      "institution GET /admin/audit",
+      "institution GET /admin/grants",
+      "institution GET /cases",
+      "institution GET /cases/{case_id}",
+      "institution GET /fhir/patients/{local_id}/records",
+      "institution GET /health",
+      "institution GET /orders",
+      "institution GET /orders/{order_id}",
+      "institution GET /orders/{order_id}/attachments/{attachment_id}",
+      "institution GET /outbound-copies",
+      "institution GET /patients",
+      "institution GET /patients/{local_id}",
+      "institution GET /patients/{local_id}/activity",
+      "institution GET /ready",
+      "institution POST /admin/grants",
+      "institution POST /admin/grants/{grant_id}/extend",
+      "institution POST /admin/grants/{grant_id}/revoke",
+      "institution POST /cases/{case_id}/acknowledge",
+      "institution POST /cases/{case_id}/assign",
+      "institution POST /cases/{case_id}/complete",
+      "institution POST /cases/{case_id}/decision",
+      "institution POST /cases/{case_id}/extend-hold",
+      "institution POST /cases/{case_id}/info-requests",
+      "institution POST /cases/{case_id}/response/send",
+      "institution POST /grants/revoke-by-referral",
+      "institution POST /identity/lookup",
+      "institution POST /identity/register",
+      "institution POST /inbound/clarification-answers",
+      "institution POST /inbound/orders",
+      "institution POST /inbound/referral-expired",
+      "institution POST /inbound/referrals",
+      "institution POST /inbound/results",
+      "institution POST /intake/patient",
+      "institution POST /orders/{order_id}/accept",
+      "institution POST /orders/{order_id}/done",
+      "institution POST /orders/{order_id}/reject",
+      "institution POST /orders/{order_id}/report",
+      "institution POST /orders/{order_id}/schedule",
+      "institution POST /outbound-copies",
+      "institution POST /outbox/{item_id}/retry",
+      "institution POST /sharing/grants",
+      "institution PUT /cases/{case_id}/response"
+    ],
+    "jobs": [
+      "close_referral_grants",
+      "deliver_outbox",
+      "process_document",
+      "purge_working_sets",
+      "recommend_selection",
+      "retention_sweep"
+    ],
+    "migrations": {
+      "central": [
+        "f768a09d90d4",
+        "3cb2af44a7f8",
+        "f476d3248be7",
+        "76763a476e7c",
+        "97915d386e71",
+        "50cb02ecd52d",
+        "fec095fdc2b0"
+      ],
+      "provider": [
+        "64628844a0ce",
+        "f90a83a36cf0",
+        "6608cba6436e",
+        "eb77d5fffde7"
+      ]
+    },
+    "roles": [
+      "clinic_staff",
+      "clinician",
+      "diagnostics_staff",
+      "institution_admin",
+      "rule_reviewer",
+      "svc_central",
+      "svc_provider"
+    ],
+    "schedule": {
+      "close_referral_grants": 60.0,
+      "deliver_outbox": 5.0,
+      "purge_working_sets": 600.0,
+      "retention_sweep": 3600.0
+    },
+    "settings": [
+      "ACCEPTED_HOLD_DAYS='30'",
+      "ANTHROPIC_API_KEY=''",
+      "CENTRAL_URL='http://central:8000'",
+      "DATABASE_URL='postgresql+psycopg://central:central@postgres/central_db'",
+      "DEFAULT_GRANT_DAYS='14'",
+      "DOCUMENT_RETENTION_DAYS='365'",
+      "EXTRACTION_MODE='auto'",
+      "GOOGLE_VISION_API_KEY=''",
+      "GOOGLE_VISION_ENDPOINT='https://vision.googleapis.com/v1/images:annotate'",
+      "INSTITUTION_ID=(required)",
+      "INSTITUTION_NAME=INSTITUTION",
+      "INTROSPECT_TOKENS=True",
+      "KEYCLOAK_INTERNAL_URL='http://keycloak:8080'",
+      "KEYCLOAK_PUBLIC_URL='http://localhost:8080'",
+      "KEYCLOAK_REALM='referral'",
+      "LLM_API_KEY=''",
+      "LLM_BASE_URL=''",
+      "LLM_CONTEXT_TOKENS='16384'",
+      "LLM_EXTERNAL_ALLOWED=False",
+      "LLM_MODEL='claude-opus-5-5'",
+      "LLM_PROVIDER='anthropic'",
+      "LLM_TIMEOUT_SECONDS='120'",
+      "LOCAL_ID_PREFIX='PT'",
+      "MAX_GRANT_DAYS='30'",
+      "MAX_PAGES='10'",
+      "MAX_RETRIEVAL_SOURCES='5'",
+      "MAX_UPLOAD_BYTES=str(10 * 1024 * 1024)",
+      "OCR_ENGINE='tesseract'",
+      "OCR_TIMEOUT_SECONDS='60'",
+      "OLLAMA_API_KEY=''",
+      "OLLAMA_HOST='http://host.docker.internal:11434'",
+      "REDIS_URL='redis://redis:6379/0'",
+      "REFERRAL_HISTORY_YEARS='3'",
+      "REFERRAL_WINDOW_DAYS='183'",
+      "REPO_ASSETS='/srv/assets'",
+      "RUN_JOBS_INLINE=False",
+      "SEED_DATA_DIR='/srv/seed-data/patients'",
+      "SERVICE_CLIENT_ID=",
+      "SERVICE_CLIENT_SECRET=",
+      "SOURCE_MAX_RETRIES='2'",
+      "SOURCE_TIMEOUT_SECONDS='10'",
+      "STORAGE_ROOT='/data/documents'",
+      "TOKEN_AUDIENCE=f'{INSTITUTION}-api'",
+      "WORKING_SET_GRACE_HOURS='72'"
+    ],
+    "tables": {
+      "central": {
+        "ai_suggestions": {
+          "data_version": "String(200)",
+          "ingredient_a": "String(100)",
+          "ingredient_b": "String(100)",
+          "model_version": "String(60)",
+          "pair_key": "String(210)",
+          "reason": "Text",
+          "score": "Float"
+        },
+        "audit_events": {
+          "action": "String(80)",
+          "actor_id": "String(64)",
+          "actor_name": "String(200)",
+          "created_at": "DateTime(timezone=True)",
+          "detail": "JSON",
+          "id": "Integer",
+          "institution_id": "String(50) null",
+          "outcome": "String(20)",
+          "referral_id": "Integer null",
+          "target_id": "String(100)",
+          "target_type": "String(60)"
+        },
+        "briefs": {
+          "created_at": "DateTime(timezone=True)",
+          "created_by": "String(200)",
+          "evidence_ids": "JSON",
+          "id": "Integer",
+          "kind": "String(20)",
+          "limitations": "JSON",
+          "referral_id": "Integer FK referrals.id",
+          "sections": "JSON",
+          "version": "Integer"
+        },
+        "clarifications": {
+          "answer": "Text null",
+          "answered_at": "DateTime(timezone=True) null",
+          "answered_by": "String(200) null",
+          "asked_at": "DateTime(timezone=True)",
+          "asked_by": "String(200)",
+          "id": "Integer",
+          "package_version": "Integer null",
+          "provider_clarification_id": "Integer null",
+          "question": "Text",
+          "referral_id": "Integer FK referrals.id",
+          "status": "String(20)"
+        },
+        "consultation_responses": {
+          "content": "JSON",
+          "fhir_task": "JSON null",
+          "id": "Integer",
+          "package_version": "Integer",
+          "received_at": "DateTime(timezone=True)",
+          "referral_id": "Integer FK referrals.id",
+          "remote_key": "String(200)",
+          "returned_at": "DateTime(timezone=True)",
+          "review_note": "Text null",
+          "reviewed_at": "DateTime(timezone=True) null",
+          "reviewed_by": "String(200) null",
+          "reviewed_by_id": "String(64) null",
+          "specialist_name": "String(200)"
+        },
+        "diagnostic_requests": {
+          "attachments": "JSON",
+          "body_area": "String(100) null",
+          "category": "String(20)",
+          "clinical_question": "Text",
+          "created_at": "DateTime(timezone=True)",
+          "destination_department": "String(60)",
+          "destination_institution": "String(50)",
+          "history": "JSON",
+          "id": "Integer",
+          "local_patient_id": "String(50) null",
+          "reference": "String(30)",
+          "referral_id": "Integer FK referrals.id",
+          "reject_reason": "Text null",
+          "report": "JSON null",
+          "requested_by": "String(200)",
+          "requested_by_id": "String(64)",
+          "scheduled_for": "DateTime(timezone=True) null",
+          "seen_at": "DateTime(timezone=True) null",
+          "seen_by": "String(200) null",
+          "sent_at": "DateTime(timezone=True) null",
+          "sent_by": "String(200) null",
+          "status": "String(20)",
+          "test": "String(200)",
+          "updated_at": "DateTime(timezone=True)",
+          "urgency": "String(20)"
+        },
+        "documents": {
+          "created_at": "DateTime(timezone=True)",
+          "declared_type": "String(100)",
+          "deleted_at": "DateTime(timezone=True) null",
+          "detected_type": "String(100)",
+          "doc_type": "String(40)",
+          "error": "Text null",
+          "id": "Integer",
+          "original_filename": "String(255)",
+          "page_count": "Integer",
+          "patient_institution": "String(50)",
+          "patient_local_id": "String(50)",
+          "referral_id": "Integer FK referrals.id",
+          "sha256": "String(64)",
+          "size_bytes": "Integer",
+          "status": "String(20)",
+          "storage_key": "String(200)",
+          "uploaded_by": "String(200)",
+          "uploaded_by_id": "String(64)"
+        },
+        "drug_interactions": {
+          "id": "Integer",
+          "ingredient_a": "String(100)",
+          "ingredient_b": "String(100)",
+          "severity": "String(20)",
+          "source": "String(40)",
+          "source_ref": "String(80)",
+          "source_version": "String(80)"
+        },
+        "evaluation_runs": {
+          "changed_flags": "Integer",
+          "context": "JSON",
+          "created_at": "DateTime(timezone=True)",
+          "error": "Text null",
+          "id": "Integer",
+          "input_hash": "String(64)",
+          "outcome": "String(30) null",
+          "referral_id": "Integer FK referrals.id",
+          "rule_versions": "JSON",
+          "ruleset_hash": "String(64) null",
+          "status": "String(20)",
+          "summary_message": "Text null",
+          "trigger": "String(160)",
+          "triggered_by": "String(200)"
+        },
+        "evidence_items": {
+          "ai_reason": "Text null",
+          "ai_recommendation": "String(10) null",
+          "ai_relevance": "String(10) null",
+          "ai_run_id": "Integer null",
+          "author": "String(200) null",
+          "category": "String(30)",
+          "clinical_time": "DateTime(timezone=True) null",
+          "confidence": "JSON null",
+          "created_at": "DateTime(timezone=True)",
+          "current": "JSON",
+          "display": "Text",
+          "document_id": "Integer null FK documents.id",
+          "fhir": "JSON null",
+          "id": "Integer",
+          "in_default": "Boolean",
+          "link_id": "Integer null",
+          "origin": "String(20)",
+          "original": "JSON",
+          "page": "Integer null",
+          "patient_institution": "String(50)",
+          "patient_local_id": "String(50)",
+          "referral_id": "Integer FK referrals.id",
+          "region": "JSON null",
+          "retrieved_at": "DateTime(timezone=True)",
+          "review_state": "String(20)",
+          "row_version": "Integer",
+          "selected": "Boolean",
+          "selected_at": "DateTime(timezone=True) null",
+          "selected_by": "String(200) null",
+          "selection_source": "String(10) null",
+          "source_institution": "String(50)",
+          "source_record_id": "String(80) null",
+          "source_record_type": "String(40) null",
+          "source_record_version": "String(20) null",
+          "source_text": "Text null",
+          "superseded_by": "Integer null",
+          "updated_at": "DateTime(timezone=True)",
+          "verification_status": "String(20)",
+          "verified_at": "DateTime(timezone=True) null",
+          "verified_by": "String(200) null"
+        },
+        "evidence_revisions": {
+          "action": "String(30)",
+          "created_at": "DateTime(timezone=True)",
+          "editor": "String(200)",
+          "editor_id": "String(64)",
+          "evidence_id": "Integer FK evidence_items.id",
+          "id": "Integer",
+          "new_state": "String(20) null",
+          "new_value": "JSON null",
+          "note": "Text",
+          "prior_state": "String(20) null",
+          "prior_value": "JSON null"
+        },
+        "extraction_runs": {
+          "created_at": "DateTime(timezone=True)",
+          "document_id": "Integer FK documents.id",
+          "duration_ms": "Integer",
+          "error": "Text null",
+          "extractor": "String(80) null",
+          "extractor_version": "String(40) null",
+          "id": "Integer",
+          "job_id": "String(40) null",
+          "notes": "JSON",
+          "ocr_engine": "String(60) null",
+          "ocr_engine_version": "String(40) null",
+          "pages": "JSON",
+          "raw_text": "Text",
+          "status": "String(20)",
+          "text_source": "String(20) null"
+        },
+        "flag_reviews": {
+          "created_at": "DateTime(timezone=True)",
+          "decision": "String(20)",
+          "flag_id": "Integer FK medication_flags.id",
+          "flag_version": "Integer",
+          "id": "Integer",
+          "institution_id": "String(50)",
+          "note": "Text",
+          "package_version": "Integer null",
+          "referral_id": "Integer FK referrals.id",
+          "reviewer": "String(200)",
+          "reviewer_id": "String(64)",
+          "ruleset_hash": "String(64) null",
+          "side": "String(20)"
+        },
+        "followup_tasks": {
+          "assignee_name": "String(200) null",
+          "completed_at": "DateTime(timezone=True) null",
+          "completed_by": "String(200) null",
+          "created_at": "DateTime(timezone=True)",
+          "created_by": "String(200)",
+          "description": "Text",
+          "due_date": "Date null",
+          "id": "Integer",
+          "outcome": "Text null",
+          "referral_id": "Integer FK referrals.id",
+          "specified_by": "String(200)",
+          "status": "String(20)"
+        },
+        "inbound_messages": {
+          "id": "Integer",
+          "message_key": "String(200)",
+          "message_type": "String(40)",
+          "payload": "JSON",
+          "received_at": "DateTime(timezone=True)",
+          "referral_id": "Integer null FK referrals.id"
+        },
+        "ingredients": {
+          "atc_codes": "JSON",
+          "components": "JSON",
+          "in_interaction_source": "Boolean",
+          "label_name": "String(100) null",
+          "name": "String(100)",
+          "note": "Text null",
+          "rxnorm_id": "String(20) null",
+          "standard": "String(100) null"
+        },
+        "jobs": {
+          "attempts": "Integer",
+          "created_at": "DateTime(timezone=True)",
+          "created_by": "String(200)",
+          "created_by_id": "String(64)",
+          "document_id": "Integer null FK documents.id",
+          "error": "Text null",
+          "finished_at": "DateTime(timezone=True) null",
+          "id": "String(40)",
+          "institution_id": "String(50) null",
+          "kind": "String(40)",
+          "params": "JSON",
+          "referral_id": "Integer null FK referrals.id",
+          "result": "JSON null",
+          "started_at": "DateTime(timezone=True) null",
+          "status": "String(20)"
+        },
+        "label_rules": {
+          "extractor_version": "String(40)",
+          "id": "Integer",
+          "ingredient": "String(100)",
+          "kind": "String(20)",
+          "quote": "Text",
+          "rule_key": "String(200)",
+          "section": "String(40)",
+          "severity_hint": "String(20)",
+          "source_name": "String(200)",
+          "source_ref": "String(80)",
+          "source_type": "String(40)",
+          "source_version": "String(80)",
+          "status": "String(20)",
+          "summary": "Text",
+          "target": "String(60)",
+          "target_label": "String(120)"
+        },
+        "medication_entries": {
+          "brand": "String(100) null",
+          "created_at": "DateTime(timezone=True)",
+          "dose": "String(120) null",
+          "dose_differs": "Boolean",
+          "drug_class": "String(60) null",
+          "duplicate_of": "Integer null",
+          "evidence_id": "Integer FK evidence_items.id",
+          "excluded": "Boolean",
+          "excluded_by": "String(200) null",
+          "excluded_reason": "Text null",
+          "frequency": "String(100) null",
+          "id": "Integer",
+          "ingredient": "String(100) null",
+          "ingredients": "JSON",
+          "mapping_choices": "JSON null",
+          "mapping_note": "Text null",
+          "mapping_status": "String(20)",
+          "original_name": "String(200)",
+          "over_the_counter": "Boolean",
+          "record_kind": "String(20)",
+          "referral_id": "Integer FK referrals.id",
+          "route": "String(40) null",
+          "source_label": "String(300)",
+          "start_date": "String(20) null",
+          "strength": "String(60) null",
+          "updated_at": "DateTime(timezone=True)"
+        },
+        "medication_flags": {
+          "auto_generated": "Boolean",
+          "content_hash": "String(64)",
+          "created_at": "DateTime(timezone=True)",
+          "drug_class": "String(60) null",
+          "evidence_ids": "JSON",
+          "flag_key": "String(200)",
+          "id": "Integer",
+          "ingredients": "JSON",
+          "kind": "String(40)",
+          "medication": "String(300) null",
+          "medication_entry_id": "Integer null",
+          "message": "Text",
+          "referral_id": "Integer FK referrals.id",
+          "requires_decision": "Boolean",
+          "rule_id": "String(60) null",
+          "rule_version": "Integer null",
+          "run_id": "Integer FK evaluation_runs.id",
+          "severity": "String(20) null",
+          "source_label": "String(500) null",
+          "source_name": "String(200) null",
+          "source_quote": "Text null",
+          "source_ref": "Text null",
+          "source_type": "String(40) null",
+          "source_version": "String(80) null",
+          "status": "String(20)",
+          "superseded_at": "DateTime(timezone=True) null",
+          "title": "String(300)",
+          "version": "Integer"
+        },
+        "medication_rules": {
+          "content_hash": "String(64)",
+          "created_at": "DateTime(timezone=True)",
+          "created_by": "String(200)",
+          "created_by_id": "String(64)",
+          "decided_at": "DateTime(timezone=True) null",
+          "decided_by": "String(200) null",
+          "decided_by_id": "String(64) null",
+          "decision_note": "Text null",
+          "drug_class": "String(60)",
+          "id": "Integer",
+          "message": "Text",
+          "procedure_tags": "JSON",
+          "rationale": "Text",
+          "reference": "Text",
+          "reference_checked": "Text null",
+          "rule_id": "String(60)",
+          "status": "String(20)",
+          "title": "String(300)",
+          "version": "Integer"
+        },
+        "medicine_names": {
+          "added_by": "String(200)",
+          "created_at": "DateTime(timezone=True)",
+          "display": "String(120)",
+          "drug_class": "String(60)",
+          "id": "Integer",
+          "ingredient": "String(100)",
+          "kind": "String(20)",
+          "name": "String(120)",
+          "options": "JSON null",
+          "status": "String(20)"
+        },
+        "notifications": {
+          "body": "Text",
+          "created_at": "DateTime(timezone=True)",
+          "id": "Integer",
+          "institution_id": "String(50)",
+          "kind": "String(40)",
+          "link": "String(200) null",
+          "read_at": "DateTime(timezone=True) null",
+          "read_by": "String(200) null",
+          "recipient_id": "String(64) null",
+          "referral_id": "Integer null FK referrals.id",
+          "role": "String(40) null",
+          "title": "String(300)"
+        },
+        "outbox": {
+          "attempts": "Integer",
+          "created_at": "DateTime(timezone=True)",
+          "id": "Integer",
+          "kind": "String(40)",
+          "last_error": "Text null",
+          "message_key": "String(200)",
+          "next_attempt_at": "DateTime(timezone=True)",
+          "payload": "JSON",
+          "referral_id": "Integer FK referrals.id",
+          "remote_result": "JSON null",
+          "sent_at": "DateTime(timezone=True) null",
+          "status": "String(20)",
+          "target_institution": "String(50)"
+        },
+        "patient_link_events": {
+          "action": "String(30)",
+          "actor": "String(200)",
+          "actor_id": "String(64)",
+          "created_at": "DateTime(timezone=True)",
+          "detail": "JSON",
+          "id": "Integer",
+          "institution_id": "String(50) null",
+          "link_id": "Integer FK patient_links.id",
+          "note": "Text"
+        },
+        "patient_links": {
+          "decided_at": "DateTime(timezone=True) null",
+          "decided_by": "String(200) null",
+          "decided_by_id": "String(64) null",
+          "decision_note": "Text null",
+          "id": "Integer",
+          "invalidated_at": "DateTime(timezone=True) null",
+          "invalidated_by": "String(200) null",
+          "invalidation_reason": "Text null",
+          "kind": "String(20)",
+          "match_check": "JSON null",
+          "patient_birth_date": "String(20) null",
+          "patient_cnic": "String(15) null",
+          "patient_name": "String(200)",
+          "patient_sex": "String(10) null",
+          "purpose": "Text",
+          "referral_id": "Integer null FK referrals.id",
+          "registered_new": "Boolean",
+          "requested_at": "DateTime(timezone=True)",
+          "requested_by": "String(200)",
+          "requested_by_id": "String(64)",
+          "requester_institution": "String(50)",
+          "requester_local_id": "String(50)",
+          "status": "String(20)",
+          "status_key": "String(40)",
+          "target_institution": "String(50)",
+          "target_local_id": "String(50) null"
+        },
+        "referral_events": {
+          "actor": "String(200)",
+          "created_at": "DateTime(timezone=True)",
+          "detail": "JSON",
+          "event_type": "String(50)",
+          "from_status": "String(30) null",
+          "id": "Integer",
+          "institution_id": "String(50) null",
+          "referral_id": "Integer FK referrals.id",
+          "to_status": "String(30) null"
+        },
+        "referral_packages": {
+          "brief_id": "Integer FK briefs.id",
+          "content_hash": "String(64)",
+          "content_purged_at": "DateTime(timezone=True) null",
+          "delivery_key": "String(200)",
+          "envelope": "JSON",
+          "id": "Integer",
+          "manifest": "JSON null",
+          "referral_id": "Integer FK referrals.id",
+          "sent_at": "DateTime(timezone=True)",
+          "sent_by": "String(200)",
+          "sent_by_id": "String(64)",
+          "superseded": "Boolean",
+          "version": "Integer"
+        },
+        "referrals": {
+          "accepted_at": "DateTime(timezone=True) null",
+          "acknowledged_at": "DateTime(timezone=True) null",
+          "amendment_open": "Boolean",
+          "cancel_reason": "Text null",
+          "closed_at": "DateTime(timezone=True) null",
+          "closed_by": "String(200) null",
+          "created_at": "DateTime(timezone=True)",
+          "created_by_id": "String(64)",
+          "created_by_name": "String(200)",
+          "current_package_version": "Integer null",
+          "decline_reason": "Text null",
+          "delivery_status": "String(20)",
+          "destination_department": "String(60) null",
+          "destination_doctor": "String(200) null",
+          "destination_institution": "String(50) null",
+          "id": "Integer",
+          "kind": "String(20)",
+          "meds_checked_at": "DateTime(timezone=True) null",
+          "meds_checked_by": "String(200) null",
+          "meds_checked_note": "Text null",
+          "patient_birth_date": "String(20) null",
+          "patient_cnic": "String(15) null",
+          "patient_informed_at": "DateTime(timezone=True) null",
+          "patient_informed_by": "String(200) null",
+          "patient_informed_note": "Text null",
+          "patient_institution": "String(50)",
+          "patient_local_id": "String(50)",
+          "patient_name": "String(200)",
+          "patient_sex": "String(10) null",
+          "planned_procedure": "String(300) null",
+          "prepared_at": "DateTime(timezone=True) null",
+          "prepared_by": "String(200) null",
+          "procedure_status": "String(20)",
+          "procedure_tags": "JSON",
+          "reason": "Text",
+          "receiver_completed_at": "DateTime(timezone=True) null",
+          "receiver_completed_by": "String(200) null",
+          "reference": "String(30)",
+          "requested_at": "DateTime(timezone=True) null",
+          "requesting_doctor_id": "String(64) null",
+          "requesting_doctor_name": "String(200)",
+          "row_version": "Integer",
+          "source_department": "String(60) null",
+          "source_institution": "String(50)",
+          "status": "String(30)",
+          "submitted_package_version": "Integer null",
+          "updated_at": "DateTime(timezone=True)",
+          "urgency": "String(20)",
+          "working_set_expires_at": "DateTime(timezone=True) null",
+          "working_set_purged_at": "DateTime(timezone=True) null"
+        },
+        "ruleset_releases": {
+          "counts": "JSON",
+          "created_at": "DateTime(timezone=True)",
+          "hash": "String(64)",
+          "id": "Integer",
+          "notes": "Text"
+        },
+        "selection_runs": {
+          "created_at": "DateTime(timezone=True)",
+          "created_by": "String(200)",
+          "error": "Text null",
+          "id": "Integer",
+          "item_count": "Integer",
+          "missing": "JSON",
+          "model": "String(80) null",
+          "prompt_hash": "String(64)",
+          "prompt_version": "String(40)",
+          "provider": "String(40) null",
+          "referral_id": "Integer FK referrals.id",
+          "status": "String(20)",
+          "truncated": "Boolean"
+        },
+        "source_retrievals": {
+          "attempts": "Integer",
+          "duplicate_count": "Integer",
+          "duration_ms": "Integer",
+          "id": "Integer",
+          "institution_kind": "String(20) null",
+          "invalid_count": "Integer",
+          "last_activity": "String(20) null",
+          "link_id": "Integer null",
+          "local_patient_id": "String(50)",
+          "message": "Text",
+          "new_count": "Integer",
+          "record_count": "Integer",
+          "referral_id": "Integer FK referrals.id",
+          "requested_at": "DateTime(timezone=True)",
+          "requested_by": "String(200)",
+          "retryable": "Boolean",
+          "source_institution": "String(50)",
+          "status": "String(20)",
+          "window_start": "String(20) null",
+          "withheld": "JSON"
+        },
+        "suggestion_reviews": {
+          "created_at": "DateTime(timezone=True)",
+          "data_version": "String(200)",
+          "decision": "String(20)",
+          "id": "Integer",
+          "model_version": "String(60)",
+          "note": "Text",
+          "pair_key": "String(210)",
+          "referral_id": "Integer FK referrals.id",
+          "reviewer": "String(200)",
+          "reviewer_id": "String(64)",
+          "score": "Float"
+        },
+        "users": {
+          "account_status": "String(20)",
+          "department": "String(60) null",
+          "display_name": "String(200)",
+          "id": "String(64)",
+          "institution_id": "String(50) null",
+          "last_seen_at": "DateTime(timezone=True)",
+          "roles": "JSON",
+          "status_changed_at": "DateTime(timezone=True) null",
+          "status_changed_by": "String(200) null",
+          "username": "String(100)"
+        }
+      },
+      "institution": {
+        "access_grants": {
+          "basis": "Text",
+          "categories": "JSON",
+          "created_at": "DateTime(timezone=True)",
+          "expires_at": "DateTime(timezone=True) null",
+          "granted_by": "String(200)",
+          "grantee_institution": "String(50)",
+          "id": "Integer",
+          "local_patient_id": "String(50)",
+          "referral_ref": "String(60) null",
+          "revoked_at": "DateTime(timezone=True) null",
+          "revoked_by": "String(200) null",
+          "status": "String(20)"
+        },
+        "audit_events": {
+          "action": "String(100)",
+          "actor_id": "String(100)",
+          "actor_name": "String(200)",
+          "created_at": "DateTime(timezone=True)",
+          "detail": "JSON",
+          "id": "Integer",
+          "institution_id": "String(50) null",
+          "outcome": "String(20)",
+          "referral_context": "String(60) null",
+          "target_id": "String(100)",
+          "target_type": "String(60)"
+        },
+        "cases": {
+          "acknowledged_at": "DateTime(timezone=True) null",
+          "acknowledged_by": "String(200) null",
+          "assign_note": "Text null",
+          "assigned_at": "DateTime(timezone=True) null",
+          "assigned_by": "String(200) null",
+          "assigned_doctor": "String(200) null",
+          "central_referral_id": "String(40)",
+          "completed_at": "DateTime(timezone=True) null",
+          "completed_by": "String(200) null",
+          "decision": "String(20) null",
+          "decision_at": "DateTime(timezone=True) null",
+          "decision_by": "String(200) null",
+          "decline_reason": "Text null",
+          "department": "String(60)",
+          "hold_until": "DateTime(timezone=True) null",
+          "id": "Integer",
+          "latest_version": "Integer",
+          "link_request_id": "Integer null",
+          "local_patient_id": "String(30) null",
+          "patient_birth_date": "String(20) null",
+          "patient_cnic": "String(15) null",
+          "patient_name": "String(200)",
+          "patient_sex": "String(10) null",
+          "received_at": "DateTime(timezone=True)",
+          "requested_doctor": "String(200) null",
+          "sender_institution": "String(50)",
+          "sender_name": "String(200)",
+          "shared_removed_at": "DateTime(timezone=True) null",
+          "status": "String(30)",
+          "updated_at": "DateTime(timezone=True)",
+          "urgency": "String(20)"
+        },
+        "conditions": {
+          "clinical_status": "String(20)",
+          "display": "String(300)",
+          "id": "String(40)",
+          "onset": "String(10) null",
+          "patient_id": "String FK patients.local_id",
+          "snomed": "String(30) null",
+          "updated_at": "DateTime(timezone=True)",
+          "version": "Integer"
+        },
+        "consultation_responses": {
+          "case_id": "Integer FK cases.id",
+          "content": "JSON",
+          "drafted_at": "DateTime(timezone=True)",
+          "drafted_by": "String(200)",
+          "id": "Integer",
+          "package_version": "Integer",
+          "return_key": "String(200) null",
+          "returned_at": "DateTime(timezone=True) null",
+          "returned_by": "String(200) null",
+          "returned_by_id": "String(100) null",
+          "row_version": "Integer",
+          "status": "String(20)"
+        },
+        "forwarded_results": {
+          "case_id": "Integer FK cases.id",
+          "content": "JSON",
+          "forward_key": "String(200)",
+          "id": "Integer",
+          "received_at": "DateTime(timezone=True)"
+        },
+        "imaging_reports": {
+          "body_part": "String(100) null",
+          "findings": "Text",
+          "id": "String(40)",
+          "impression": "Text",
+          "patient_id": "String FK patients.local_id",
+          "reporter": "String(200) null",
+          "study": "String(200)",
+          "study_date": "Date",
+          "updated_at": "DateTime(timezone=True)",
+          "version": "Integer"
+        },
+        "incoming_packages": {
+          "case_id": "Integer FK cases.id",
+          "content_hash": "String(64)",
+          "delivery_key": "String(200)",
+          "envelope": "JSON",
+          "id": "Integer",
+          "received_at": "DateTime(timezone=True)",
+          "version": "Integer"
+        },
+        "info_requests": {
+          "answer": "Text null",
+          "answer_key": "String(200) null",
+          "answered_at": "DateTime(timezone=True) null",
+          "answered_by": "String(200) null",
+          "case_id": "Integer FK cases.id",
+          "created_at": "DateTime(timezone=True)",
+          "created_by": "String(200)",
+          "id": "Integer",
+          "package_version": "Integer",
+          "question": "Text",
+          "status": "String(20)"
+        },
+        "lab_results": {
+          "abnormal_flag": "String(20) null",
+          "collected": "Date",
+          "id": "String(40)",
+          "loinc": "String(20) null",
+          "note": "Text null",
+          "panel": "String(200)",
+          "patient_id": "String FK patients.local_id",
+          "reference_range": "String(60) null",
+          "status": "String(20)",
+          "test": "String(120)",
+          "unit": "String(40) null",
+          "updated_at": "DateTime(timezone=True)",
+          "value_num": "Float null",
+          "value_text": "String(200) null",
+          "version": "Integer"
+        },
+        "medications": {
+          "brand_as_written": "String(100) null",
+          "dose": "String(100) null",
+          "frequency": "String(100) null",
+          "id": "String(40)",
+          "name": "String(200)",
+          "note": "Text null",
+          "patient_id": "String FK patients.local_id",
+          "prescriber": "String(200) null",
+          "route": "String(40) null",
+          "start_date": "Date null",
+          "status": "String(20)",
+          "updated_at": "DateTime(timezone=True)",
+          "version": "Integer"
+        },
+        "order_attachments": {
+          "content_type": "String(100)",
+          "created_at": "DateTime(timezone=True)",
+          "data": "LargeBinary",
+          "filename": "String(200)",
+          "id": "Integer",
+          "order_id": "Integer FK orders.id",
+          "uploaded_by": "String(200)"
+        },
+        "orders": {
+          "body_area": "String(100) null",
+          "category": "String(20)",
+          "central_referral_id": "String(40)",
+          "clinical_question": "Text",
+          "department": "String(60)",
+          "findings": "Text null",
+          "history": "JSON",
+          "id": "Integer",
+          "impression": "Text null",
+          "link_request_id": "Integer null",
+          "local_patient_id": "String(30) null",
+          "order_key": "String(200)",
+          "order_ref": "String(40)",
+          "patient_birth_date": "String(20) null",
+          "patient_cnic": "String(15) null",
+          "patient_name": "String(200)",
+          "patient_sex": "String(10) null",
+          "received_at": "DateTime(timezone=True)",
+          "reject_reason": "Text null",
+          "report_text": "Text null",
+          "reported_at": "DateTime(timezone=True) null",
+          "reported_by": "String(200) null",
+          "requested_by": "String(200)",
+          "scheduled_for": "DateTime(timezone=True) null",
+          "sender_institution": "String(50)",
+          "sender_name": "String(200)",
+          "status": "String(20)",
+          "test": "String(200)",
+          "updated_at": "DateTime(timezone=True)",
+          "urgency": "String(20)",
+          "values": "JSON"
+        },
+        "outbox": {
+          "attempts": "Integer",
+          "case_id": "Integer null FK cases.id",
+          "created_at": "DateTime(timezone=True)",
+          "event_key": "String(200)",
+          "event_type": "String(40)",
+          "id": "Integer",
+          "last_error": "Text null",
+          "next_attempt_at": "DateTime(timezone=True)",
+          "order_id": "Integer null FK orders.id",
+          "payload": "JSON",
+          "sent_at": "DateTime(timezone=True) null",
+          "status": "String(20)"
+        },
+        "patients": {
+          "birth_date": "Date",
+          "city": "String(60) null",
+          "cnic": "String(15) null",
+          "family": "String(100)",
+          "given": "String(100)",
+          "local_id": "String(30)",
+          "phone": "String(30) null",
+          "registered_by": "String(200) null",
+          "sex": "String(10)",
+          "synthetic": "Boolean",
+          "updated_at": "DateTime(timezone=True)",
+          "version": "Integer"
+        },
+        "sent_copies": {
+          "central_referral_id": "String(40)",
+          "content": "JSON",
+          "copy_key": "String(220)",
+          "id": "Integer",
+          "kind": "String(20)",
+          "received_at": "DateTime(timezone=True)",
+          "version": "Integer"
+        },
+        "surgeries": {
+          "id": "String(40)",
+          "location": "String(200) null",
+          "patient_id": "String FK patients.local_id",
+          "performed": "String(10) null",
+          "procedure": "String(300)",
+          "updated_at": "DateTime(timezone=True)",
+          "version": "Integer"
+        },
+        "visits": {
+          "clinician": "String(200) null",
+          "id": "String(40)",
+          "patient_id": "String FK patients.local_id",
+          "reason": "Text",
+          "setting": "String(200)",
+          "summary": "Text",
+          "updated_at": "DateTime(timezone=True)",
+          "version": "Integer",
+          "visit_date": "Date"
+        }
+      }
+    },
+    "templates": [
+      "doctor",
+      "front_desk",
+      "institution_administrator",
+      "lab_radiology",
+      "rule_reviewer"
+    ],
+    "transitions": {
+      "accepted": [
+        "cancelled",
+        "closed",
+        "followup_pending",
+        "response_returned"
+      ],
+      "acknowledged": [
+        "accepted",
+        "cancelled",
+        "declined"
+      ],
+      "cancelled": [],
+      "closed": [],
+      "declined": [],
+      "draft": [
+        "cancelled",
+        "requested"
+      ],
+      "followup_pending": [
+        "closed"
+      ],
+      "requested": [
+        "cancelled",
+        "draft",
+        "submitted"
+      ],
+      "response_returned": [
+        "closed",
+        "followup_pending"
+      ],
+      "submitted": [
+        "acknowledged",
+        "cancelled",
+        "declined",
+        "response_returned"
+      ]
+    },
+    "web_dependencies": {
+      "@emotion/react": "^11.13.5",
+      "@emotion/styled": "^11.13.5",
+      "@mui/icons-material": "^6.1.9",
+      "@mui/material": "^6.1.9",
+      "@playwright/test": "^1.49.0",
+      "@tanstack/react-query": "^5.62.0",
+      "@types/react": "^18.3.12",
+      "@types/react-dom": "^18.3.1",
+      "@vitejs/plugin-react": "^4.3.4",
+      "oidc-client-ts": "^3.1.0",
+      "react": "^18.3.1",
+      "react-dom": "^18.3.1",
+      "react-hook-form": "^7.53.2",
+      "react-router-dom": "^6.28.0",
+      "typescript": "~5.6.3",
+      "vite": "^6.0.1"
+    },
+    "web_routes": [
+      "*",
+      "*",
+      "/",
+      "/accessibility",
+      "/admin/access",
+      "/admin/audit",
+      "/admin/users",
+      "/callback",
+      "/documents/:id",
+      "/incoming",
+      "/incoming/:id",
+      "/medicine-names",
+      "/orders",
+      "/orders/:id",
+      "/patient-links",
+      "/privacy",
+      "/referrals",
+      "/referrals/:id",
+      "/referrals/new",
+      "/rules",
+      "/terms",
+      "/work-queue"
+    ]
+  },
+  "released": "2026-10-29",
+  "version": "1.0.0"
+}

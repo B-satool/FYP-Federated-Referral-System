@@ -12,6 +12,9 @@ Read `docs/architecture.md` and the relevant SRS section (`docs/requirements/FYP
 | Central unit checks | `docker compose run --rm --no-deps -v ${PWD}/services/central/tests:/srv/tests central python -m pytest tests -q` |
 | Web type check / build | `cd web; npm run typecheck; npm run build` |
 | Browser smoke journeys | `cd web; npx playwright test e2e/smoke.spec.ts` |
+| Design spec: rebuild while working | `python scripts/sds/build_sds.py build` |
+| Design spec: release a new version | `python scripts/sds/build_sds.py release --level minor --summary "<what changed>"` |
+| Design spec: CI check | `python scripts/sds/build_sds.py check` |
 | New migration (owner only) | `docker compose run --rm --no-deps -v ${PWD}/services/<svc>/migrations:/srv/migrations <svc> alembic revision --autogenerate -m "<what>"` |
 
 ## Non-negotiable invariants
@@ -37,6 +40,14 @@ Read `docs/architecture.md` and the relevant SRS section (`docs/requirements/FYP
 9. **Idempotency.** Delivery keys and event keys make retries safe. Keep the outbox write in the same transaction as the decision to send.
 10. **Audit.** Every access, retrieval, link change, correction, approval, submission and status change writes an audit event with actor, institution, action, target, time and outcome.
 11. **Synthetic data only.** Do not commit patient data, credentials, `.env`, model weights or uploaded files.
+
+## Software Design Specification
+
+`docs/sds/SDS.md` describes the current system. **Every change to the system releases a new SDS version** in the same commit:
+1. Update the written section in `docs/sds/sections/` that describes the changed behaviour.
+2. Run `build_sds.py release`. It regenerates the ERDs, API, configuration and other appendices from the code, freezes `docs/sds/versions/SDS-v<version>.md` and adds a changelog entry.
+
+CI fails otherwise. See `docs/sds/sections/17-maintaining-this-document.md`.
 
 ## Module ownership
 

@@ -35,8 +35,24 @@ from typing import Any
 
 try:
     import yaml  # type: ignore
-except ImportError:  # pragma: no cover - reported in the appendix
-    yaml = None
+except ImportError:  # pragma: no cover
+    # Required: without it the Compose inventory would silently differ between machines.
+    sys.exit("build_sds.py needs PyYAML: pip install pyyaml (and do not run with python -I if it is a user install)")
+
+
+class ComposeLoader(yaml.SafeLoader):
+    """Safe loader that also accepts Compose's own tags (`!reset`, `!override`) as plain values."""
+
+
+def _any_tag(loader: yaml.SafeLoader, tag_suffix: str, node: yaml.Node) -> Any:
+    if isinstance(node, yaml.MappingNode):
+        return loader.construct_mapping(node, deep=True)
+    if isinstance(node, yaml.SequenceNode):
+        return loader.construct_sequence(node, deep=True)
+    return loader.construct_scalar(node)
+
+
+ComposeLoader.add_multi_constructor("!", _any_tag)
 
 ROOT = Path(__file__).resolve().parents[2]
 SDS = ROOT / "docs" / "sds"
@@ -592,9 +608,9 @@ def compose_inventory() -> dict:
     out: dict[str, Any] = {}
     for name in ("docker-compose.yml", "docker-compose.prod.yml", "docker-compose.dbaccess.yml"):
         p = ROOT / name
-        if not p.exists() or yaml is None:
+        if not p.exists():
             continue
-        doc = yaml.safe_load(read(p)) or {}
+        doc = yaml.load(read(p), Loader=ComposeLoader) or {}
         services = {}
         for svc, cfg in (doc.get("services") or {}).items():
             cfg = cfg or {}
@@ -640,8 +656,6 @@ def gen_config(cfg: list[dict], compose: dict) -> str:
            "### `.env.example` (installation settings)\n",
            "Secret values are never shown here. Copy `.env.example` to `.env` and set every secret per installation.\n",
            table(["Key", "Example value", "Comment"], env_example_keys())]
-    if yaml is None:
-        out.append("_PyYAML is not installed, so the Compose inventory was not generated._\n")
     for fname, doc in compose.items():
         out.append(f"### `{fname}`\n")
         out.append(table(["Service", "Image / build", "Ports", "Depends on", "Environment keys", "Volumes", "Command", "Health check"],
@@ -819,7 +833,7 @@ def assets_inventory() -> list[list[str]]:
     for p in sorted((ROOT / "rules").rglob("*")):
         if not p.is_file():
             continue
-        size = p.stat().st_size
+        size = len(p.read_bytes().replace(b"\r\n", b"\n"))  # same on Windows (CRLF checkout) and Linux
         summary = ""
         if p.suffix == ".json":
             try:
@@ -1076,6 +1090,10 @@ def structural_diff(old: dict, new: dict) -> list[str]:
         out += [f"{label} added: `{x}`" for x in sorted(n - o)] + [f"{label} removed: `{x}`" for x in sorted(o - n)]
     a, r, c = _dict_diff(old.get("endpoint_access", {}), new.get("endpoint_access", {}))
     out += [f"Access checks changed: `{x}`" for x in c]
+    for f in sorted(set(old.get("compose_services", {})) | set(new.get("compose_services", {}))):
+        o, n = set(old.get("compose_services", {}).get(f, [])), set(new.get("compose_services", {}).get(f, []))
+        out += [f"Compose service added (`{f}`): `{x}`" for x in sorted(n - o)]
+        out += [f"Compose service removed (`{f}`): `{x}`" for x in sorted(o - n)]
     if old.get("transitions") != new.get("transitions"):
         out.append("Referral state machine transitions changed")
     if old.get("schedule") != new.get("schedule"):

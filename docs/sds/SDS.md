@@ -2,13 +2,13 @@
 
 | | |
 |---|---|
-| Document version | **v1.0.0** |
+| Document version | **v1.0.1** |
 | Released | 2026-10-29 |
 | System | Federated referral preparation and follow-through platform (FYP), v2 code base |
 | Status | Living document: regenerated from the code on every change, frozen per release in `docs/sds/versions/` |
-| Structure fingerprint | `86ca352465c35122` |
+| Structure fingerprint | `f22b30e6f290b811` |
 | Written-sections fingerprint | `4ee51ec82da973ff` |
-| Source fingerprint | `030b32b1838a0231` |
+| Source fingerprint | `26a0a66af6e6be17` |
 | Maintained by | The project team. See section 17 for how to update and release it. |
 
 ## Contents
@@ -5470,7 +5470,45 @@ Secret values are never shown here. Copy `.env.example` to `.env` and set every 
 | `GOOGLE_VISION_API_KEY` | secret: set per installation |  |
 | `DOCUMENT_RETENTION_DAYS` | `365` | Retention (days) for uploaded document copies after referral closure |
 
-_PyYAML is not installed, so the Compose inventory was not generated._
+#### `docker-compose.yml`
+
+| Service | Image / build | Ports | Depends on | Environment keys | Volumes | Command | Health check |
+|---|---|---|---|---|---|---|---|
+| `postgres` | postgres:16-alpine |  |  | AKUH_DB_PASSWORD, CENTRAL_DB_PASSWORD, CHUGHTAI_DB_PASSWORD, DRALI_DB_PASSWORD, KEYCLOAK_DB_PASSWORD, POSTGRES_PASSWORD, POSTGRES_USER, ZIAUDDIN_DB_PASSWORD | pgdata:/var/lib/postgresql/data, ./infra/postgres/init:/docker-entrypoint-initdb.d:ro |  | yes |
+| `redis` | redis:7-alpine |  |  |  |  |  | yes |
+| `keycloak` | quay.io/keycloak/keycloak:26.0 | 8080:8080 | postgres | AKUH_CLIENT_SECRET, CENTRAL_CLIENT_SECRET, CHUGHTAI_CLIENT_SECRET, DEMO_USER_PASSWORD, DRALI_CLIENT_SECRET, JAVA_OPTS_KC_HEAP, KC_BOOTSTRAP_ADMIN_PASSWORD, KC_BOOTSTRAP_ADMIN_USERNAME, KC_DB, KC_DB_PASSWORD, KC_DB_URL, KC_DB_USERNAME, KC_HEALTH_ENABLED, KC_HOSTNAME, KC_HTTP_ENABLED, WEB_ORIGIN, ZIAUDDIN_CLIENT_SECRET | ./infra/keycloak/import:/opt/keycloak/data/import:ro | `start-dev --import-realm` | yes |
+| `drali` | build: services/provider/Dockerfile | 8001:8000 | keycloak, postgres | CENTRAL_URL, DATABASE_URL, INSTITUTION_ID, INSTITUTION_NAME, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, LOCAL_ID_PREFIX, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET |  |  | yes |
+| `chughtai` | build: services/provider/Dockerfile | 8002:8000 | keycloak, postgres | CENTRAL_URL, DATABASE_URL, INSTITUTION_ID, INSTITUTION_NAME, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, LOCAL_ID_PREFIX, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET |  |  | yes |
+| `ziauddin` | build: services/provider/Dockerfile | 8003:8000 | keycloak, postgres | CENTRAL_URL, DATABASE_URL, INSTITUTION_ID, INSTITUTION_NAME, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, LOCAL_ID_PREFIX, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET |  |  | yes |
+| `akuh` | build: services/provider/Dockerfile | 8004:8000 | keycloak, postgres | CENTRAL_URL, DATABASE_URL, INSTITUTION_ID, INSTITUTION_NAME, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, LOCAL_ID_PREFIX, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET |  |  | yes |
+| `central` | build: services/central/Dockerfile | 8000:8000 | keycloak, postgres, redis | AKUH_URL, ANTHROPIC_API_KEY, CHUGHTAI_URL, DATABASE_URL, DOCUMENT_RETENTION_DAYS, DRALI_URL, EXTRACTION_MODE, GOOGLE_VISION_API_KEY, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, LLM_CONTEXT_TOKENS, LLM_EXTERNAL_ALLOWED, LLM_MODEL, LLM_PROVIDER, LLM_TIMEOUT_SECONDS, OCR_ENGINE, OLLAMA_API_KEY, OLLAMA_HOST, REDIS_URL, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET, STORAGE_ROOT, ZIAUDDIN_URL | documents:/data/documents |  | yes |
+| `worker` | build: services/central/Dockerfile |  | central, redis | AKUH_URL, ANTHROPIC_API_KEY, CHUGHTAI_URL, DATABASE_URL, DOCUMENT_RETENTION_DAYS, DRALI_URL, EXTRACTION_MODE, GOOGLE_VISION_API_KEY, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, LLM_CONTEXT_TOKENS, LLM_EXTERNAL_ALLOWED, LLM_MODEL, LLM_PROVIDER, LLM_TIMEOUT_SECONDS, OCR_ENGINE, OLLAMA_API_KEY, OLLAMA_HOST, REDIS_URL, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET, STORAGE_ROOT, ZIAUDDIN_URL | documents:/data/documents | `celery -A app.tasks worker -B --loglevel=info --concurrency=2 -Q referral` |  |
+| `web` | build: Dockerfile | 3000:80 | central |  |  |  |  |
+
+Named volumes: `documents`, `pgdata`
+
+#### `docker-compose.prod.yml`
+
+| Service | Image / build | Ports | Depends on | Environment keys | Volumes | Command | Health check |
+|---|---|---|---|---|---|---|---|
+| `caddy` | caddy:2-alpine | 80:80, 443:443 | keycloak, web | SITE_HOST | ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro, caddy_data:/data, caddy_config:/config |  |  |
+| `keycloak` |  |  |  | KC_HOSTNAME, KC_HTTP_ENABLED, KC_HTTP_MANAGEMENT_RELATIVE_PATH, KC_HTTP_RELATIVE_PATH, KC_PROXY_HEADERS, WEB_ORIGIN |  | `start --import-realm` |  |
+| `web` | build: Dockerfile |  |  |  |  |  |  |
+| `postgres` |  |  |  |  |  |  |  |
+| `drali` |  |  |  | KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL |  |  |  |
+| `chughtai` |  |  |  | KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL |  |  |  |
+| `ziauddin` |  |  |  | KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL |  |  |  |
+| `akuh` |  |  |  | KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL |  |  |  |
+| `central` |  |  |  | KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL |  |  |  |
+| `worker` |  |  |  | KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL |  |  |  |
+
+Named volumes: `caddy_config`, `caddy_data`
+
+#### `docker-compose.dbaccess.yml`
+
+| Service | Image / build | Ports | Depends on | Environment keys | Volumes | Command | Health check |
+|---|---|---|---|---|---|---|---|
+| `postgres` |  | 127.0.0.1:5432:5432 |  |  |  |  |  |
 
 
 # Appendix K. Web application, roles and identity provider

@@ -1,8 +1,8 @@
 {
   "fingerprints": {
     "sections": "4ee51ec82da973ff2d4c63c5041b82851ef56dd2aa496aeaacb5e3fc72b7da36",
-    "source": "030b32b1838a02314166af5cc0421612060b5337874ca9d73b47588cd9d3d6b9",
-    "structure": "86ca352465c3512242b7e28db79ecee15123666a68cae16ae44c394df1f45fa9"
+    "source": "04be9f11e4785153998ef82f4b27ef76be25cbe922178c820b34f38f29d9cdc0",
+    "structure": "f22b30e6f290b8116c67afebecad94f2d697a6b35802c96d961b7a814b095df6"
   },
   "history": [
     {
@@ -10,10 +10,44 @@
       "date": "2026-10-29",
       "summary": "First complete Software Design Specification of the v2 code base: architecture, components, data model, workflows, security, AI, medication flagging, interfaces, reliability, operations, testing and limitations, with generated ERDs, API, contracts, configuration and inventories.",
       "version": "1.0.0"
+    },
+    {
+      "changes": 21,
+      "date": "2026-10-29",
+      "summary": "Docker Compose inventory now included in Appendix J (it was skipped in v1.0.0 because PyYAML was not visible to the generator); PyYAML is now required and Compose's own YAML tags are accepted.",
+      "version": "1.0.1"
     }
   ],
   "inventory": {
-    "compose_services": {},
+    "compose_services": {
+      "docker-compose.dbaccess.yml": [
+        "postgres"
+      ],
+      "docker-compose.prod.yml": [
+        "akuh",
+        "caddy",
+        "central",
+        "chughtai",
+        "drali",
+        "keycloak",
+        "postgres",
+        "web",
+        "worker",
+        "ziauddin"
+      ],
+      "docker-compose.yml": [
+        "akuh",
+        "central",
+        "chughtai",
+        "drali",
+        "keycloak",
+        "postgres",
+        "redis",
+        "web",
+        "worker",
+        "ziauddin"
+      ]
+    },
     "decisions": [
       "[2026-10-27-data-lifecycle-and-v3](../decisions/2026-10-27-data-lifecycle-and-v3.md)",
       "[2026-10-28-cloud-model-privacy](../decisions/2026-10-28-cloud-model-privacy.md)",
@@ -1689,5 +1723,5 @@
     ]
   },
   "released": "2026-10-29",
-  "version": "1.0.0"
+  "version": "1.0.1"
 }

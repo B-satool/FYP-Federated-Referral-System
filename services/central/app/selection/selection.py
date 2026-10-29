@@ -5,8 +5,9 @@
    conditions start unselected.
 2. **AI recommendation (only if a model is configured):** the model reads the referral context and the
    retrieved records and recommends include / exclude / optional for each, with a short reason, and
-   lists information that seems needed but was not found. Its output is checked in code; any failure
-   rejects the whole answer and the default stands. The model can add records to the packet and mark
+   lists information that seems needed but was not found. Its output is checked in code; a structural
+   failure rejects the whole answer and the default stands. A reason with treatment or dosing wording is
+   withheld (never shown) and that record keeps its default. The model can add records to the packet and mark
    default items as low relevance (a hint), but it cannot remove a default item. Nothing it excludes
    is hidden: excluded items are listed under "Not included" with the reason.
 3. **Staff decide:** staff can tick or untick anything. Their choices always win and are recorded
@@ -35,13 +36,16 @@ from ..models import EvidenceItem, Referral, SelectionRun
 from ..security import audit
 
 log = logging.getLogger("selection")
-PROMPT_VERSION = "packet-selection/3"  # 2: de-identified input; 3: the doctor's consultation notes
+PROMPT_VERSION = "packet-selection/4"  # 2: de-identified input; 3: the doctor's consultation notes; 4: no-action wording
 MAX_ITEMS = 150  # cap sent to the model; older non-default items are dropped first and the cut is reported
 DATED = {"visit", "lab", "lab_report", "imaging"}
 INACTIVE = {"resolved", "inactive", "remission", "entered-in-error", "refuted"}
 # Dose-change wording. Describing a record ("is taking losartan", "creatinine 1.2 mg/dL") is allowed;
-# commands such as "stop" or "start taking" are caught by ADVICE.
-DOSING = re.compile(r"\b(doses?|dosage|dosing|titrat\w*|adjust\w*)\b", re.I)
+# commands such as "stop" or "start taking" are caught by ADVICE. gpt-oss-120b (Groq) wrote "must be managed
+# before surgery", "requires cessation" and "generally continued", so what to do with a medicine is caught too.
+DOSING = re.compile(r"\b(doses?|dosage|dosing|titrat\w*|adjust\w*|hold|holding|held|withh[oe]ld\w*|discontinu\w*|"
+                    r"cessation|ceas(e|ed|ing)|continu(e|ed|ing)|resum\w*|restart\w*|switch\w*|taper\w*|bridg\w*|"
+                    r"manag(e|ed|ing)|clearance|must|should)\b", re.I)
 
 SYSTEM = """You help prepare a medical referral. You are given the referral (reason, the doctor's consultation notes, department, planned procedure)
 and the records retrieved for the patient (de-identified: the patient's age and sex, and each record's date as days
@@ -51,7 +55,9 @@ For every record id in the input return one item:
 - recommendation: "include" (the specialist needs it), "exclude" (not relevant to this referral) or
   "optional" (might help);
 - relevance: "high", "medium" or "low";
-- reason: at most 25 words, about relevance only.
+- reason: at most 25 words, saying only why the specialist needs (or does not need) the record. Describe what the
+  record shows; never say what should be done. Do not use words such as stop, hold, continue, resume, manage,
+  adjust, dose, clearance, must or should.
 Then list in "missing" any information that seems needed for this referral but is not among the records
 (at most 5 short phrases).
 
@@ -164,7 +170,9 @@ def validate(raw: Any, allowed_ids: set[int]) -> tuple[dict[int, dict], list[str
         if not isinstance(reason, str) or not reason.strip() or len(reason.split()) > 25:
             raise ProviderOutputInvalid("a reason is empty or longer than 25 words")
         if ADVICE.search(reason) or DOSING.search(reason):
-            raise ProviderOutputInvalid("a reason gives treatment or dosing advice")
+            # withheld, never shown: this record keeps the default selection. Rejecting the whole answer for
+            # one borderline phrase ("relevant for medication dosing") threw away nearly every Groq answer.
+            continue
         out[eid] = {"recommendation": it["recommendation"], "relevance": it["relevance"], "reason": reason.strip()}
     # "missing" is only a hint for staff: a phrase that is too long or reads as advice is dropped,
     # not a reason to discard the whole recommendation
@@ -206,6 +214,9 @@ def recommend(db: Session, r: Referral, actor: str, principal=None,
         budget = min(16000, 400 + 80 * len(items))
         raw = provider.structured(SYSTEM, _payload(r, items), schema_for(provider, len(items)), max_tokens=budget)
         recs, missing = validate(raw, {e.id for e in items})
+        withheld = len(raw["items"]) - len(recs)
+        if withheld:
+            run.error = f"{withheld} reason(s) withheld for treatment or dosing wording; those records keep the default"
     except ProviderUnavailable as exc:
         run.status, run.error = "unavailable", str(exc)[:500]
     except ProviderOutputInvalid as exc:

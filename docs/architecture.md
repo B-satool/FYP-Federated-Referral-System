@@ -144,7 +144,7 @@ Details and coverage figures are in [medication-flagging.md](medication-flagging
 - **Providers** sit behind `LLMProvider` (`generation/provider.py`), chosen with `LLM_PROVIDER`:
   - `ollama`: a local model (e.g. `medgemma:4b`) or a `:cloud` model such as `gemma4:cloud`;
   - `anthropic`: `claude-opus-5-5`;
-  - `openai_compatible`: e.g. vLLM or Kimi.
+  - `openai_compatible`: e.g. Groq (the current demo setting: `openai/gpt-oss-120b`, `LLM_REASONING_EFFORT=low`), vLLM or Kimi.
 - **What the model does:** recommends records for the packet, and reads fields from papers when
   `EXTRACTION_MODE=auto`. Its output is checked in code; anything that fails is discarded, and the rule-based
   result stands. The model has no tools.

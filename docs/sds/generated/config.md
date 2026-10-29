@@ -6,15 +6,15 @@ Every variable read with `os.environ.get`, `os.getenv` or a boolean helper, with
 
 | Variable | Default | Meaning | Read in |
 |---|---|---|---|
-| `ACCEPTED_HOLD_DAYS` | `'30'` | a received referral's shared records: kept ACCEPTED_HOLD_DAYS after acceptance (extendable by the referred doctor), and removed GRACE_HOURS after they mark it complete (the platform applies the same rules) | services/central/app/config.py:54, services/provider/app/config.py:17 |
+| `ACCEPTED_HOLD_DAYS` | `'30'` | a received referral's shared records: kept ACCEPTED_HOLD_DAYS after acceptance (extendable by the referred doctor), and removed GRACE_HOURS after they mark it complete (the platform applies the same rules) | services/central/app/config.py:56, services/provider/app/config.py:17 |
 | `ANTHROPIC_API_KEY` | `''` |  | services/central/app/config.py:25 |
 | `CENTRAL_URL` | `'http://central:8000'` |  | services/provider/app/config.py:9 |
 | `DATABASE_URL` | `'postgresql+psycopg://central:central@postgres/central_db'` |  | services/central/app/config.py:13, services/provider/app/main.py:76, services/provider/app/seed.py:120 |
 | `DEFAULT_GRANT_DAYS` | `'14'` | Access grants are temporary. New grants always get an expiry; the duration is chosen up to this limit (days). Grants created before expiry existed have none and are reported as "legacy" so an administrator can renew or revoke them. | libs/common/refcommon/sourcekit.py:39 |
-| `DOCUMENT_RETENTION_DAYS` | `'365'` |  | services/central/app/config.py:48 |
-| `EXTRACTION_MODE` | `'auto'` | auto \| llm \| rules | services/central/app/config.py:37 |
-| `GOOGLE_VISION_API_KEY` | `''` |  | services/central/app/config.py:41 |
-| `GOOGLE_VISION_ENDPOINT` | `'https://vision.googleapis.com/v1/images:annotate'` |  | services/central/app/config.py:42 |
+| `DOCUMENT_RETENTION_DAYS` | `'365'` |  | services/central/app/config.py:50 |
+| `EXTRACTION_MODE` | `'auto'` | auto \| llm \| rules | services/central/app/config.py:39 |
+| `GOOGLE_VISION_API_KEY` | `''` |  | services/central/app/config.py:43 |
+| `GOOGLE_VISION_ENDPOINT` | `'https://vision.googleapis.com/v1/images:annotate'` |  | services/central/app/config.py:44 |
 | `INSTITUTION_ID` | `(required)` | drali \| chughtai \| ziauddin \| akuh | services/provider/app/config.py:6 |
 | `INSTITUTION_NAME` | `INSTITUTION` |  | services/provider/app/config.py:7 |
 | `INTROSPECT_TOKENS` | `True` |  | libs/common/refcommon/auth.py:70 |
@@ -27,21 +27,22 @@ Every variable read with `os.environ.get`, `os.getenv` or a boolean helper, with
 | `LLM_EXTERNAL_ALLOWED` | `False` | Patient data (always de-identified) may go to a model outside this computer (an Ollama ":cloud" model, ollama.com, Anthropic, any remote server) only if this is true: docs/decisions/2026-10-28-cloud-model-privacy.md | services/central/app/config.py:33 |
 | `LLM_MODEL` | `'claude-opus-5-5'` |  | services/central/app/config.py:24 |
 | `LLM_PROVIDER` | `'anthropic'` | anthropic \| ollama \| openai_compatible | services/central/app/config.py:23 |
-| `LLM_TIMEOUT_SECONDS` | `'120'` |  | services/central/app/config.py:44 |
+| `LLM_REASONING_EFFORT` | `''` | sent only when set: low \| medium \| high for reasoning models such as gpt-oss on Groq | services/central/app/config.py:38 |
+| `LLM_TIMEOUT_SECONDS` | `'120'` |  | services/central/app/config.py:46 |
 | `LOCAL_ID_PREFIX` | `'PT'` |  | services/provider/app/config.py:8 |
 | `MAX_GRANT_DAYS` | `'30'` |  | libs/common/refcommon/sourcekit.py:40 |
-| `MAX_PAGES` | `'10'` |  | services/central/app/config.py:47 |
-| `MAX_RETRIEVAL_SOURCES` | `'5'` | Retrieval asks every linked institution, up to this many besides the referring one (most recently visited first), so the AI recommendation stays within what it can read. The rest are listed as not retrieved, never as "no records". | services/central/app/config.py:61 |
-| `MAX_UPLOAD_BYTES` | `str(10 * 1024 * 1024)` |  | services/central/app/config.py:46 |
-| `OCR_ENGINE` | `'tesseract'` | Reading papers: tesseract (printed text, on this computer) \| google_vision (printed and handwritten; the page image is sent to Google Cloud Vision) | services/central/app/config.py:40 |
-| `OCR_TIMEOUT_SECONDS` | `'60'` |  | services/central/app/config.py:43 |
+| `MAX_PAGES` | `'10'` |  | services/central/app/config.py:49 |
+| `MAX_RETRIEVAL_SOURCES` | `'5'` | Retrieval asks every linked institution, up to this many besides the referring one (most recently visited first), so the AI recommendation stays within what it can read. The rest are listed as not retrieved, never as "no records". | services/central/app/config.py:63 |
+| `MAX_UPLOAD_BYTES` | `str(10 * 1024 * 1024)` |  | services/central/app/config.py:48 |
+| `OCR_ENGINE` | `'tesseract'` | Reading papers: tesseract (printed text, on this computer) \| google_vision (printed and handwritten; the page image is sent to Google Cloud Vision) | services/central/app/config.py:42 |
+| `OCR_TIMEOUT_SECONDS` | `'60'` |  | services/central/app/config.py:45 |
 | `OLLAMA_API_KEY` | `''` |  | services/central/app/config.py:29 |
 | `OLLAMA_HOST` | `'http://host.docker.internal:11434'` | Ollama: a local server (which also serves ":cloud" models once `ollama signin` has run on that computer), or https://ollama.com directly with OLLAMA_API_KEY. | services/central/app/config.py:28 |
 | `REDIS_URL` | `'redis://redis:6379/0'` |  | services/central/app/config.py:14 |
-| `REFERRAL_HISTORY_YEARS` | `'3'` | How far back retrieval asks each source (the 6-month window is the default selection, not a fetch limit), for a destination with no entry in SPECIALTY_HISTORY_YEARS | services/central/app/config.py:57 |
+| `REFERRAL_HISTORY_YEARS` | `'3'` | How far back retrieval asks each source (the 6-month window is the default selection, not a fetch limit), for a destination with no entry in SPECIALTY_HISTORY_YEARS | services/central/app/config.py:59 |
 | `REFERRAL_WINDOW_DAYS` | `'183'` | Visits, results and imaging older than this are not retrieved for a referral. | services/central/app/config.py:21, services/provider/app/config.py:14 |
 | `REPO_ASSETS` | `'/srv/assets'` |  | services/central/app/config.py:16 |
-| `RUN_JOBS_INLINE` | `False` |  | services/central/app/config.py:63 |
+| `RUN_JOBS_INLINE` | `False` |  | services/central/app/config.py:65 |
 | `SEED_DATA_DIR` | `'/srv/seed-data/patients'` |  | services/provider/app/seed.py:24 |
 | `SERVICE_CLIENT_ID` | (none) |  | libs/common/refcommon/auth.py:68 |
 | `SERVICE_CLIENT_SECRET` | (none) |  | libs/common/refcommon/auth.py:69 |
@@ -49,7 +50,7 @@ Every variable read with `os.environ.get`, `os.getenv` or a boolean helper, with
 | `SOURCE_TIMEOUT_SECONDS` | `'10'` |  | services/central/app/config.py:18 |
 | `STORAGE_ROOT` | `'/data/documents'` |  | services/central/app/config.py:15 |
 | `TOKEN_AUDIENCE` | `f'{INSTITUTION}-api'` |  | services/provider/app/config.py:10 |
-| `WORKING_SET_GRACE_HOURS` | `'72'` | How long a referral's shared records are kept (docs/decisions/2026-10-28-referral-expiry.md): no limit until the receiving doctor accepts; then a safety limit of ACCEPTED_HOLD_DAYS, which that doctor can extend by the same again; removed WORKING_SET_GRACE_HOURS after they mark the referral complete (or it is cancelled), and straight away if they decline it. | services/central/app/config.py:53, services/provider/app/config.py:18 |
+| `WORKING_SET_GRACE_HOURS` | `'72'` | How long a referral's shared records are kept (docs/decisions/2026-10-28-referral-expiry.md): no limit until the receiving doctor accepts; then a safety limit of ACCEPTED_HOLD_DAYS, which that doctor can extend by the same again; removed WORKING_SET_GRACE_HOURS after they mark the referral complete (or it is cancelled), and straight away if they decline it. | services/central/app/config.py:55, services/provider/app/config.py:18 |
 
 ### `.env.example` (installation settings)
 
@@ -74,8 +75,11 @@ Secret values are never shown here. Copy `.env.example` to `.env` and set every 
 | `LLM_PROVIDER` | `anthropic` | Language model (optional; used only to read uploaded papers). Leave ANTHROPIC_API_KEY empty to use the rule-based reader instead. |
 | `ANTHROPIC_API_KEY` | secret: set per installation |  |
 | `LLM_MODEL` | `claude-opus-5-5` |  |
-| `OLLAMA_HOST` |  | Open models through Ollama instead: LLM_PROVIDER=ollama LLM_MODEL=gemma4:cloud   (free plan; run `ollama signin` on the computer running Ollama) OLLAMA_HOST=http://host.docker.internal:11434   (Ollama on this computer, as seen from the containers) or call Ollama's cloud directly: OLLAMA_HOST=https://ollama.com, OLLAMA_API_KEY=<key from https://ollama.com/settings/keys>, and the model's API name (e.g. gemma4:31b) as LLM_MODEL. |
+| `OLLAMA_HOST` |  | Open models through Ollama instead: LLM_PROVIDER=ollama LLM_MODEL=gemma4:31b-cloud   (run `ollama signin` on the computer running Ollama; the free plan covers only some cloud models, listed at https://ollama.com/settings, and gemma4:cloud is not one) OLLAMA_HOST=http://host.docker.internal:11434   (Ollama on this computer, as seen from the containers) or call Ollama's cloud directly: OLLAMA_HOST=https://ollama.com, OLLAMA_API_KEY=<key from https://ollama.com/settings/keys>, and the model's API name (e.g. gemma4:31b) as LLM_MODEL. |
 | `OLLAMA_API_KEY` | secret: set per installation |  |
+| `LLM_BASE_URL` |  | Or any OpenAI-style server (Groq, vLLM, Kimi). Groq's free tier (8,000 tokens a minute, 1,000 requests a day): LLM_PROVIDER=openai_compatible LLM_BASE_URL=https://api.groq.com/openai/v1 LLM_MODEL=openai/gpt-oss-120b LLM_API_KEY=<key from https://console.groq.com/keys> LLM_REASONING_EFFORT=low   (gpt-oss: less thinking, so the answer fits and stays within the limit) |
+| `LLM_API_KEY` | secret: set per installation |  |
+| `LLM_REASONING_EFFORT` |  |  |
 | `LLM_EXTERNAL_ALLOWED` | `false` | Privacy: patient data (always de-identified first) may go to a model outside this computer (a ":cloud" model, ollama.com, Anthropic) only when this is true. Synthetic data only until the operating institution has agreed (docs/decisions/2026-10-28-cloud-model-privacy.md). Remote servers must use https. |
 | `LLM_TIMEOUT_SECONDS` | `120` |  |
 | `EXTRACTION_MODE` | `auto` | Extraction: "llm" uses the language model when configured, otherwise "rules" |
@@ -94,8 +98,8 @@ Secret values are never shown here. Copy `.env.example` to `.env` and set every 
 | `chughtai` | build: services/provider/Dockerfile | 8002:8000 | keycloak, postgres | CENTRAL_URL, DATABASE_URL, INSTITUTION_ID, INSTITUTION_NAME, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, LOCAL_ID_PREFIX, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET |  |  | yes |
 | `ziauddin` | build: services/provider/Dockerfile | 8003:8000 | keycloak, postgres | CENTRAL_URL, DATABASE_URL, INSTITUTION_ID, INSTITUTION_NAME, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, LOCAL_ID_PREFIX, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET |  |  | yes |
 | `akuh` | build: services/provider/Dockerfile | 8004:8000 | keycloak, postgres | CENTRAL_URL, DATABASE_URL, INSTITUTION_ID, INSTITUTION_NAME, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, LOCAL_ID_PREFIX, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET |  |  | yes |
-| `central` | build: services/central/Dockerfile | 8000:8000 | keycloak, postgres, redis | AKUH_URL, ANTHROPIC_API_KEY, CHUGHTAI_URL, DATABASE_URL, DOCUMENT_RETENTION_DAYS, DRALI_URL, EXTRACTION_MODE, GOOGLE_VISION_API_KEY, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, LLM_CONTEXT_TOKENS, LLM_EXTERNAL_ALLOWED, LLM_MODEL, LLM_PROVIDER, LLM_TIMEOUT_SECONDS, OCR_ENGINE, OLLAMA_API_KEY, OLLAMA_HOST, REDIS_URL, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET, STORAGE_ROOT, ZIAUDDIN_URL | documents:/data/documents |  | yes |
-| `worker` | build: services/central/Dockerfile |  | central, redis | AKUH_URL, ANTHROPIC_API_KEY, CHUGHTAI_URL, DATABASE_URL, DOCUMENT_RETENTION_DAYS, DRALI_URL, EXTRACTION_MODE, GOOGLE_VISION_API_KEY, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, LLM_CONTEXT_TOKENS, LLM_EXTERNAL_ALLOWED, LLM_MODEL, LLM_PROVIDER, LLM_TIMEOUT_SECONDS, OCR_ENGINE, OLLAMA_API_KEY, OLLAMA_HOST, REDIS_URL, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET, STORAGE_ROOT, ZIAUDDIN_URL | documents:/data/documents | `celery -A app.tasks worker -B --loglevel=info --concurrency=2 -Q referral` |  |
+| `central` | build: services/central/Dockerfile | 8000:8000 | keycloak, postgres, redis | AKUH_URL, ANTHROPIC_API_KEY, CHUGHTAI_URL, DATABASE_URL, DOCUMENT_RETENTION_DAYS, DRALI_URL, EXTRACTION_MODE, GOOGLE_VISION_API_KEY, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, LLM_API_KEY, LLM_BASE_URL, LLM_CONTEXT_TOKENS, LLM_EXTERNAL_ALLOWED, LLM_MODEL, LLM_PROVIDER, LLM_REASONING_EFFORT, LLM_TIMEOUT_SECONDS, OCR_ENGINE, OLLAMA_API_KEY, OLLAMA_HOST, REDIS_URL, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET, STORAGE_ROOT, ZIAUDDIN_URL | documents:/data/documents |  | yes |
+| `worker` | build: services/central/Dockerfile |  | central, redis | AKUH_URL, ANTHROPIC_API_KEY, CHUGHTAI_URL, DATABASE_URL, DOCUMENT_RETENTION_DAYS, DRALI_URL, EXTRACTION_MODE, GOOGLE_VISION_API_KEY, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, LLM_API_KEY, LLM_BASE_URL, LLM_CONTEXT_TOKENS, LLM_EXTERNAL_ALLOWED, LLM_MODEL, LLM_PROVIDER, LLM_REASONING_EFFORT, LLM_TIMEOUT_SECONDS, OCR_ENGINE, OLLAMA_API_KEY, OLLAMA_HOST, REDIS_URL, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET, STORAGE_ROOT, ZIAUDDIN_URL | documents:/data/documents | `celery -A app.tasks worker -B --loglevel=info --concurrency=2 -Q referral` |  |
 | `web` | build: Dockerfile | 3000:80 | central |  |  |  |  |
 
 Named volumes: `documents`, `pgdata`

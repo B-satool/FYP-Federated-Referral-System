@@ -34,6 +34,8 @@ class Settings:
     # openai_compatible: vLLM, Kimi or any other chat-completions server (…/v1)
     llm_base_url = os.environ.get("LLM_BASE_URL", "")
     llm_api_key = os.environ.get("LLM_API_KEY", "")
+    # sent only when set: low | medium | high for reasoning models such as gpt-oss on Groq
+    llm_reasoning_effort = os.environ.get("LLM_REASONING_EFFORT", "")
     extraction_mode = os.environ.get("EXTRACTION_MODE", "auto")  # auto | llm | rules
     # Reading papers: tesseract (printed text, on this computer) | google_vision (printed and handwritten;
     # the page image is sent to Google Cloud Vision)

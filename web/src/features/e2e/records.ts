@@ -7,7 +7,7 @@
  */
 import { api } from "../../api/client";
 import type { UnlockedKeys } from "../../crypto/session";
-import { decrypt, decryptChunks, fromUtf8, itemAad, Sealed, unwrap, wrapContext, Wrapped } from "../../crypto/suite";
+import { decrypt, decryptChunks, fromUtf8, itemAad, Sealed, sha256Hex, unwrap, wrapContext, Wrapped } from "../../crypto/suite";
 
 export type Title = {
   item_id: string; batch_id: string; kind: string; category: string | null; label: string; date: string | null;
@@ -34,6 +34,7 @@ export type OpenedItem = {
   sealed: SealedItem["sealed"];
   ciphertext_sha256: string;
   dek?: Uint8Array; // kept in memory so the doctor can re-wrap it on approval (spec v4 5.8)
+  plainHash?: string; // SHA-256 of the decrypted bytes: what the signed manifest records
 };
 
 /** How to unwrap a wrap addressed to a department group key on the receiving side. */
@@ -65,10 +66,12 @@ export async function openAll(resp: EncryptedResponse, keys: UnlockedKeys, group
     }
     try {
       if ("chunks" in it.sealed) {
-        out.push({ ...base, state: "ok", bytes: await decryptChunks(dek, it.sealed.chunks, resp.reference, it.item_id, it.batch_id), dek });
+        const bytes = await decryptChunks(dek, it.sealed.chunks, resp.reference, it.item_id, it.batch_id);
+        out.push({ ...base, state: "ok", bytes, dek, plainHash: await sha256Hex(bytes),
+          content: { type: "refx.file/v1", item_id: it.item_id, category: it.category ?? "scan", label: it.label, date: it.date, record: {} } });
       } else {
         const pt = await decrypt(dek, it.sealed, itemAad(resp.reference, it.item_id, it.batch_id));
-        out.push({ ...base, state: "ok", content: JSON.parse(fromUtf8(pt)) as ItemContent, dek });
+        out.push({ ...base, state: "ok", content: JSON.parse(fromUtf8(pt)) as ItemContent, dek, plainHash: await sha256Hex(pt) });
       }
     } catch {
       out.push({ ...base, state: "failed" });
@@ -78,15 +81,16 @@ export async function openAll(resp: EncryptedResponse, keys: UnlockedKeys, group
 }
 
 /** Report which items were opened (ids only; best effort: a modified client could skip it). */
-export function reportOpened(referralId: number, items: OpenedItem[]) {
+export function reportOpened(referral: number | string, items: OpenedItem[]) {
+  const target = { target_type: "referral", target_id: String(referral), referral_id: typeof referral === "number" ? referral : null };
   const ids = items.filter((i) => i.state === "ok").map((i) => i.title.item_id);
   if (!ids.length) return;
-  void api.post("/e2e/client-events", { action: "decrypt.opened", target_type: "referral", target_id: String(referralId),
-    referral_id: referralId, detail: { item_ids: ids.slice(0, 300), count: ids.length } }).catch(() => undefined);
+  void api.post("/e2e/client-events", { action: "decrypt.opened", ...target, detail: { item_ids: ids.slice(0, 300), count: ids.length } })
+    .catch(() => undefined);
   const failed = items.filter((i) => i.state === "failed").map((i) => i.title.item_id);
   if (failed.length) {
-    void api.post("/e2e/client-events", { action: "decrypt.failed", target_type: "referral", target_id: String(referralId),
-      referral_id: referralId, detail: { item_ids: failed.slice(0, 300), reason: "ciphertext did not decrypt" } }).catch(() => undefined);
+    void api.post("/e2e/client-events", { action: "decrypt.failed", ...target,
+      detail: { item_ids: failed.slice(0, 300), reason: "ciphertext did not decrypt" } }).catch(() => undefined);
   }
 }
 

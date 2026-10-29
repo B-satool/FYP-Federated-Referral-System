@@ -3,7 +3,6 @@ import { Link as RouterLink, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
-  AlertTitle,
   Box,
   Button,
   FormControlLabel,
@@ -24,7 +23,7 @@ import {
 import { api } from "../../api/client";
 import type { Case, CaseDetail, ConsultationResponse, Practitioner } from "../../api/types";
 import { Empty, ErrorAlert, fmtDate, KeyValue, Loading, PageHeader, ReasonDialog, Section, Tag, UrgencyTag } from "../../components/common";
-import { ReferralLetter } from "../../components/ReferralLetter";
+import { ReceivedPackage } from "../e2e/ReceivedPackage";
 import { ResultReport } from "../../components/ResultReport";
 import { hasRole, isDoctor, ownService, useMe, useRefData } from "../../hooks";
 import { ConfirmPatient } from "../identity/ConfirmPatient";
@@ -359,8 +358,10 @@ export function IncomingCase() {
     </Section>
   );
 
-  const letter = env && (
-    <Box>
+  // The notice: who, from where, why and how urgent (administrative data). The content is decrypted on the doctor's
+  // device from the platform (ReceivedPackage); this hospital's system never holds it (spec v4, D2).
+  const notice = env && (
+    <Section title="Referral" description={`Version ${env.package_version}, sent by ${env.sent_by} on ${fmtDate(env.sent_at)}.`}>
       {packages.length > 1 && (
         <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "center" }} sx={{ mb: 1.5 }}>
           <TextField select size="small" label="Version" value={shown.version} onChange={(e) => setVersion(Number(e.target.value))} sx={{ minWidth: 220 }}>
@@ -374,38 +375,22 @@ export function IncomingCase() {
           {shown.version !== packages[0].version && <Alert severity="warning">You are reading an older version. The newest is version {packages[0].version}.</Alert>}
         </Stack>
       )}
-      {shown.version > 1 && shown.version === packages[0].version && (
-        <Alert severity="info" sx={{ mb: 1.5 }}>
-          Updated version: this is version {shown.version} of the referral. The referring clinic changed it after the first one was sent.
-        </Alert>
+      <KeyValue items={[
+        ["From", `${env.requesting_doctor.name}, ${env.requesting_doctor.institution}`],
+        ["To", `${deptName(env.destination_department)}, ${me.institution_name}`],
+        ["Patient", `${env.patient.name}${env.patient.birth_date ? `, born ${fmtDate(env.patient.birth_date, false)}` : ""}${env.patient.sex ? `, ${env.patient.sex}` : ""}`],
+        ["Urgency", ref.data?.urgencies[env.urgency]?.label ?? env.urgency],
+        ["Reason", env.reason],
+      ]} />
+    </Section>
+  );
+  const letter = (
+    <>
+      {notice}
+      {doctor && !redacted && !removed && !!env && (
+        <ReceivedPackage c={c} hospital={me.institution_id ?? ""} />
       )}
-      <ReferralLetter
-        header={{
-          reference: env.referral_id,
-          date: env.sent_at,
-          to: { institution: me.institution_name, department: deptName(env.destination_department), doctor: env.destination_doctor },
-          from: { doctor: env.requesting_doctor.name, department: env.requesting_doctor.department, institution: env.requesting_doctor.institution },
-          patient: { name: env.patient.name, birth_date: env.patient.birth_date, sex: env.patient.sex, cnic: env.patient.cnic ?? c.patient_cnic, id: c.local_patient_id },
-          urgency: ref.data?.urgencies[env.urgency]?.label ?? env.urgency,
-          urgencyDetail: ref.data?.urgencies[env.urgency]?.detail,
-        }}
-        sections={env.brief_sections}
-        flags={env.medication_flags}
-        flagSummary={env.medication_evaluation.summary}
-        footer={`Requested by ${env.requesting_doctor.name}; compiled and sent by ${env.sent_by}, ${fmtDate(env.sent_at)}. Version ${env.package_version}.`}
-      />
-      {env.limitations.length > 0 && !env.brief_sections.some((s) => s.key === "outstanding") && (
-        <Alert severity="info" sx={{ mt: 1.5, maxWidth: 900 }}>
-          <AlertTitle>Not available or outstanding</AlertTitle>
-          <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
-            {env.limitations.map((l, i) => (
-              <li key={i}>{l}</li>
-            ))}
-          </Box>
-          Missing information is not a negative finding.
-        </Alert>
-      )}
-    </Box>
+    </>
   );
 
   const isAssignedDoctor = doctor && !!c.assigned_doctor;

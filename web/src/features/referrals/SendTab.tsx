@@ -1,24 +1,30 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Alert, Box, Button, Link, List, ListItem, ListItemIcon, ListItemText, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from "@mui/material";
+import { Alert, Box, Button, Link, List, ListItem, ListItemIcon, ListItemText, Stack, Table, TableBody, TableCell, TableHead,
+  TableRow, TextField, Typography } from "@mui/material";
 import CheckCircle from "@mui/icons-material/CheckCircle";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import RadioButtonUnchecked from "@mui/icons-material/RadioButtonUnchecked";
 import { api } from "../../api/client";
-import type { BriefPreview, CopyCheck, LetterFlag, MedicationView, PackageEnvelope, PackageView, ReferralDetail } from "../../api/types";
-import { EvidenceRef } from "../../components/EvidenceRef";
-import { ReferralLetter } from "../../components/ReferralLetter";
-import { ErrorAlert, fmtDate, Loading, Section, Tag } from "../../components/common";
+import type { ReferralDetail } from "../../api/types";
+import { Empty, ErrorAlert, fmtDate, Loading, Section, Tag } from "../../components/common";
+import { useDeviceKeys } from "../../crypto/session";
+import { DeviceKeyPanel } from "../keys/DeviceKey";
+import { approve, recipients, Recipients } from "../e2e/approve";
+import { latestById, summary } from "../e2e/records";
+import { isSelected, loadChoices } from "../e2e/selection";
+import { uploadOwnItems } from "../e2e/upload";
+import { useOpenedRecords } from "./Records";
 import { useInvalidateReferral } from "./ReferralWorkspace";
 
 type Delivery = { id: number; kind: string; target_institution: string; status: string; attempts: number; last_error: string | null; created_at: string; sent_at: string | null };
 
 const KIND_LABEL: Record<string, string> = {
-  deliver_package: "Referral",
+  deliver_package: "Referral notice",
   deliver_order: "Test or scan order",
-  sender_copy: "Copy kept in your clinic's own system",
   clarification_answer: "Answer to a question",
+  expire_shared: "Removal notice",
 };
 
 export function Readiness({ r }: { r: ReferralDetail }) {
@@ -40,9 +46,7 @@ export function Readiness({ r }: { r: ReferralDetail }) {
                 {i.blocking && !i.ok && i.tab && i.tab !== "send" && (
                   <>
                     {" "}
-                    <Link component="button" type="button" variant="body2" onClick={() => setParams({ tab: i.tab! })}>
-                      Go there
-                    </Link>
+                    <Link component="button" type="button" variant="body2" onClick={() => setParams({ tab: i.tab! })}>Go there</Link>
                   </>
                 )}
               </>
@@ -54,236 +58,146 @@ export function Readiness({ r }: { r: ReferralDetail }) {
   );
 }
 
-const cite = (ids: number[]) => ids.map((id) => <EvidenceRef key={id} id={id} />);
-
-function header(r: ReferralDetail, date: string | null) {
-  return {
-    reference: r.reference,
-    date,
-    to: { institution: r.destination_name, department: r.destination_department_name, doctor: r.destination_doctor },
-    from: { doctor: r.requesting_doctor_name, department: r.source_department_name, institution: r.source_institution_name },
-    patient: { name: r.patient.name, birth_date: r.patient.birth_date, sex: r.patient.sex, cnic: r.patient.cnic, id: `${r.patient.local_patient_id} (${r.source_institution_name})` },
-    urgency: r.urgency_label,
-    urgencyDetail: r.urgency_detail,
-  };
-}
-
-/** The letter as it would be sent now (built from the checked records). */
-export function LetterPreview({ r }: { r: ReferralDetail }) {
-  const brief = useQuery({ queryKey: ["referral", r.id, "brief", r.row_version], queryFn: () => api.get<BriefPreview>(`/referrals/${r.id}/brief-preview`) });
-  const meds = useQuery({ queryKey: ["referral", r.id, "medications"], queryFn: () => api.get<MedicationView>(`/referrals/${r.id}/medications`) });
-  if (brief.isLoading || meds.isLoading) return <Loading />;
-  if (brief.error || meds.error) return <ErrorAlert error={brief.error || meds.error} />;
-  const flags: LetterFlag[] = meds.data!.flags.map((f) => {
-    const a = f.acknowledgements.find((x) => x.side === "referring");
-    return { flag_id: f.id, version: f.version, kind: f.kind, title: f.title, message: f.message, medication: f.medication, source_label: f.source_label,
-      rule_id: f.rule_id, acknowledged: a ? { by: a.by, at: a.created_at, decision: a.decision, note: a.note } : null,
-      severity: f.severity, ingredients: f.ingredients, source_type: f.source_type, source_name: f.source_name, source_ref: f.source_ref,
-      source_version: f.source_version, source_quote: f.source_quote, auto_generated: f.auto_generated };
-  });
+/** Signed versions: who signed, when, the manifest fingerprint, and whether staff have sent it. No content. */
+function Versions({ r }: { r: ReferralDetail }) {
+  if (!r.packages.length) return <Empty>No signed version yet.</Empty>;
   return (
-    <ReferralLetter header={header(r, null)} sections={brief.data!.sections} flags={flags} flagSummary={meds.data!.evaluation?.summary_message} cite={cite}
-      aiSuggestions={meds.data!.ai_suggestions.map(({ review, ...s }) => ({ ...s, decision: review }))}
-      footer={`Requested by ${r.requesting_doctor_name}${r.requested_at ? `, ${fmtDate(r.requested_at)}` : ""}. Not sent yet.`} />
+    <Table size="small">
+      <TableHead><TableRow><TableCell>Version</TableCell><TableCell>Signed by</TableCell><TableCell>Records</TableCell><TableCell>Fingerprint</TableCell><TableCell>Sent</TableCell></TableRow></TableHead>
+      <TableBody>
+        {r.packages.map((p) => (
+          <TableRow key={p.version} data-testid={`version-${p.version}`}>
+            <TableCell>v{p.version}{p.superseded ? " (replaced)" : ""}</TableCell>
+            <TableCell>{p.signed_by}, {fmtDate(p.signed_at)}</TableCell>
+            <TableCell>{p.item_count}</TableCell>
+            <TableCell sx={{ fontFamily: "monospace", fontSize: 12 }}>{p.manifest_sha256.slice(0, 16)}…</TableCell>
+            <TableCell>{p.sent ? <Tag tone="ok" label="sent" /> : <Tag tone="wait" label="not yet" />}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 }
 
-function Letter({ r, env, version }: { r: ReferralDetail; env: PackageEnvelope; version: number }) {
-  return (
-    <ReferralLetter header={header(r, env.sent_at)} sections={env.brief_sections} flags={env.medication_flags} flagSummary={env.medication_evaluation.summary}
-      aiSuggestions={env.ai_suggestions} cite={cite}
-      footer={`Requested by ${env.requesting_doctor.name}; compiled and sent by ${env.sent_by}, ${fmtDate(env.sent_at)}. Version ${version}.`} />
-  );
-}
-
-/** A version exactly as it was sent. Once the working set has ended only the fingerprint is kept here;
- * the clinic's own copy can be fetched from its system and checked against it. */
-export function SentLetter({ r, version }: { r: ReferralDetail; version: number }) {
-  const q = useQuery({ queryKey: ["referral", r.id, "package", version], queryFn: () => api.get<PackageView>(`/referrals/${r.id}/packages/${version}`) });
-  const [check, setCheck] = useState<CopyCheck | null>(null);
-  const verify = useMutation({
-    mutationFn: () => api.post<CopyCheck>(`/referrals/${r.id}/packages/${version}/verify-own-copy`),
-    meta: { silent: true },
-    onSuccess: setCheck,
-  });
-  if (q.isLoading) return <Loading />;
-  if (q.error) return <ErrorAlert error={q.error} />;
-  const pkg = q.data!;
-  if (pkg.redacted || !pkg.envelope && !pkg.content_purged_at) {
-    return (
-      <Stack spacing={1}>
-        <Alert severity="info">The letter's clinical content is visible to doctors only. Version {version} was sent by {pkg.sent_by}, {fmtDate(pkg.sent_at)}.</Alert>
-        <Typography variant="body2" sx={{ fontFamily: "monospace", fontSize: 12 }}>Fingerprint {pkg.content_hash}</Typography>
-      </Stack>
-    );
-  }
-  const verifyButton = (
-    <Button variant="outlined" size="small" disabled={verify.isPending} onClick={() => verify.mutate()}>
-      Check our clinic's copy against the fingerprint
-    </Button>
-  );
-  const result = check && (
-    <Alert severity={check.result === "match" ? "success" : "warning"} sx={{ my: 1 }}>
-      {check.message}. Fingerprint {check.content_hash.slice(0, 16)}…
-    </Alert>
-  );
-  if (pkg.content_purged_at) {
-    return (
-      <Stack spacing={1.5}>
-        <Alert severity="info">
-          Content has been removed. Reference and fingerprint kept. Removed {fmtDate(pkg.content_purged_at)}; the platform no
-          longer holds this letter. Your clinic's system keeps its own copy.
-        </Alert>
-        <Typography variant="body2" sx={{ fontFamily: "monospace", fontSize: 12 }}>Fingerprint {pkg.content_hash}</Typography>
-        <Box>{verifyButton}</Box>
-        <ErrorAlert error={verify.error} />
-        {result}
-        {check?.result === "match" && check.copy && <Letter r={r} env={check.copy} version={version} />}
-      </Stack>
-    );
-  }
-  return (
-    <Stack spacing={1}>
-      <Letter r={r} env={pkg.envelope!} version={version} />
-      <Box>{verifyButton}</Box>
-      <ErrorAlert error={verify.error} />
-      {result}
-    </Stack>
-  );
-}
-
-function Sent({ r }: { r: ReferralDetail }) {
+function Deliveries({ r }: { r: ReferralDetail }) {
   const refresh = useInvalidateReferral(r.id);
   const delivery = useQuery({ queryKey: ["referral", r.id, "delivery", r.row_version], queryFn: () => api.get<Delivery[]>(`/referrals/${r.id}/delivery`) });
   const retry = useMutation({ mutationFn: () => api.post(`/referrals/${r.id}/retry-delivery`), meta: { success: "Retrying." }, onSuccess: refresh });
+  if (!delivery.data?.length) return null;
   return (
-    <Section title="Sent versions and delivery" description="Each sent version is kept exactly as sent, with its content fingerprint.">
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell>Version</TableCell>
-            <TableCell>Sent by</TableCell>
-            <TableCell>Fingerprint</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {r.packages.map((p) => (
-            <TableRow key={p.version}>
-              <TableCell>v{p.version}{p.superseded ? " (replaced)" : ""}</TableCell>
-              <TableCell>{p.sent_by}, {fmtDate(p.sent_at)}</TableCell>
-              <TableCell sx={{ fontFamily: "monospace", fontSize: 12 }}>{p.content_hash.slice(0, 16)}…</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-      {!!delivery.data?.length && (
-        <Box sx={{ mt: 2 }}>
-          <Typography variant="subtitle2">Deliveries</Typography>
-          {delivery.data.map((d) => (
-            <Typography key={d.id} variant="body2">
-              {KIND_LABEL[d.kind] ?? d.kind}: <Tag tone={d.status === "sent" ? "ok" : d.status === "failed" ? "bad" : "wait"} label={d.status} />{" "}
-              {d.sent_at ? fmtDate(d.sent_at) : `${d.attempts} attempt(s)`}{d.last_error ? ` · ${d.last_error}` : ""}
-            </Typography>
-          ))}
-        </Box>
-      )}
+    <Box sx={{ mt: 2 }}>
+      <Typography variant="subtitle2">Deliveries</Typography>
+      {delivery.data.map((d) => (
+        <Typography key={d.id} variant="body2">
+          {KIND_LABEL[d.kind] ?? d.kind}: <Tag tone={d.status === "sent" ? "ok" : d.status === "failed" ? "bad" : "wait"} label={d.status} />{" "}
+          {d.sent_at ? fmtDate(d.sent_at) : `${d.attempts} attempt(s)`}{d.last_error ? ` · ${d.last_error}` : ""}
+        </Typography>
+      ))}
       {r.delivery_status === "failed" && (
-        <Button variant="contained" sx={{ mt: 1.5 }} onClick={() => retry.mutate()} disabled={retry.isPending}>
-          Retry delivery
-        </Button>
+        <Button variant="contained" sx={{ mt: 1.5 }} onClick={() => retry.mutate()} disabled={retry.isPending}>Retry delivery</Button>
       )}
-    </Section>
+    </Box>
   );
 }
 
-/** Staff: retrieve the records and upload papers, mark it ready for the doctor, then (after the doctor reviews the
- * packet) send. Staff never see the clinical content (decision 2026-10-29). */
+/** Staff: send the version the doctor signed. The receiving hospital gets a notice with record titles; its doctors
+ * open the encrypted package on their own devices. Staff never see content (spec v4 D14). */
 export function SendTab({ r }: { r: ReferralDetail }) {
   const refresh = useInvalidateReferral(r.id);
-  const prepare = useMutation({
-    mutationFn: () => api.post(`/referrals/${r.id}/prepared`, { expected_version: r.row_version }),
-    meta: { success: "The doctor has been asked to review the packet." },
-    onSuccess: refresh,
-  });
   const send = useMutation({
     mutationFn: () => api.post(`/referrals/${r.id}/send`, { expected_version: r.row_version }),
     meta: { success: "Referral is being sent." },
     onSuccess: refresh,
   });
   const canSend = r.status === "requested" || r.amendment_open;
-  const items = r.readiness ?? [];
-  const staffKeys = ["records", "documents_read"];
-  const staffDone = items.filter((i) => staffKeys.includes(i.key)).every((i) => i.ok);
-  const ready = items.every((i) => !i.blocking || i.ok);
-  const latest = r.packages[0]?.version;
+  const ready = (r.readiness ?? []).every((i) => !i.blocking || i.ok);
   return (
     <Stack spacing={2}>
       {canSend && (
-        <Section title={r.amendment_open ? "Check and send the new version" : "Before sending"}
-          description="Retrieve the records and upload the patient's papers, then mark it ready. The doctor reviews the papers, medicines, flags and records for the packet; then you send it.">
+        <Section title={r.amendment_open ? "Send the new version" : "Before sending"}
+          description="Ask the patient for consent and request the records. The doctor reads them on their device, chooses what goes in, and signs the package; then you send it.">
           <Readiness r={r} />
-          <ErrorAlert error={prepare.error || send.error} />
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ mt: 1 }}>
-            {!r.prepared_at && r.status === "requested" && (
-              <Button variant="contained" size="large" disabled={!staffDone || prepare.isPending} onClick={() => prepare.mutate()}>
-                Ready for the doctor's review
-              </Button>
-            )}
-            {(r.prepared_at || r.amendment_open) && (
-              <Button variant="contained" size="large" disabled={!ready || send.isPending} onClick={() => send.mutate()}>
-                {r.amendment_open ? "Send the new version" : `Send to ${r.destination_name}`}
-              </Button>
-            )}
-          </Stack>
-          {r.prepared_at && !ready && (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              Marked ready by {r.prepared_by}, {fmtDate(r.prepared_at)}. Sending becomes available once the doctor has reviewed the packet.
-            </Typography>
-          )}
+          <ErrorAlert error={send.error} />
+          <Button variant="contained" size="large" sx={{ mt: 1 }} disabled={!ready || send.isPending} onClick={() => send.mutate()}>
+            {r.amendment_open ? "Send the new version" : `Send to ${r.destination_name}`}
+          </Button>
         </Section>
       )}
-      {r.packages.length > 0 && <Sent r={r} />}
-      <Section title={latest && !r.amendment_open ? `Referral letter (version ${latest} as sent)` : "What will be sent"}
-        description="Built from the records the doctor reviewed. Medication flags are shown exactly as the approved rules produced them.">
-        {latest && !r.amendment_open ? <SentLetter r={r} version={latest} />
-          : <Alert severity="info">The letter's clinical content is visible to doctors only. You send it once the doctor has reviewed the packet.</Alert>}
+      <Section title="Signed versions and delivery" description="Each version is signed by the doctor; its fingerprint identifies exactly what was approved. Content is encrypted for the receiving department.">
+        <Versions r={r} />
+        <Deliveries r={r} />
       </Section>
     </Stack>
   );
 }
 
-/** The doctor's view of the letter (what will be or was sent), where it stands, and the packet review. */
+/** The doctor: what goes in the package (from the Records step), notes for the specialist, and approve and sign. */
 export function SummaryTab({ r }: { r: ReferralDetail }) {
+  const dk = useDeviceKeys();
   const refresh = useInvalidateReferral(r.id);
-  const review = useMutation({
-    mutationFn: () => api.post(`/referrals/${r.id}/packet-reviewed`, { expected_version: r.row_version }),
-    meta: { success: "Packet reviewed. Staff have been told it is ready to send." },
-    onSuccess: refresh,
-  });
-  const latest = r.packages[0]?.version;
+  const opened = useOpenedRecords(r);
+  const [notes, setNotes] = useState("");
+  const [to, setTo] = useState<Recipients | null>(null);
+  const [toError, setToError] = useState<unknown>(null);
+  useEffect(() => {
+    let live = true;
+    recipients(r).then((x) => live && setTo(x), (e) => live && setToError(e));
+    return () => { live = false; };
+  }, [r]);
   const preparing = r.status === "requested" || r.amendment_open;
-  const doctorKeys = ["documents", "meds_checked", "dose_differences", "evaluation", "flags"];
-  const doctorDone = (r.readiness ?? []).filter((i) => doctorKeys.includes(i.key)).every((i) => i.ok);
+  const items = latestById(opened.data ?? []);
+  const choices = loadChoices(r.id);
+  const chosen = items.filter((i) => i.state === "ok" && isSelected(i, choices));
+  const sign = useMutation({
+    mutationFn: async () => {
+      let all = chosen;
+      if (notes.trim()) {
+        const added = await uploadOwnItems(r.id, r.reference, dk.keys!, [{ category: "note", kind: "note",
+          label: "Notes for the specialist", record: { text: notes.trim() } }]);
+        const ids = new Set([...chosen.map((i) => i.title.item_id), ...added]);
+        all = latestById((await opened.refetch()).data ?? []).filter((i) => ids.has(i.title.item_id));
+      }
+      return approve(r, dk.keys!, all, to!);
+    },
+    meta: { success: "Signed. Staff have been told it is ready to send." },
+    onSuccess: () => { setNotes(""); refresh(); },
+  });
+  if (r.working_set_purged_at) return <Alert severity="info">This referral's encrypted content was purged. The signed manifest's fingerprint remains.</Alert>;
   return (
     <Stack spacing={2}>
-      {r.readiness && preparing && (
-        <Section title="Progress before sending"
-          description="Staff retrieve the records and upload papers. You check the papers, medicines and flags, review the records and this letter, then mark the packet reviewed. Staff then send it.">
-          <Readiness r={r} />
-          <ErrorAlert error={review.error} />
-          {r.packet_reviewed_at ? (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              Packet reviewed by {r.packet_reviewed_by}, {fmtDate(r.packet_reviewed_at)}. Any later change to the records or medicines asks you to review it again.
-            </Typography>
-          ) : (
-            <Button variant="contained" size="large" sx={{ mt: 1 }} disabled={!r.prepared_at || !doctorDone || review.isPending}
-              onClick={() => review.mutate()}>
-              Mark the packet reviewed
-            </Button>
-          )}
+      {dk.status !== "unlocked" && <DeviceKeyPanel compact />}
+      {preparing && r.readiness && <Section title="Progress before sending"><Readiness r={r} /></Section>}
+      {preparing && (
+        <Section title="Approve and sign the package"
+          description="The package is what you chose on the Records step, the medicine list and any papers you added, and your notes. Signing records a fingerprint of each item; any later change needs a new signed version.">
+          {dk.status !== "unlocked" ? <Empty>Unlock your device key to approve.</Empty>
+            : opened.isLoading ? <Loading label="Decrypting on this device…" />
+            : (
+              <Stack spacing={1.5}>
+                <Typography variant="subtitle2">{chosen.length} item(s) chosen</Typography>
+                <Box component="ul" sx={{ m: 0, pl: 3 }}>
+                  {chosen.map((i) => <li key={i.title.item_id}><Typography variant="body2">{i.content ? summary(i.content) : i.title.label}</Typography></li>)}
+                </Box>
+                <TextField label="Notes for the specialist (optional)" multiline minRows={3} value={notes} onChange={(e) => setNotes(e.target.value)}
+                  helperText="Encrypted on this device and included in the package." />
+                {to ? (
+                  <Alert severity="info" data-testid="recipient-key">
+                    Sending to {r.destination_department_name}, {r.destination_name}: department key {to.departmentFingerprint}
+                    {to.patient ? " · a copy for the patient's app" : " · the patient has no app key yet, so no patient copy"}
+                  </Alert>
+                ) : <ErrorAlert error={toError} />}
+                <ErrorAlert error={sign.error} />
+                <Box>
+                  <Button variant="contained" size="large" disabled={!to || sign.isPending || (!chosen.length && !notes.trim())}
+                    onClick={() => sign.mutate()}>
+                    {r.packages.length ? `Approve and sign version ${r.packages[0].version + 1}` : "Approve and sign"}
+                  </Button>
+                </Box>
+              </Stack>
+            )}
         </Section>
       )}
-      {latest ? <SentLetter r={r} version={latest} /> : <LetterPreview r={r} />}
+      <Section title="Signed versions"><Versions r={r} /></Section>
     </Stack>
   );
 }

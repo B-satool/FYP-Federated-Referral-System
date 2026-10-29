@@ -331,3 +331,48 @@ export async function checkRevocation(rev: Revocation, issuerSpki: string): Prom
   return rev.type === "refx.directory.revocation/v1" && rev.signer_key_id === await keyId(issuerSpki)
     && verifyObject(issuerSpki, rev);
 }
+
+// --------------------------------------------------------------------------- signed package manifests (spec v4 5.8)
+export const MANIFEST_TYPE = "refx.package.manifest/v1";
+
+export type ManifestItem = { batch_id: string; item_id: string; kind: string; title: string; content_hash: string; ciphertext_hash: string };
+export type Manifest = {
+  type: string; suite: string; referral: string; version: number; created_at: string;
+  signer: { subject_id: string; sig_key_id: string; hospital_id: string | null };
+  recipient: { hospital_id: string; department: string; group_key_id: string; key_version: number };
+  patient_key_id: string | null;
+  items: ManifestItem[];
+  signature?: string;
+};
+
+/** The unsigned manifest (same fields as refcommon.e2e.package_manifest). The signature covers each item's
+ * plaintext hash, so anyone holding a decrypted copy can check it is exactly what was approved. */
+export async function packageManifest(a: {
+  referral: string; version: number; signerSubject: string; signerSigPublic: string; signerHospital: string | null;
+  recipient: DirectoryEntry; patient: DirectoryEntry | null; items: ManifestItem[];
+}): Promise<Manifest> {
+  return {
+    type: MANIFEST_TYPE, suite: SUITE, referral: a.referral, version: a.version,
+    created_at: new Date().toISOString().replace(/\.\d{3}Z$/, "+00:00"),
+    signer: { subject_id: a.signerSubject, sig_key_id: await keyId(a.signerSigPublic), hospital_id: a.signerHospital },
+    recipient: { hospital_id: a.recipient.hospital_id!, department: a.recipient.department!, group_key_id: a.recipient.enc_key_id,
+      key_version: a.recipient.key_version },
+    patient_key_id: a.patient ? a.patient.enc_key_id : null,
+    items: a.items.map(({ batch_id, item_id, kind, title, content_hash, ciphertext_hash }) =>
+      ({ batch_id, item_id, kind, title, content_hash, ciphertext_hash })),
+  };
+}
+
+/** What is wrong with a decrypted copy against its signed manifest (empty when it verifies). */
+export async function checkCopy(manifest: Manifest, signerSigPublic: string, plaintextHashes: Map<string, string>): Promise<string[]> {
+  if (manifest.type !== MANIFEST_TYPE || !(await verifyObject(signerSigPublic, manifest as unknown as SignedObject))) {
+    return ["the manifest signature does not verify"];
+  }
+  const problems: string[] = [];
+  for (const it of manifest.items) {
+    const h = plaintextHashes.get(it.item_id);
+    if (h === undefined) problems.push(`${it.title}: missing from this copy`);
+    else if (h !== it.content_hash) problems.push(`${it.title}: content differs from what was approved`);
+  }
+  return problems;
+}

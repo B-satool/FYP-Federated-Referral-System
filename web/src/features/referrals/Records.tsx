@@ -183,7 +183,24 @@ export function useOpenedRecords(r: ReferralDetail) {
   return q;
 }
 
-function Detail({ item }: { item: OpenedItem }) {
+/** A decrypted file (a scanned paper or an image), shown from memory; nothing is saved. */
+export function FileView({ item }: { item: OpenedItem }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const mime = "chunks" in item.sealed ? (item.sealed as { mime?: string }).mime ?? "application/octet-stream" : "application/octet-stream";
+  useEffect(() => {
+    if (!item.bytes) return;
+    const u = URL.createObjectURL(new Blob([item.bytes as BlobPart], { type: mime }));
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [item.bytes, mime]);
+  if (!url) return null;
+  return mime.startsWith("image/")
+    ? <Box component="img" src={url} alt={item.title.label} sx={{ maxWidth: "100%", maxHeight: 520, border: 1, borderColor: "divider" }} />
+    : <Button size="small" href={url} target="_blank" rel="noreferrer">Open {item.title.label}</Button>;
+}
+
+export function Detail({ item }: { item: OpenedItem }) {
+  if (item.bytes) return <FileView item={item} />;
   const rec = item.content?.record ?? {};
   return (
     <Box component="dl" sx={{ m: 0, display: "grid", gridTemplateColumns: "max-content 1fr", columnGap: 2, rowGap: 0.5 }}>

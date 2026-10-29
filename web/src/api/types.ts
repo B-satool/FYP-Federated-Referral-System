@@ -284,13 +284,21 @@ export type Clarification = {
 export type ReferralDetail = Referral & {
   sources: SourceOverview[];
   readiness: ReadinessItem[] | null;
-  packages: { version: number; sent_by: string; sent_at: string; content_hash: string; superseded: boolean; delivery_key: string }[];
+  /** signed versions, newest first (spec v4 5.8) */
+  packages: SignedVersion[];
   links: PatientLink[];
   diagnostics: Diagnostic[];
   clarifications: Clarification[];
   consent: ConsentSummary | null;
   record_requests: RecordRequestOut[];
   encrypted_item_count: number;
+  /** the keys an approval re-wraps to; verified on the device against pinned keys */
+  recipient_keys?: { department: import("../crypto/directory").DirectoryRow | null; patient: import("../crypto/directory").DirectoryRow | null };
+};
+
+export type SignedVersion = {
+  version: number; signed_by: string; signed_at: string; manifest_sha256: string; signer_key_id: string;
+  item_count: number; superseded: boolean; sent: boolean;
 };
 
 export type Evidence = {
@@ -738,13 +746,35 @@ export type LetterFlag = FlagSource & {
   acknowledged: { by: string; at: string; decision?: FlagDecision; note?: string } | null;
 };
 
-export type RecordTitle = { title: string; category: string; source_institution: string | null; date: string | null };
+export type RecordTitle = { title: string; kind?: string; category: string; source_institution: string | null; date: string | null };
+
+/** What the receiving hospital's system holds for a sent version (spec v4, D2): administrative data, record titles and
+ * the signed manifest's hash. The content is opened from the platform on the doctor's device. */
+export type ReferralNotice = {
+  referral_id: string;
+  package_version: number;
+  sender_institution: string;
+  sender_name: string;
+  destination_department: string;
+  destination_doctor: string | null;
+  urgency: string;
+  reason: string;
+  patient: { name: string; birth_date: string | null; sex: string | null; cnic?: string | null; local_patient_id?: string | null; link_request_id?: number | null };
+  requesting_doctor: { name: string; id?: string; institution: string; department: string | null };
+  titles: { item_id: string; kind: string; category: string | null; label: string; date: string | null; source_institution: string | null; sensitive: boolean }[];
+  manifest_sha256: string;
+  signed_by: { subject_id: string; sig_key_id: string };
+  sent_by: string;
+  sent_at: string;
+  purged?: boolean;
+  note?: string;
+};
 
 export type CaseDetail = {
   case: Case;
-  /** intake staff view: no envelope, only the records' titles */
+  /** intake staff view: the notice's titles only */
   redacted?: boolean;
-  packages: { version: number; received_at: string; content_hash: string; envelope: PackageEnvelope | null; record_titles: RecordTitle[] }[];
+  packages: { version: number; received_at: string; content_hash: string; envelope: ReferralNotice | null; record_titles: RecordTitle[] }[];
   info_requests: { id: number; package_version: number; question: string | null; status: string; created_by: string; created_at: string; answer: string | null; answered_by: string | null; answered_at: string | null }[];
   responses: { id: number; package_version: number; content: ConsultationResponse["content"]; status: string; drafted_by: string; row_version: number; returned_by: string | null; returned_at: string | null }[];
   results: { id: number; received_at: string; purged?: boolean; order_ref: string; test: string; performed_by_institution: string; report_text: string; values: { test: string; value: string; unit?: string; reference?: string; flag?: string }[]; reported_by: string; reported_at: string }[];

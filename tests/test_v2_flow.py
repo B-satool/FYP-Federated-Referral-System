@@ -48,7 +48,7 @@ def test_p5_referral_flow():
     staff_ev = ok(STAFF.get(f"/referrals/{rid}/evidence"))
     assert staff_ev and all(e["redacted"] and e["original"] == {} for e in staff_ev)
     assert any(e["display"].startswith("Lab result: ") for e in staff_ev)
-    assert ok(DOCTOR.get(f"/referrals/{rid}"))["reason"] is not None and _ref(rid)["reason"] is None
+    assert ok(DOCTOR.get(f"/referrals/{rid}"))["reason"] and _ref(rid)["reason"] is None  # _ref reads as staff
     assert STAFF.get(f"/referrals/{rid}/brief-preview").status_code == 403
 
     # 4. Current medicines only (hyoscine was stopped) and exactly the expected flags (the doctor's view).
@@ -198,11 +198,15 @@ def test_p3_test_request_flow():
 
     # Results come back to the doctor, with the image.
     wait_for(lambda: _ref(rid)["status"] == "response_returned", 60, what="all results")
-    dxs = {d["test"]: d for d in ok(DOCTOR.get(f"/referrals/{rid}"))["diagnostics"]}  # results are clinical: the doctor's view
+    staff_view = {d["test"]: d for d in _ref(rid)["diagnostics"]}  # staff: test names and statuses only
+    assert staff_view["MRI knee"]["report"] is None and staff_view["MRI knee"]["attachments"] == []
+    dxs = {d["test"]: d for d in ok(DOCTOR.get(f"/referrals/{rid}"))["diagnostics"]}
     assert dxs["MRI knee"]["attachments"][0]["filename"] == "mri-knee-coronal.png"
     img = httpx.get(f"{CENTRAL}/diagnostics/{dxs['MRI knee']['id']}/attachments/1",
                     headers={"Authorization": f"Bearer {token('dr.ali')}"}, timeout=30)
     assert img.status_code == 200 and img.content == base64.b64decode(TINY_PNG)
+    assert httpx.get(f"{CENTRAL}/diagnostics/{dxs['MRI knee']['id']}/attachments/1",
+                     headers={"Authorization": f"Bearer {token('staff.ali')}"}, timeout=30).status_code == 403
     assert len(dxs["Liver function tests"]["report"]["values"]) == 2
 
     # The doctor sees each result; staff tell the patient and close.

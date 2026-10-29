@@ -62,6 +62,15 @@ flowchart TD
 
 Every decision is audited in the institution's own `audit_events`, with the referral context from `X-Referral-Id`.
 
+### 8.3.1 Patient access to their own records
+
+A third basis for reading records, alongside "own institution and role" and "an access grant": **the patient themselves** ([decision 2026-10-29](../../decisions/2026-10-29-patient-view.md)).
+
+- **Identity:** a patient account has the `patient` realm role, belongs to no institution, and carries its CNIC in the token's `cnic` claim. The CNIC is a Keycloak user attribute that only administrators can view or edit, so a patient cannot change the identity their records are matched on. Services read it only from the verified token (`Principal.cnic`).
+- **At each institution:** `GET /patient-access/summary` and `GET /patient-access/records` match the CNIC against the institution's own index and return only that patient's records: the whole history, with no referral window and including stopped medicines. Each call is audited (`patient.summary`, `patient.records`), responses are `Cache-Control: no-store`, and no other role can call them.
+- **On the platform:** `GET /patient-access/referrals` lists the referrals and test requests whose patient CNIC matches, with routing, status and a plain-language timeline; drafts are left out. Flags, retrieved records, papers and the letter are not included. The platform never relays or stores the history: the patient's device asks each institution directly.
+- **The other way round:** a patient account has no institution and no staff role, so every staff endpoint refuses it (`require_own`, `require_roles`, `load_referral`), and `decide_access` refuses it on the referral records endpoint.
+
 ## 8.4 Audit
 
 Every database has an `audit_events` table with actor id and name, institution, action, target type and id, outcome (`success`, `denied`, `partial`, `deferred`, …), detail (JSON, no clinical content) and time. Centrally it also records the referral id; institutions record the referral context.

@@ -45,6 +45,8 @@ class Principal:
     token: str = field(repr=False)
     # Department code within the institution (e.g. "cardiology"); scopes department inboxes.
     department: str | None = None
+    # A patient account's CNIC (13 digits), from the token's "cnic" claim; set by Keycloak, never by the user.
+    cnic: str | None = None
 
     @property
     def is_service(self) -> bool:
@@ -153,6 +155,7 @@ class TokenVerifier:
         institution = claims.get("institution_id") or (path[0] if path else None)
         department = claims.get("department") or (path[1] if len(path) > 1 else None)
         username = claims.get("preferred_username") or claims.get("azp") or claims["sub"]
+        cnic = "".join(ch for ch in str(claims.get("cnic") or "") if ch.isdigit()) or None
         return Principal(
             subject=claims["sub"],
             username=username,
@@ -162,6 +165,7 @@ class TokenVerifier:
             client_id=claims.get("azp"),
             token=token,
             department=department,
+            cnic=cnic,
         )
 
 

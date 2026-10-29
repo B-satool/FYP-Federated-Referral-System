@@ -32,6 +32,10 @@
         "description": "Clinical reviewer who approves medication rules and medicine names"
       },
       {
+        "name": "patient",
+        "description": "Patient: sees their own referrals and reads their own records from each institution"
+      },
+      {
         "name": "svc_central",
         "description": "Central platform service identity"
       },
@@ -105,6 +109,19 @@
       ]
     }
   ],
+  "components": {
+    "org.keycloak.userprofile.UserProfileProvider": [
+      {
+        "providerId": "declarative-user-profile",
+        "subComponents": {},
+        "config": {
+          "kc.user.profile.config": [
+            "{\"attributes\": [{\"name\": \"username\", \"validations\": {\"length\": {\"min\": 3, \"max\": 255}, \"username-prohibited-characters\": {}, \"up-username-not-idn-homograph\": {}}, \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\", \"user\"]}, \"multivalued\": false}, {\"name\": \"email\", \"validations\": {\"email\": {}, \"length\": {\"max\": 255}}, \"required\": {\"roles\": [\"user\"]}, \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\", \"user\"]}, \"multivalued\": false}, {\"name\": \"firstName\", \"validations\": {\"length\": {\"max\": 255}, \"person-name-prohibited-characters\": {}}, \"required\": {\"roles\": [\"user\"]}, \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\", \"user\"]}, \"multivalued\": false}, {\"name\": \"lastName\", \"validations\": {\"length\": {\"max\": 255}, \"person-name-prohibited-characters\": {}}, \"required\": {\"roles\": [\"user\"]}, \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\", \"user\"]}, \"multivalued\": false}, {\"name\": \"cnic\", \"displayName\": \"CNIC\", \"validations\": {\"length\": {\"min\": 13, \"max\": 15}}, \"permissions\": {\"view\": [\"admin\"], \"edit\": [\"admin\"]}, \"multivalued\": false}], \"groups\": [{\"name\": \"user-metadata\", \"displayHeader\": \"User metadata\", \"displayDescription\": \"Attributes, which refer to user metadata\"}]}"
+          ]
+        }
+      }
+    ]
+  },
   "clients": [
     {
       "clientId": "referral-web",
@@ -136,6 +153,21 @@
             "id.token.claim": "true",
             "access.token.claim": "true",
             "userinfo.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "cnic",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "cnic",
+            "claim.name": "cnic",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false",
             "introspection.token.claim": "true"
           }
         },
@@ -220,6 +252,21 @@
             "id.token.claim": "true",
             "access.token.claim": "true",
             "userinfo.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "cnic",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "cnic",
+            "claim.name": "cnic",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false",
             "introspection.token.claim": "true"
           }
         },
@@ -951,6 +998,121 @@
       "groups": [
         "/chughtai"
       ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_USER_PASSWORD}",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "rubina.akhtar",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Rubina",
+      "lastName": "Akhtar",
+      "email": "rubina.akhtar@patients.example",
+      "realmRoles": [
+        "patient"
+      ],
+      "attributes": {
+        "cnic": [
+          "35202-0000011-4"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_USER_PASSWORD}",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "muhammad.tariq.mahmood",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Muhammad",
+      "lastName": "Tariq Mahmood",
+      "email": "muhammad.tariq.mahmood@patients.example",
+      "realmRoles": [
+        "patient"
+      ],
+      "attributes": {
+        "cnic": [
+          "37405-0000022-7"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_USER_PASSWORD}",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "abdul.rehman.gondal",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Abdul",
+      "lastName": "Rehman Gondal",
+      "email": "abdul.rehman.gondal@patients.example",
+      "realmRoles": [
+        "patient"
+      ],
+      "attributes": {
+        "cnic": [
+          "36302-0000033-5"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_USER_PASSWORD}",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "shazia.parveen",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Shazia",
+      "lastName": "Parveen",
+      "email": "shazia.parveen@patients.example",
+      "realmRoles": [
+        "patient"
+      ],
+      "attributes": {
+        "cnic": [
+          "42101-0000044-2"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_USER_PASSWORD}",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "imtiaz.ali.soomro",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Imtiaz",
+      "lastName": "Ali Soomro",
+      "email": "imtiaz.ali.soomro@patients.example",
+      "realmRoles": [
+        "patient"
+      ],
+      "attributes": {
+        "cnic": [
+          "41304-0000055-9"
+        ]
+      },
       "credentials": [
         {
           "type": "password",

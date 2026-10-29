@@ -54,11 +54,13 @@ def _referral() -> Referral:
                     procedure_tags=["iodinated_contrast"], row_version=1, delivery_status="none", amendment_open=False)
 
 
-def test_staff_referral_view_hides_reason_notes_and_procedure():
+def test_staff_referral_view_hides_notes_and_procedure_but_shows_the_reason():
+    """Spec v4 4: staff see referral metadata including the reason; the doctor's notes and procedure stay hidden."""
     staff = referral_out(_referral(), clinical=False)
     text = repr(staff)
-    for secret in ("chest pain", "stairs", "150/90", "angiography", "iodinated"):
+    for secret in ("stairs", "150/90", "angiography", "iodinated"):
         assert secret.lower() not in text.lower(), secret
+    assert staff["reason"] == "Exertional chest pain"
     assert staff["procedure_label"] == HIDDEN and staff["redacted"] is True
     # what staff need to do their job stays
     assert staff["urgency"] == "urgent" and staff["destination_institution"] == "akuh" and staff["patient"]["name"]

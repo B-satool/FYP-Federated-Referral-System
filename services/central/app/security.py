@@ -92,9 +92,19 @@ def require_roles(principal: Principal, *roles: str, action: str = "action", mes
 
 
 def sees_clinical(principal: Principal) -> bool:
-    """Only doctors see a patient's clinical content (records, papers, medicines, flags, the letter, notes).
-    Staff see titles, statuses and counts (decision 2026-10-29)."""
-    return DOCTOR in principal.roles
+    """Only roles whose template gives 'content' visibility (doctors) see clinical content, and even then only what
+    is encrypted to their own key opens. Staff see titles, statuses and counts (spec v4 4, D3, D14)."""
+    from .identity.role_templates import profile
+
+    return profile(set(principal.roles), principal.institution_id)["record_visibility"] == "content"
+
+
+def require_scope(principal: Principal, scope: str, action: str) -> None:
+    """The caller's role templates must include this API scope (spec v4 4.1); refusals are audited."""
+    from .identity.role_templates import profile
+
+    if scope not in profile(set(principal.roles), principal.institution_id)["scopes"]:
+        raise deny(principal, action, "scope", scope, f"Your role does not include '{scope}'")
 
 
 def require_doctor(principal: Principal, action: str) -> None:

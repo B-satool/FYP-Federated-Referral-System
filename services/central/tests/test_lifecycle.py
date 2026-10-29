@@ -113,12 +113,28 @@ def test_verify_copy():
 def test_every_template_is_valid():
     assert role_templates.templates()  # loading validates the file
     for t in role_templates.templates().values():
-        assert set(t.roles) <= role_templates.ASSIGNABLE_ROLES and t.home in t.menu
+        if t.assignable:
+            assert set(t.roles) <= role_templates.ASSIGNABLE_ROLES and t.home in t.menu
+        assert t.record_visibility in role_templates.VISIBILITY and set(t.api_scopes) <= set(role_templates.scopes())
+
+
+def test_templates_give_visibility_keys_and_scopes():
+    """Spec v4 4.1: staff see titles only and hold no keys; doctors open content on their device and hold keys."""
+    staff = role_templates.profile({"clinic_staff"}, "drali")
+    assert staff["record_visibility"] == "titles_only" and not staff["holds_keys"]
+    assert "records:content" not in staff["scopes"] and "consent:request" in staff["scopes"]
+    doctor = role_templates.profile({"clinician"}, "drali")
+    assert doctor["record_visibility"] == "content" and doctor["holds_keys"]
+    assert {"records:content", "package:approve"} <= set(doctor["scopes"]) and "consent:request" not in doctor["scopes"]
+    patient = role_templates.profile({"patient"}, None)
+    assert patient["holds_keys"] and patient["scopes"] == ["patient:self"]
+    assert role_templates.profile({"rule_reviewer"}, "drali")["record_visibility"] == "none"
+    assert all(t.assignable for t in role_templates.templates_for_institution("drali"))
 
 
 def test_menu_only_offers_screens_the_roles_allow():
     screens = role_templates.screens()
-    for t in role_templates.templates().values():
+    for t in [t for t in role_templates.templates().values() if t.assignable]:
         inst = next(i for i, v in INSTITUTIONS.items() if v["kind"] in t.institution_kinds)
         nav = role_templates.navigation(set(t.roles), inst)
         assert t.template_id in nav["templates"] and nav["home"]

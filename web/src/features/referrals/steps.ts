@@ -14,12 +14,12 @@ export type Role = "doctor" | "staff";
 
 export const STEP_LABEL: Record<StepKey, string> = {
   request: "Request",
-  records: "Records",
+  records: "Consent & records",
   papers: "Papers",
   medicines: "Medicines & flags",
   tests: "Tests & results",
   send: "Check & send",
-  summary: "Referral letter",
+  summary: "Approve & sign",
   response: "Outcome & follow-up",
   audit: "History",
 };
@@ -43,15 +43,17 @@ export function layout(role: Role, kind: RequestKind = "referral"): Phase[] {
       { title: role === "doctor" ? "Results" : "Send and follow", steps: ["tests"] },
     ];
   }
+  // Spec v4: the doctor reviews the decrypted records, enters the medicines, adds papers and signs the package;
+  // staff handle consent, the records requests and sending, and see titles only (D14).
   return role === "doctor"
     ? [
         { title: "Request", steps: ["request"] },
-        { title: "Review", steps: ["records", "papers", "medicines", "summary"] },
+        { title: "Review", steps: ["records", "medicines", "papers", "summary"] },
         { title: "Follow through", steps: ["response"] },
       ]
     : [
         { title: "Request", steps: ["request"] },
-        { title: "Prepare", steps: ["records", "papers", "medicines"] },
+        { title: "Consent and records", steps: ["records"] },
         { title: "Send", steps: ["send"] },
         { title: "Follow through", steps: ["response"] },
       ];

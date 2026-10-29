@@ -30,7 +30,7 @@ from ..models import Consent, Referral
 from ..notifications import notify_staff
 from ..patient_access import require_patient
 from ..referrals.state import TERMINAL, event
-from ..security import CLINIC_ROLES, audit, error, get_principal, load_referral
+from ..security import CLINIC_ROLES, audit, error, get_principal, load_referral, require_scope
 from . import document
 
 router = APIRouter(tags=["consent"])
@@ -75,6 +75,7 @@ class ConsentRequestIn(BaseModel):
 def request_consent(referral_id: int, body: ConsentRequestIn, db: Session = Depends(get_db),
                     principal: Principal = Depends(get_principal)):
     """Staff ask the patient (through the patient portal) for permission to fetch records for this referral."""
+    require_scope(principal, "consent:request", "consent.request")
     r = load_referral(db, referral_id, principal, "consent_request", roles=("clinic_staff",))
     if r.kind != "referral" or r.status in TERMINAL or r.status == "draft":
         raise error(409, "not_available", "Consent is requested for a referral the doctor has submitted")

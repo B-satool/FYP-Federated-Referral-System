@@ -26,10 +26,11 @@ HIDDEN = "Visible to doctors only"
 
 
 def referral_out(r: Referral, clinical: bool = True) -> dict:
-    """clinical=False is the staff view: no reason, consultation notes, procedure or clarification content."""
+    """clinical=False is the staff view (spec v4 4): referral metadata (status, dates, who and where, the reason for
+    referral) but not the doctor's notes, the procedure details or clarification content."""
     out = _referral_out(r)
     if not clinical:
-        out.update({"reason": None, "consultation_notes": None, "planned_procedure": None, "procedure_tags": [],
+        out.update({"consultation_notes": None, "planned_procedure": None, "procedure_tags": [],
                     "procedure_tag_labels": [], "procedure_label": HIDDEN, "patient_informed_note": None,
                     "redacted": True})
     return out

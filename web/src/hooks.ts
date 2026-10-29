@@ -17,6 +17,9 @@ export function hasRole(me: Me | undefined, ...roles: string[]): boolean {
 
 /** Doctor: requests referrals, acknowledges flags; at a hospital also receives referrals for their department. */
 export const isDoctor = (me: Me | undefined) => hasRole(me, "clinician");
+/** Opens record content on their own device (from the role templates; the server enforces the same). */
+export const seesContent = (me: Me | undefined) => (me?.record_visibility ?? (hasRole(me, "clinician") ? "content" : "titles_only")) === "content";
+export const hasScope = (me: Me | undefined, scope: string) => !!me?.scopes?.includes(scope);
 /** Staff: patient links, records, papers and medicines; send referrals; follow-up. */
 export const isStaff = (me: Me | undefined) => hasRole(me, "clinic_staff");
 /** Laboratory, imaging or ECG staff: test and scan orders. */

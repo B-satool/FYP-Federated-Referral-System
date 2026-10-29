@@ -77,7 +77,7 @@ def list_evidence(referral_id: int, category: str | None = None, include_superse
 
 @router.get("/evidence/{evidence_id}")
 def get_evidence(evidence_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    ev = _load(db, evidence_id, principal, "view", roles=("clinic_staff", "clinician"))
+    ev = _load(db, evidence_id, principal, "view", roles=("clinician",))
     if not sees_clinical(principal):
         return {**evidence_out(ev, False), "fhir": None, "revisions": [], "versions": [], "document": None}
     revisions = db.scalars(select(EvidenceRevision).where(EvidenceRevision.evidence_id == ev.id).order_by(EvidenceRevision.id))

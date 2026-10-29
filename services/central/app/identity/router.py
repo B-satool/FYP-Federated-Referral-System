@@ -446,4 +446,5 @@ def apply_role_template(user_id: str, body: ApplyTemplateIn, db: Session = Depen
           detail={"template": template.template_id, "added": add, "removed": remove, "reason": body.reason})
     db.commit()
     return {"id": user_id, "username": kc_user["username"], "template": template.template_id,
-            "added": add, "removed": remove, "default_grant_days": template.default_grant_days}
+            "added": add, "removed": remove, "record_visibility": template.record_visibility,
+            "holds_keys": template.holds_keys}

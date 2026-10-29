@@ -58,7 +58,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         { to: "/incoming", label: "Incoming referrals", show: (doctor || hasRole(me, "clinic_staff", "institution_admin")) && kind !== "laboratory" },
         { to: "/patient-links", label: "Records requests", show: hasRole(me, "clinic_staff", "institution_admin") },
         { to: "/orders", label: "Test and scan orders", show: hasRole(me, "diagnostics_staff") },
-        { to: "/keys", label: "Device key", show: doctor },
+        { to: "/keys", label: "Device key", show: !!me?.holds_keys || doctor },
       ],
     },
     {

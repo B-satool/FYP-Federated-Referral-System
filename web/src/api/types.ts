@@ -10,10 +10,15 @@ export type Me = {
   department_kind: "clinical" | "laboratory" | "imaging" | "cardiac" | null;
   roles: string[];
   account_status: string;
-  /** role templates the user holds, their home route and menu (from rules/roles/templates.v1.json) */
+  /** role templates the user holds, their home route and menu (from rules/roles/templates.v2.json) */
   templates?: string[];
   home?: string | null;
   menu?: MenuItem[];
+  /** from the templates: content (opens records on their own device) | titles_only | none */
+  record_visibility?: "content" | "titles_only" | "none";
+  /** the role holds encryption keys (doctors, patients) */
+  holds_keys?: boolean;
+  scopes?: string[];
 };
 
 export type MenuItem = { key: string; route: string; label: string; group: string };

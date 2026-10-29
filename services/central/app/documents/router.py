@@ -46,7 +46,7 @@ def _new_job(db: Session, kind: str, principal: Principal, referral_id: int, doc
 @router.post("/referrals/{referral_id}/documents", status_code=201)
 async def upload(referral_id: int, file: UploadFile = File(...), doc_type: str = Form("other"),
                  db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    r = load_referral(db, referral_id, principal, "upload")
+    r = load_referral(db, referral_id, principal, "upload", roles=("clinician",))  # staff never handle content (D14)
     ensure_clinical_edit_allowed(r)
     if doc_type not in DOC_TYPES:
         raise error(422, "invalid_doc_type", f"Document type must be one of {sorted(DOC_TYPES)}")
@@ -155,7 +155,7 @@ def page_image(document_id: int, page: int, db: Session = Depends(get_db), princ
 
 @router.post("/documents/{document_id}/reprocess")
 def reprocess(document_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    doc = _load_doc(db, document_id, principal, "edit", roles=("clinic_staff", "clinician"))
+    doc = _load_doc(db, document_id, principal, "edit", roles=("clinician",))
     if doc.deleted_at:
         raise error(410, "deleted", "Document deleted under retention policy")
     doc.status = "queued"

@@ -26,7 +26,8 @@ from ..integration import sources
 from ..integration.retrieval import linked_sources
 from ..models import Clarification, DiagnosticRequest, Referral, ReferralEvent, ReferralPackage
 from ..notifications import notify_staff
-from ..security import CLINIC_ROLES, DOCTOR, audit, bump, check_version, error, get_principal, load_referral, require_roles, sees_clinical
+from ..security import (CLINIC_ROLES, DOCTOR, audit, bump, check_version, error, get_principal, load_referral, require_roles,
+                        require_scope, sees_clinical)
 from ..serializers import HIDDEN, diagnostic_out, link_summary, referral_out
 from ..workflow import after_change
 from .state import CLINICAL_LOCKED, IN_FLIGHT, PRE_SUBMISSION, TERMINAL, mark_clinical_change, transition
@@ -143,6 +144,7 @@ def _submit(db: Session, r: Referral, principal: Principal) -> None:
 def create_referral(body: ReferralForm, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     """Only a doctor applies for a referral or a test."""
     require_roles(principal, DOCTOR, action="referral.create", message="Only a doctor can make a request")
+    require_scope(principal, "referrals:create", "referral.create")
     _validate(body, principal, body.submit)
     p = sources.call(principal.institution_id, "GET", f"/patients/{body.patient_local_id}", principal)
     planned, tags = _procedure(body)

@@ -18,7 +18,7 @@ from ..db import get_db
 from ..keys import platform
 from ..models import EncryptedBatch, EncryptedItem, Referral, WrappedKey
 from ..referrals.state import TERMINAL
-from ..security import CLINIC_ROLES, audit, error, get_principal, load_referral
+from ..security import CLINIC_ROLES, audit, error, get_principal, load_referral, require_scope
 from . import requests as rq
 
 router = APIRouter(tags=["records (encrypted)"])
@@ -44,6 +44,7 @@ def titles_for(db: Session, r: Referral) -> list[dict]:
 @router.post("/referrals/{referral_id}/record-requests")
 def request_records(referral_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     """Send the records requests the patient's consent allows (staff or the referring doctor)."""
+    require_scope(principal, "records:request", "records.request")
     r = load_referral(db, referral_id, principal, "records_request", roles=CLINIC_ROLES)
     if r.kind != "referral" or r.status in TERMINAL or r.status == "draft":
         raise error(409, "not_available", "Records are requested while the referral is open")
@@ -65,6 +66,7 @@ def list_record_requests(referral_id: int, db: Session = Depends(get_db), princi
 @router.get("/referrals/{referral_id}/titles")
 def referral_titles(referral_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     """What every role at the referring institution may see of the records: titles only."""
+    require_scope(principal, "records:titles", "records.titles")
     r = load_referral(db, referral_id, principal, "view", roles=CLINIC_ROLES)
     audit(db, principal, "records.titles", "referral", r.reference, "success", r.id)
     db.commit()
@@ -96,6 +98,7 @@ MAX_BATCH_BYTES = 25 * 1024 * 1024
 def require_referring_doctor(db: Session, referral_id: int, principal: Principal, action: str) -> Referral:
     """Ciphertext goes only to the doctor it is wrapped for (the referring doctor here); nobody else can open it,
     and staff are not even sent it (T-STAFF-1)."""
+    require_scope(principal, "records:content", action)
     r = load_referral(db, referral_id, principal, action, roles=("clinician",))
     if r.requesting_doctor_id and r.requesting_doctor_id != principal.subject:
         raise error(403, "not_your_referral", "Only the referring doctor reads this referral's records")

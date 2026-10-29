@@ -6,7 +6,7 @@ import ArrowBack from "@mui/icons-material/ArrowBack";
 import { api } from "../../api/client";
 import type { ReferralDetail } from "../../api/types";
 import { ErrorAlert, Loading, ReferralStatus, Tag, UrgencyTag } from "../../components/common";
-import { isDoctor, useMe, usePageTitle } from "../../hooks";
+import { seesContent, useMe, usePageTitle } from "../../hooks";
 import { DocumentsTab } from "../documents/DocumentsTab";
 import { AuditTab } from "./AuditTab";
 import { JourneyNav, NextStepBanner, StepPager } from "./Journey";
@@ -48,7 +48,7 @@ export function ReferralWorkspace() {
   const { data: me } = useMe();
   const q = useReferral(id);
   usePageTitle(q.data ? `${q.data.reference} ${q.data.patient.name}` : "Referral");
-  const role: Role = isDoctor(me) ? "doctor" : "staff";
+  const role: Role = seesContent(me) ? "doctor" : "staff"; // screens follow the template's record visibility
   const order = stepOrder(role, q.data?.kind);
   const requested = params.get("tab") as StepKey | null;
   const tab: StepKey = requested && order.includes(requested) ? requested : "request";

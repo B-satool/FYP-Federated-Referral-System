@@ -17,10 +17,10 @@ Every variable read with `os.environ.get`, `os.getenv` or a boolean helper, with
 | `GOOGLE_VISION_ENDPOINT` | `'https://vision.googleapis.com/v1/images:annotate'` |  | services/central/app/config.py:42 |
 | `INSTITUTION_ID` | `(required)` | drali \| chughtai \| ziauddin \| akuh | services/provider/app/config.py:6 |
 | `INSTITUTION_NAME` | `INSTITUTION` |  | services/provider/app/config.py:7 |
-| `INTROSPECT_TOKENS` | `True` |  | libs/common/refcommon/auth.py:68 |
-| `KEYCLOAK_INTERNAL_URL` | `'http://keycloak:8080'` |  | libs/common/refcommon/auth.py:63 |
-| `KEYCLOAK_PUBLIC_URL` | `'http://localhost:8080'` |  | libs/common/refcommon/auth.py:64 |
-| `KEYCLOAK_REALM` | `'referral'` |  | libs/common/refcommon/auth.py:65 |
+| `INTROSPECT_TOKENS` | `True` |  | libs/common/refcommon/auth.py:70 |
+| `KEYCLOAK_INTERNAL_URL` | `'http://keycloak:8080'` |  | libs/common/refcommon/auth.py:65 |
+| `KEYCLOAK_PUBLIC_URL` | `'http://localhost:8080'` |  | libs/common/refcommon/auth.py:66 |
+| `KEYCLOAK_REALM` | `'referral'` |  | libs/common/refcommon/auth.py:67 |
 | `LLM_API_KEY` | `''` |  | services/central/app/config.py:36 |
 | `LLM_BASE_URL` | `''` | openai_compatible: vLLM, Kimi or any other chat-completions server (…/v1) | services/central/app/config.py:35 |
 | `LLM_CONTEXT_TOKENS` | `'16384'` | local Ollama models | services/central/app/config.py:30 |
@@ -43,8 +43,8 @@ Every variable read with `os.environ.get`, `os.getenv` or a boolean helper, with
 | `REPO_ASSETS` | `'/srv/assets'` |  | services/central/app/config.py:16 |
 | `RUN_JOBS_INLINE` | `False` |  | services/central/app/config.py:63 |
 | `SEED_DATA_DIR` | `'/srv/seed-data/patients'` |  | services/provider/app/seed.py:24 |
-| `SERVICE_CLIENT_ID` | (none) |  | libs/common/refcommon/auth.py:66 |
-| `SERVICE_CLIENT_SECRET` | (none) |  | libs/common/refcommon/auth.py:67 |
+| `SERVICE_CLIENT_ID` | (none) |  | libs/common/refcommon/auth.py:68 |
+| `SERVICE_CLIENT_SECRET` | (none) |  | libs/common/refcommon/auth.py:69 |
 | `SOURCE_MAX_RETRIES` | `'2'` |  | services/central/app/config.py:19 |
 | `SOURCE_TIMEOUT_SECONDS` | `'10'` |  | services/central/app/config.py:18 |
 | `STORAGE_ROOT` | `'/data/documents'` |  | services/central/app/config.py:15 |

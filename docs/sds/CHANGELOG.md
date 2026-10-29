@@ -2,6 +2,20 @@
 
 Newest first. Each version is frozen in `versions/`.
 
+## v1.2.0 (2026-10-29)
+
+Patient accounts and patient view: own referrals from the platform, own records read directly from each institution
+
+Structural changes found automatically:
+
+- Endpoint added: `central GET /patient-access/places`
+- Endpoint added: `central GET /patient-access/referrals`
+- Endpoint added: `institution GET /patient-access/records`
+- Endpoint added: `institution GET /patient-access/summary`
+- Realm role added: `patient`
+- Decision record added: `[2026-10-29-patient-view](../decisions/2026-10-29-patient-view.md)`
+- Written sections changed: 01-introduction.md, 02-system-overview.md, 03-architectural-drivers.md, 04-architecture.md, 05-data-architecture.md, 06-component-design.md, 07-workflows.md, 08-security.md, 09-ai-design.md, 10-medication-flagging.md, 11-interfaces.md, 12-reliability.md, 13-quality-attributes.md, 14-deployment-operations.md, 15-testing.md, 16-limitations-and-risks.md, 17-maintaining-this-document.md
+
 ## v1.1.0 (2026-10-29)
 
 Only doctors see clinical content and the doctor reviews the referral packet before staff send (both institutions); consultation notes under the reason; drug-interaction flags quote the US drug label sentence when one exists; realistic seed visit wording.

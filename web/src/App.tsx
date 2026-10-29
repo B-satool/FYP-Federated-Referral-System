@@ -22,6 +22,7 @@ import { OrderList, OrderView } from "./features/orders/Orders";
 import { AdminUsers } from "./features/admin/AdminUsers";
 import { SourceAccess } from "./features/admin/SourceAccess";
 import { AuditLog } from "./features/admin/AuditLog";
+import { PatientApp } from "./features/patient/PatientApp";
 
 function Home() {
   const { data: me, isLoading, error } = useMe();
@@ -74,6 +75,14 @@ export default function App() {
       </Routes>
     );
   }
+  return <SignedIn />;
+}
+
+/** Patients get their own phone-style app; everyone else gets the work screens. */
+function SignedIn() {
+  const { data: me, isLoading } = useMe();
+  if (isLoading) return <Loading label="Signing in…" />;
+  if (hasRole(me, "patient")) return <PatientApp />;
   return (
     <Layout>
       <Routes>

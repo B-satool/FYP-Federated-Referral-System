@@ -1,8 +1,8 @@
 {
   "fingerprints": {
-    "sections": "36962e9bc84937a1f6763b88911ff977dd927b499f97f9be77e7e7c9d43d707e",
-    "source": "85b4897e8f0cd6ac67b1a9479fe8948002a1dd37c9570ca33ca286bc925f1da6",
-    "structure": "4abc1cd543c76b395bd84caff2342f5a99f2d3ba10a2c883eddc758af8f97f06"
+    "sections": "1125503b6c93bde8e479e49241b3ec07fe9cc178b7fc6a5b274309bbb5f6faa3",
+    "source": "f4c8cef006f1d4eb3fc528cda009f558a32dd9ab6334f79e24f06395290e7127",
+    "structure": "8a0e9c3e510ce365969d8dd7482ae9fd8ecf1f7ff8c2375b17d409433895a267"
   },
   "history": [
     {
@@ -22,6 +22,12 @@
       "date": "2026-10-29",
       "summary": "Only doctors see clinical content and the doctor reviews the referral packet before staff send (both institutions); consultation notes under the reason; drug-interaction flags quote the US drug label sentence when one exists; realistic seed visit wording.",
       "version": "1.1.0"
+    },
+    {
+      "changes": 7,
+      "date": "2026-10-29",
+      "summary": "Patient accounts and patient view: own referrals from the platform, own records read directly from each institution",
+      "version": "1.2.0"
     }
   ],
   "inventory": {
@@ -64,7 +70,8 @@
       "[2026-10-28-referral-access-window](../decisions/2026-10-28-referral-access-window.md)",
       "[2026-10-28-referral-expiry](../decisions/2026-10-28-referral-expiry.md)",
       "[2026-10-28-retrieval-all-sources](../decisions/2026-10-28-retrieval-all-sources.md)",
-      "[2026-10-29-doctor-only-clinical-content](../decisions/2026-10-29-doctor-only-clinical-content.md)"
+      "[2026-10-29-doctor-only-clinical-content](../decisions/2026-10-29-doctor-only-clinical-content.md)",
+      "[2026-10-29-patient-view](../decisions/2026-10-29-patient-view.md)"
     ],
     "dependencies": {
       "libs/common/pyproject.toml": [
@@ -145,6 +152,16 @@
       ],
       "central GET /notifications": [
         "_mine()"
+      ],
+      "central GET /patient-access/places": [
+        "require_patient \u2192 deny(patient, self, Only a patient account can use the patient view)",
+        "require_patient \u2192 deny(patient, self, This patient account has no CNIC, so nothing can be matched to it)",
+        "require_patient \u2192 role patient required"
+      ],
+      "central GET /patient-access/referrals": [
+        "require_patient \u2192 deny(patient, self, Only a patient account can use the patient view)",
+        "require_patient \u2192 deny(patient, self, This patient account has no CNIC, so nothing can be matched to it)",
+        "require_patient \u2192 role patient required"
       ],
       "central GET /patient-links": [
         "require_roles(clinic_staff, clinician, institution_admin, diagnostics_staff, action=patient_link.view)"
@@ -453,6 +470,16 @@
         "require_own(clinician, clinic_staff, what=read our copies of sent referrals)",
         "role clinician required"
       ],
+      "institution GET /patient-access/records": [
+        "_own_patient_records \u2192 forbid(Only a patient account can read its own records here)",
+        "_own_patient_records \u2192 forbid(This patient account has no CNIC, so no record can be matched to it)",
+        "_own_patient_records \u2192 role patient required"
+      ],
+      "institution GET /patient-access/summary": [
+        "_own_patient_records \u2192 forbid(Only a patient account can read its own records here)",
+        "_own_patient_records \u2192 forbid(This patient account has no CNIC, so no record can be matched to it)",
+        "_own_patient_records \u2192 role patient required"
+      ],
       "institution GET /patients": [
         "require_own(clinic_staff, clinician, institution_admin, diagnostics_staff, what=search the patient index)"
       ],
@@ -581,6 +608,8 @@
       "central GET /me",
       "central GET /medicine-names",
       "central GET /notifications",
+      "central GET /patient-access/places",
+      "central GET /patient-access/referrals",
       "central GET /patient-links",
       "central GET /patient-links/incoming",
       "central GET /patient-links/outgoing",
@@ -674,6 +703,8 @@
       "institution GET /orders/{order_id}",
       "institution GET /orders/{order_id}/attachments/{attachment_id}",
       "institution GET /outbound-copies",
+      "institution GET /patient-access/records",
+      "institution GET /patient-access/summary",
       "institution GET /patients",
       "institution GET /patients/{local_id}",
       "institution GET /patients/{local_id}/activity",
@@ -738,6 +769,7 @@
       "clinician",
       "diagnostics_staff",
       "institution_admin",
+      "patient",
       "rule_reviewer",
       "svc_central",
       "svc_provider"
@@ -1744,5 +1776,5 @@
     ]
   },
   "released": "2026-10-29",
-  "version": "1.1.0"
+  "version": "1.2.0"
 }

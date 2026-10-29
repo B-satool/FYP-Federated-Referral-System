@@ -19,7 +19,7 @@ from typing import Any, Literal
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 from refcommon.auth import KeycloakConfig, Principal, ServiceTokenProvider, TokenVerifier, forbid, make_principal_dependency
 from refcommon.db import make_session_factory, session_dependency, utcnow
@@ -412,6 +412,90 @@ def patient_records(local_id: str, request: Request, categories: str | None = No
                   "since": start.isoformat()})
     db.commit()
     return records_bundle(res, decision.denied, INSTITUTION, str(request.url))
+
+
+# --------------------------------------------------------------------------- patient access (the patient's own records)
+# A patient signs in with their own account. Their CNIC comes only from the verified token (set by an
+# administrator in Keycloak, never editable by the patient). This institution matches it against its own
+# index and answers the patient directly: the history goes from here to the patient's device and is not
+# stored by the central platform (decision 2026-10-29, patient view).
+NO_STORE = {"Cache-Control": "no-store", "Pragma": "no-cache"}
+
+
+def _own_patient_records(db: Session, principal: Principal, action: str) -> list[Patient]:
+    if "patient" not in principal.roles or principal.institution_id is not None:
+        record_audit(db, AuditEvent, principal, action, "patient", "self", "denied", detail={"reason": "not a patient account"})
+        db.commit()
+        raise forbid("Only a patient account can read its own records here")
+    if not principal.cnic or len(principal.cnic) != 13:
+        record_audit(db, AuditEvent, principal, action, "patient", "self", "denied", detail={"reason": "no CNIC on the account"})
+        db.commit()
+        raise forbid("This patient account has no CNIC, so no record can be matched to it")
+    return list(db.scalars(select(Patient).where(Patient.cnic == principal.cnic).order_by(Patient.local_id)))
+
+
+def _iso(d) -> str | None:
+    return d.isoformat() if d else None
+
+
+@app.get("/patient-access/summary", tags=["patient access"])
+def patient_summary(db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Whether this institution holds records for the signed-in patient, and how many of each kind."""
+    patients = _own_patient_records(db, principal, "patient.summary")
+    ids = [p.local_id for p in patients]
+    counts = {}
+    if ids:
+        for name, model in (("conditions", Condition), ("surgeries", Surgery), ("visits", Visit),
+                            ("medicines", Medication), ("lab_results", LabResult), ("imaging", ImagingReport)):
+            counts[name] = db.scalar(select(func.count()).select_from(model).where(model.patient_id.in_(ids))) or 0
+    last = max((d for d in (_last_activity(db, i) for i in ids) if d), default=None)
+    record_audit(db, AuditEvent, principal, "patient.summary", "patient", ",".join(ids) or "none", "success",
+                 detail={"held": bool(ids)})
+    db.commit()
+    return JSONResponse({"institution_id": INSTITUTION, "institution_name": INSTITUTION_NAME, "held": bool(ids),
+                         "local_ids": ids, "last_activity": _iso(last), "counts": counts}, headers=NO_STORE)
+
+
+@app.get("/patient-access/records", tags=["patient access"])
+def patient_history(db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """The patient's whole record at this institution: no referral window and stopped medicines included."""
+    patients = _own_patient_records(db, principal, "patient.records")
+    ids = [p.local_id for p in patients]
+    if not ids:
+        record_audit(db, AuditEvent, principal, "patient.records", "patient", "none", "not_found")
+        db.commit()
+        raise _not_found(f"{INSTITUTION_NAME} holds no record for this patient")
+
+    def rows(model, *order):
+        return db.scalars(select(model).where(model.patient_id.in_(ids)).order_by(*order)).all()
+
+    body = {
+        "institution_id": INSTITUTION, "institution_name": INSTITUTION_NAME, "local_ids": ids,
+        "patient": {"name": f"{patients[0].given} {patients[0].family}", "birth_date": _iso(patients[0].birth_date),
+                    "sex": patients[0].sex, "registered_new_here": any(p.registered_by for p in patients)},
+        "conditions": [{"display": c.display, "status": c.clinical_status, "onset": c.onset}
+                       for c in rows(Condition, Condition.onset.desc().nullslast())
+                       if c.clinical_status != "entered-in-error"],
+        "surgeries": [{"procedure": s.procedure, "performed": s.performed, "location": s.location}
+                      for s in rows(Surgery, Surgery.performed.desc().nullslast())],
+        "medicines": [{"name": m.name, "brand": m.brand_as_written, "dose": m.dose, "route": m.route,
+                       "frequency": m.frequency, "start_date": _iso(m.start_date), "status": m.status,
+                       "prescriber": m.prescriber}
+                      for m in rows(Medication, Medication.status, Medication.start_date.desc().nullslast())],
+        "visits": [{"date": _iso(v.visit_date), "setting": v.setting, "clinician": v.clinician, "reason": v.reason,
+                    "summary": v.summary} for v in rows(Visit, Visit.visit_date.desc())],
+        "lab_results": [{"date": _iso(r.collected), "panel": r.panel, "test": r.test,
+                         "value": r.value_text if r.value_num is None else f"{r.value_num:g}", "unit": r.unit,
+                         "reference_range": r.reference_range, "flag": r.abnormal_flag}
+                        for r in rows(LabResult, LabResult.collected.desc(), LabResult.panel, LabResult.id)],
+        "imaging": [{"date": _iso(i.study_date), "study": i.study, "body_part": i.body_part, "findings": i.findings,
+                     "impression": i.impression, "reporter": i.reporter}
+                    for i in rows(ImagingReport, ImagingReport.study_date.desc())],
+    }
+    record_audit(db, AuditEvent, principal, "patient.records", "patient", ",".join(ids), "success",
+                 detail={k: len(v) for k, v in body.items() if isinstance(v, list) and k != "local_ids"})
+    db.commit()
+    return JSONResponse(body, headers=NO_STORE)
 
 
 # --------------------------------------------------------------------------- inbound from central

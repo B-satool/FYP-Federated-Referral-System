@@ -90,6 +90,7 @@ Open **http://localhost:3000**, click **Sign in with your institution account**,
 | Start | Open Docker Desktop, then `docker compose up -d` |
 | Stop (data is kept) | `docker compose stop` |
 | Reset to clean demo data (before a demo) | `.\scripts\reset-and-seed.ps1 -Force` |
+| Add demo referrals for the patient view | `.\.venv\Scripts\python scripts/seed_demo_referrals.py` (after a reset) |
 | See errors | `docker compose logs -f central` (or `web`, `worker`, `akuh`, …) |
 | After pulling new code | `git pull` then `docker compose up -d --build` |
 | Delete everything including data | `docker compose down -v` (**permanent**) |
@@ -123,6 +124,18 @@ Open **http://localhost:3000**, click **Sign in with your institution account**,
 | `lab.chughtai` | Imran Butt | Chughtai Lab, Laboratory | Laboratory orders |
 | `rad.chughtai` | Dr Zainab Ali | Chughtai Lab, Radiology | Imaging orders |
 | `staff.chughtai` | Ayesha Malik | Chughtai Lab | Answers records requests |
+
+**Patient accounts** (same password). A patient signs in on the same page and gets a phone-style view: the places that hold their records, their referrals and tests, and their history read directly from each place ([decision](docs/decisions/2026-10-29-patient-view.md)).
+
+| Username | Patient | Demo journey (`scripts/seed_demo_referrals.py`) |
+|---|---|---|
+| `rubina.akhtar` | Rubina Akhtar (P1) | Referral to AKUH Dentistry, accepted |
+| `muhammad.tariq.mahmood` | Muhammad Tariq Mahmood (P2) | Referral to Ziauddin Cardiology, sent |
+| `abdul.rehman.gondal` | Abdul Rehman Gondal (P3) | Test request: liver tests reported, knee MRI booked |
+| `shazia.parveen` | Shazia Parveen (P4) | Referral to Ziauddin Gastroenterology, being prepared |
+| `imtiaz.ali.soomro` | Imtiaz Ali Soomro (P5) | Referral to AKUH General Surgery, closed |
+
+After pulling this change on an existing install, re-import the Keycloak realm so the patient accounts exist (see Troubleshooting, the `rad.chughtai` row).
 
 ### Addresses
 

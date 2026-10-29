@@ -1,6 +1,6 @@
 """The referral summary sent to the specialist, built from the checked records only.
 
-It is laid out like a referral letter: reason, planned procedure, current medicines,
+It is laid out like a referral letter: reason, consultation notes, planned procedure, current medicines,
 history, recent visits, investigations (grouped by panel) and imaging, then what could
 not be obtained. It is deterministic (no language model): every record-derived line cites
 the record it came from, an unavailable or skipped source is stated as a limitation (never
@@ -21,6 +21,7 @@ from ..models import EvidenceItem, MedicationEntry, Referral
 
 SECTION_TITLES = {
     "reason": "Reason for referral",
+    "notes": "Consultation notes",
     "procedure": "Planned procedure",
     "medications": "Current medicines",
     "conditions": "Medical history",
@@ -87,6 +88,9 @@ def build(db: Session, referral: Referral) -> dict:
     secs: dict[str, list[dict]] = {k: [] for k in SECTION_TITLES}
     if referral.reason:
         secs["reason"].append({**_st(referral.reason, [], "clinician"), "author_name": referral.requesting_doctor_name})
+    if (referral.consultation_notes or "").strip():
+        secs["notes"].append({**_st(referral.consultation_notes.strip(), [], "clinician"),
+                              "author_name": referral.requesting_doctor_name})
     if referral.kind == "referral":
         text = procedure_label(referral.procedure_status, referral.planned_procedure)
         if referral.procedure_status == "planned" and not referral.procedure_tags:

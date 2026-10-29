@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 import pytest
-from conftest import SURGERY, compose, new_referral
+from conftest import SURGERY, compose, doctor_review, new_referral
 from helpers import central, institution, ok, token, wait_for
 
 DOCTOR, STAFF = central("dr.ali"), central("staff.ali")
@@ -82,21 +82,19 @@ def test_selection_manifest_own_copy_and_purge():
     else:
         sel = wait_for(lambda: (s := ok(STAFF.get(f"/referrals/{rid}/selection")))["run"] and s, 180, 3, "AI selection")
         assert sel["run"]["status"] in ("completed", "rejected", "unavailable")
-    ev = ok(STAFF.get(f"/referrals/{rid}/evidence"))
+    ev = ok(DOCTOR.get(f"/referrals/{rid}/evidence"))
     assert all(e["selected"] for e in ev if e["in_default"])  # the AI never removes a default item
     item = next(e for e in ev if e["selected"] and e["origin"] == "source")
-    # only staff finalise the packet
-    assert DOCTOR.post(f"/evidence/{item['id']}/select", {"selected": False}).status_code == 403
-    ok(STAFF.post(f"/evidence/{item['id']}/select", {"selected": False}))
-    ok(STAFF.post(f"/evidence/{item['id']}/select", {"selected": True}))
-    after = next(e for e in ok(STAFF.get(f"/referrals/{rid}/evidence")) if e["id"] == item["id"])
-    assert after["selection_source"] == "staff" and after["selected_by"]
+    # only the doctor finalises the packet; staff see titles only (decision 2026-10-29)
+    assert STAFF.post(f"/evidence/{item['id']}/select", {"selected": False}).status_code == 403
+    ok(DOCTOR.post(f"/evidence/{item['id']}/select", {"selected": False}))
+    ok(DOCTOR.post(f"/evidence/{item['id']}/select", {"selected": True}))
+    after = next(e for e in ok(DOCTOR.get(f"/referrals/{rid}/evidence")) if e["id"] == item["id"])
+    assert after["selection_source"] == "staff" and after["selected_by"]  # "staff" = a person's choice
 
     # Send.
-    ok(STAFF.post(f"/referrals/{rid}/medications/checked", {"note": "Asked"}))
     ok(STAFF.post(f"/referrals/{rid}/prepared", {"expected_version": _ref(rid)["row_version"]}))
-    for f in ok(DOCTOR.get(f"/referrals/{rid}/medications"))["flags"]:
-        ok(DOCTOR.post(f"/referrals/{rid}/flags/{f['id']}/acknowledge", {"flag_version": f["version"]}))
+    doctor_review(rid)
     ok(STAFF.post(f"/referrals/{rid}/send", {"expected_version": _ref(rid)["row_version"]}))
     wait_for(lambda: _ref(rid)["status"] == "submitted", 60, what="delivery")
     wait_for(lambda: all(b["status"] == "sent" for b in ok(STAFF.get(f"/referrals/{rid}/delivery"))), 60,
@@ -104,7 +102,7 @@ def test_selection_manifest_own_copy_and_purge():
     kinds = {b["kind"] for b in ok(STAFF.get(f"/referrals/{rid}/delivery"))}
     assert {"deliver_package", "sender_copy"} <= kinds
 
-    pkg = ok(STAFF.get(f"/referrals/{rid}/packages/1"))
+    pkg = ok(DOCTOR.get(f"/referrals/{rid}/packages/1"))
     env, manifest = pkg["envelope"], pkg["manifest"]
     assert manifest["content_hash"] == pkg["content_hash"] and manifest["evidence"]
     assert env["selection"]["counts"]["selected"] == len(env["evidence"])
@@ -112,7 +110,7 @@ def test_selection_manifest_own_copy_and_purge():
     assert "display" not in json.dumps(manifest["evidence"])  # references only, no clinical values
 
     # The clinic's own system holds a copy, which matches the fingerprint.
-    own = ok(STAFF.post(f"/referrals/{rid}/packages/1/verify-own-copy"))
+    own = ok(DOCTOR.post(f"/referrals/{rid}/packages/1/verify-own-copy"))
     assert own["result"] == "match"
     tampered = {**own["copy"], "reason": "changed"}
     assert ok(STAFF.post(f"/referrals/{rid}/packages/1/verify", {"package": tampered}))["result"] == "mismatch"
@@ -125,18 +123,18 @@ def test_selection_manifest_own_copy_and_purge():
     compose("exec", "-T", "central", "python", "-c", script)
     ref = _ref(rid)
     assert ref["working_set_purged_at"] and ref["reference"]
-    pkg = ok(STAFF.get(f"/referrals/{rid}/packages/1"))
+    pkg = ok(DOCTOR.get(f"/referrals/{rid}/packages/1"))
     assert pkg["content_purged_at"] and pkg["envelope"]["purged"] and "evidence" not in pkg["envelope"]
     assert pkg["manifest"]["evidence"] and pkg["content_hash"] == manifest["content_hash"]
-    assert all(e["display"] != item["display"] for e in ok(STAFF.get(f"/referrals/{rid}/evidence")))
+    assert all(e["display"] != item["display"] for e in ok(DOCTOR.get(f"/referrals/{rid}/evidence")))
     # the clinic's own copy still verifies against the kept fingerprint
-    assert ok(STAFF.post(f"/referrals/{rid}/packages/1/verify-own-copy"))["result"] == "match"
+    assert ok(DOCTOR.post(f"/referrals/{rid}/packages/1/verify-own-copy"))["result"] == "match"
     actions = {a["action"] for a in ok(STAFF.get(f"/referrals/{rid}/audit"))}
     assert {"retention.purge_working_set", "package.verify_own_copy"} <= actions
 
     # Retrieving again (e.g. for an amendment) fetches fresh copies; removed content is never reused.
     ok(STAFF.post(f"/referrals/{rid}/retrieve"))
-    again = ok(STAFF.get(f"/referrals/{rid}/evidence"))
+    again = ok(DOCTOR.get(f"/referrals/{rid}/evidence"))
     assert again and all(e["display"] != "[removed: working set ended]" for e in again)
     assert not _ref(rid)["working_set_purged_at"]
 

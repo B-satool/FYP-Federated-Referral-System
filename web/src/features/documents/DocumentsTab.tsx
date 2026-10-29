@@ -20,7 +20,7 @@ import UploadFile from "@mui/icons-material/UploadFile";
 import { api } from "../../api/client";
 import type { DocumentSummary, Job, ReferralDetail } from "../../api/types";
 import { Empty, ErrorAlert, fmtDate, Tag } from "../../components/common";
-import { useRefData } from "../../hooks";
+import { isDoctor, useMe, useRefData } from "../../hooks";
 import { useInvalidateReferral } from "../referrals/ReferralWorkspace";
 
 const STATUS_TONE: Record<string, "ok" | "warn" | "bad" | "wait" | "neutral"> = {
@@ -34,6 +34,8 @@ const STATUS_TONE: Record<string, "ok" | "warn" | "bad" | "wait" | "neutral"> = 
 
 export function DocumentsTab({ r }: { r: ReferralDetail }) {
   const refData = useRefData();
+  const { data: me } = useMe();
+  const doctor = isDoctor(me); // opening a paper and checking its fields is for the doctor (decision 2026-10-29)
   const refresh = useInvalidateReferral(r.id);
   const [inputKey, setInputKey] = useState(0);
   const [docType, setDocType] = useState("prescription");
@@ -71,7 +73,10 @@ export function DocumentsTab({ r }: { r: ReferralDetail }) {
         </Typography>
         <Typography variant="body2" color="text.secondary" gutterBottom>
           Supported: {limits?.formats.join(", ")} up to {limits?.max_upload_mb} MB and {limits?.max_pages} pages, {limits?.language} records. Text is
-          read automatically (OCR); then open each paper and check what was read against the original. If the same medicine is already in the records, it is shown once.
+          read automatically (OCR).{" "}
+          {doctor
+            ? "Open each paper and check what was read against the original. If the same medicine is already in the records, it is shown once."
+            : "Upload the papers here; the doctor opens each one and checks what was read. You see each paper's name and status only."}
         </Typography>
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "center" }}>
           <Button variant="outlined" component="label" startIcon={<UploadFile />} disabled={locked}>
@@ -111,9 +116,13 @@ export function DocumentsTab({ r }: { r: ReferralDetail }) {
               {docs.data.map((d) => (
                 <TableRow key={d.id}>
                   <TableCell>
-                    <Link component={RouterLink} to={`/documents/${d.id}`}>
-                      {d.original_filename}
-                    </Link>
+                    {doctor ? (
+                      <Link component={RouterLink} to={`/documents/${d.id}`}>
+                        {d.original_filename}
+                      </Link>
+                    ) : (
+                      <Typography variant="body2">{d.original_filename}</Typography>
+                    )}
                     <Typography variant="caption" display="block" color="text.secondary">
                       {d.detected_type} · {(d.size_bytes / 1024).toFixed(0)} KB
                     </Typography>

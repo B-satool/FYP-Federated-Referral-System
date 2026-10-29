@@ -50,7 +50,8 @@ def interactions_for(db: Session, ingredients: set[str]) -> list[Interaction]:
     rows = db.scalars(select(DrugInteraction).where(DrugInteraction.ingredient_a.in_(ingredients),
                                                     DrugInteraction.ingredient_b.in_(ingredients))
                       .order_by(DrugInteraction.ingredient_a, DrugInteraction.ingredient_b))
-    return [Interaction(r.ingredient_a, r.ingredient_b, r.severity, r.source_ref, r.source_version) for r in rows]
+    return [Interaction(r.ingredient_a, r.ingredient_b, r.severity, r.source_ref, r.source_version,
+                        r.label_quote, r.label_source, r.label_section) for r in rows]
 
 
 def label_rules_for(db: Session, ingredients: set[str]) -> list[LabelRuleIn]:

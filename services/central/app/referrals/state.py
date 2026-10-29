@@ -27,7 +27,9 @@ TEST_STATUS_LABELS = {**STATUS_LABELS, "submitted": "Tests sent", "response_retu
 def status_label(referral: Referral) -> str:
     labels = TEST_STATUS_LABELS if referral.kind == "test" else STATUS_LABELS
     if referral.kind == "referral" and referral.status == "requested":
-        return "Ready to send" if referral.prepared_at else "In progress"
+        if referral.packet_reviewed_at:
+            return "Ready to send"
+        return "With the doctor for review" if referral.prepared_at else "In progress"
     return labels.get(referral.status, referral.status)
 
 
@@ -89,6 +91,8 @@ def mark_clinical_change(db: Session, referral: Referral, actor: str, what: str,
 
     ensure_clinical_edit_allowed(referral)
     bump(referral)
+    if referral.packet_reviewed_at is not None:  # the doctor reviews the changed packet again
+        referral.packet_reviewed_by = referral.packet_reviewed_at = None
     if referral.status in IN_FLIGHT and not referral.amendment_open:
         referral.amendment_open = True
         event(db, referral, "amendment_started", actor, principal.institution_id if principal else None,

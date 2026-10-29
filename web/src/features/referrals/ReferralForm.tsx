@@ -19,6 +19,7 @@ export type FormValues = {
   destination_department: string;
   destination_doctor: string;
   reason: string;
+  consultation_notes: string;
   urgency: string;
   procedure_status: "planned" | "none" | "unknown";
   planned_procedure: string;
@@ -131,7 +132,10 @@ export function ReferralFields({ rd, me, values, onChange, disabled }: {
         <Stack spacing={2}>
           <TextField required label="Reason for referral" multiline minRows={4} value={values.reason} disabled={disabled}
             onChange={(e) => set({ reason: e.target.value })}
-            helperText="What you want the specialist to address, and the key history." />
+            helperText="The headline: what you want the specialist to address." />
+          <TextField label="Consultation notes" multiline minRows={6} value={values.consultation_notes} disabled={disabled}
+            onChange={(e) => set({ consultation_notes: e.target.value })}
+            helperText="Symptoms, history, examination findings and anything else from the consultation. Seen by doctors only, never by staff." />
           <Box>
             <Typography id="urgency-label" variant="body2" color="text.secondary" gutterBottom>
               Urgency

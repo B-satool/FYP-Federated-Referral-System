@@ -1,4 +1,7 @@
 """Records and paper fields: selection, correction, exclusion, manual entry and checking.
+
+Only the doctor sees record content and changes it (decision 2026-10-29). Staff see each record's title,
+source, date and whether it is in the packet.
 Every change is an append-only EvidenceRevision; raw extraction is never overwritten."""
 from __future__ import annotations
 
@@ -15,7 +18,7 @@ from .db import get_db
 from .integration.importer import _parse_time
 from .models import Document, EvidenceItem, EvidenceRevision
 from .referrals.state import ensure_clinical_edit_allowed, mark_clinical_change
-from .security import audit, error, get_principal, load_referral
+from .security import audit, error, get_principal, load_referral, sees_clinical
 from .selection.selection import floor, staff_select
 from .serializers import evidence_out
 from .workflow import after_change
@@ -31,7 +34,7 @@ EDITABLE_FIELDS = {
 
 
 def _load(db: Session, evidence_id: int, principal: Principal, action: str,
-          roles: tuple[str, ...] = ("clinic_staff", "clinician")) -> EvidenceItem:
+          roles: tuple[str, ...] = ("clinician",)) -> EvidenceItem:
     ev = db.get(EvidenceItem, evidence_id)
     if ev is None:
         raise error(404, "not_found", "Evidence not found")
@@ -68,12 +71,15 @@ def list_evidence(referral_id: int, category: str | None = None, include_superse
         stmt = stmt.where(EvidenceItem.category.in_(category.split(",")))
     if not include_superseded:
         stmt = stmt.where(EvidenceItem.superseded_by.is_(None))
-    return [evidence_out(e) for e in db.scalars(stmt.order_by(EvidenceItem.category, EvidenceItem.clinical_time.desc().nulls_last(), EvidenceItem.id))]
+    clinical = sees_clinical(principal)
+    return [evidence_out(e, clinical) for e in db.scalars(stmt.order_by(EvidenceItem.category, EvidenceItem.clinical_time.desc().nulls_last(), EvidenceItem.id))]
 
 
 @router.get("/evidence/{evidence_id}")
 def get_evidence(evidence_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    ev = _load(db, evidence_id, principal, "view")
+    ev = _load(db, evidence_id, principal, "view", roles=("clinic_staff", "clinician"))
+    if not sees_clinical(principal):
+        return {**evidence_out(ev, False), "fhir": None, "revisions": [], "versions": [], "document": None}
     revisions = db.scalars(select(EvidenceRevision).where(EvidenceRevision.evidence_id == ev.id).order_by(EvidenceRevision.id))
     history = []
     if ev.source_record_id:
@@ -99,8 +105,8 @@ class SelectIn(BaseModel):
 @router.post("/evidence/{evidence_id}/select")
 def select_evidence(evidence_id: int, body: SelectIn, db: Session = Depends(get_db),
                     principal: Principal = Depends(get_principal)):
-    """Staff finalise the packet: their choice overrides the default and the AI recommendation."""
-    ev = _load(db, evidence_id, principal, "edit", roles=("clinic_staff",))
+    """The doctor finalises the packet: their choice overrides the default and the AI recommendation."""
+    ev = _load(db, evidence_id, principal, "edit")
     from .models import Referral
     ensure_clinical_edit_allowed(db.get(Referral, ev.referral_id))
     if body.selected and ev.verification_status in ("invalidated", "access_revoked"):
@@ -190,9 +196,9 @@ class VerifyIn(BaseModel):
 
 @router.post("/evidence/{evidence_id}/verify")
 def verify(evidence_id: int, body: VerifyIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    """Checking a field read from a paper against the paper. Staff do this while preparing the
-    referral; a checked medicine joins the current-medicine list."""
-    ev = _load(db, evidence_id, principal, "verify", roles=("clinic_staff", "clinician"))
+    """The doctor checks a field read from a paper against the page image; a checked medicine joins the
+    current-medicine list."""
+    ev = _load(db, evidence_id, principal, "verify")
     if ev.row_version != body.expected_row_version:
         raise error(409, "stale_version", "This field changed since you opened it; reload")
     if ev.origin == "source":
@@ -217,8 +223,8 @@ class ManualIn(BaseModel):
 
 @router.post("/referrals/{referral_id}/evidence/manual", status_code=201)
 def manual_entry(referral_id: int, body: ManualIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    """Manual transcription with an optional source reference; works without OCR (FR-58)."""
-    r = load_referral(db, referral_id, principal, "edit")
+    """Manual transcription by the doctor, with an optional source reference; works without OCR (FR-58)."""
+    r = load_referral(db, referral_id, principal, "edit", roles=("clinician",))
     ensure_clinical_edit_allowed(r)
     bad = set(body.fields) - EDITABLE_FIELDS[body.category]
     if bad:

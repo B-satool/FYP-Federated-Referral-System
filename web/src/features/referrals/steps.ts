@@ -2,8 +2,9 @@ import type { ReferralDetail, RequestKind } from "../../api/types";
 
 /**
  * A request as a journey. Doctors and staff see different steps.
- * Referral: the doctor requests it; staff gather records, papers and medicines and mark it ready;
- * the doctor reviews the medication flags; staff send it; the receiving doctor accepts or declines.
+ * Referral: the doctor requests it; staff retrieve the records and upload papers and mark it ready; the doctor
+ * reviews the clinical content (records, papers, medicines, flags) and marks the packet reviewed; staff send it;
+ * the receiving doctor accepts or declines. Staff never see clinical content (decision 2026-10-29).
  * Test request: the doctor lists the tests; staff send the orders; the results come back.
  * Step keys are also the ?tab= values, so links from notifications open the right step.
  */
@@ -45,7 +46,7 @@ export function layout(role: Role, kind: RequestKind = "referral"): Phase[] {
   return role === "doctor"
     ? [
         { title: "Request", steps: ["request"] },
-        { title: "Review", steps: ["medicines", "summary"] },
+        { title: "Review", steps: ["records", "papers", "medicines", "summary"] },
         { title: "Follow through", steps: ["response"] },
       ]
     : [
@@ -104,24 +105,23 @@ export function computeSteps(r: ReferralDetail, role: Role): Record<StepKey, Ste
       : problems.length ? { state: "attention", note: `${plural(problems.length, "source", "sources")} incomplete` }
       : { state: "done", note: `${retrieved.filter((s) => s.latest!.status === "successful").length} used` };
 
-    const docs = item(r, "documents");
-    out.papers = docs && !docs.ok ? { state: "attention", note: docs.detail } : { state: "optional", note: "From the patient" };
+    const docs = item(r, role === "doctor" ? "documents" : "documents_read");
+    out.papers = docs && !docs.ok && (role !== "doctor" || r.prepared_at)
+      ? { state: "attention", note: docs.detail } : { state: "optional", note: "From the patient" };
 
     const checked = item(r, "meds_checked");
     const doses = item(r, "dose_differences");
     const flags = item(r, "flags");
+    const medsDone = [checked, doses, flags].every((i) => !i || i.ok);
     if (role === "doctor") {
-      out.medicines = !r.prepared_at && !sent ? { state: "later", note: "Staff are gathering them" }
+      out.medicines = !r.prepared_at && !sent ? { state: "later", note: "After staff retrieve the records" }
+        : checked && !checked.ok ? { state: "todo", note: "Confirm with the patient" }
+        : doses && !doses.ok ? { state: "attention", note: "Different doses" }
         : flags && !flags.ok ? { state: "attention", note: flags.detail.replace(/ waiting for .*/, " to review") }
-        : { state: "done", note: "Flags reviewed" };
-    } else if (doses && !doses.ok) {
-      out.medicines = { state: "attention", note: "Different doses" };
-    } else if (checked && !checked.ok) {
-      out.medicines = { state: "todo", note: "Ask the patient" };
-    } else if (flags && !flags.ok && r.prepared_at) {
-      out.medicines = { state: "waiting", note: "Doctor to review flags" };
+        : { state: "done", note: "Checked" };
     } else {
-      out.medicines = { state: "done", note: "Checked" };
+      out.medicines = sent || medsDone ? { state: "done", note: "Checked by the doctor" }
+        : r.prepared_at ? { state: "waiting", note: "Doctor is checking" } : { state: "later", note: "The doctor checks them" };
     }
 
     const todo = (r.readiness ?? []).filter((i) => i.blocking && !i.ok);
@@ -129,7 +129,7 @@ export function computeSteps(r: ReferralDetail, role: Role): Record<StepKey, Ste
       : sent ? { state: "done", note: `Sent v${r.submitted_package_version ?? r.current_package_version}` }
       : r.status === "draft" ? { state: "later", note: "After the request" }
       : !r.prepared_at ? { state: "todo", note: "Mark ready for the doctor" }
-      : todo.length ? { state: "waiting", note: "Doctor to review flags" }
+      : todo.length ? { state: "waiting", note: "Doctor reviewing the packet" }
       : { state: "attention", note: "Ready to send" };
     out.summary = sent ? { state: "done", note: `Sent v${r.submitted_package_version ?? r.current_package_version}` }
       : { state: "optional", note: "What will be sent" };
@@ -181,28 +181,38 @@ export function nextStep(r: ReferralDetail, role: Role): NextStep {
   if (r.status === "cancelled") return { heading: "This request was withdrawn", body: r.cancel_reason ? `Reason: ${r.cancel_reason}` : "", tone: "warn" };
   if (r.kind === "test") return nextForTest(r, role);
   const openInfo = r.clarifications.filter((c) => c.status === "open");
-  if (openInfo.length) return { heading: `${r.destination_name} asks for more information`, body: openInfo[0].question, tab: "response", action: "Answer", tone: "warn" };
+  if (openInfo.length) return role === "doctor"
+    ? { heading: `${r.destination_name} asks for more information`, body: openInfo[0].question, tab: "response", action: "Answer", tone: "warn" }
+    : { heading: `${r.destination_name} asks for more information`, body: "The doctor has been asked to answer.", tab: "response", action: "View progress", tone: "info" };
 
   if (role === "doctor") {
     if (r.status === "draft") return { heading: "Submit the request", body: "Check the form, then submit it. Staff then gather the records and medicines.", tab: "request", action: "Open the request", tone: "info" };
-    if (r.status === "requested" && !r.prepared_at) return { heading: "In progress: staff are gathering the records", body: "They are collecting records, papers and medicines. You will be asked to review the medication flags when they are done.", tab: "summary", action: "See the letter so far", tone: "info" };
-    const flags = item(r, "flags");
-    if (flags && !flags.ok) return { heading: "Review the medication flags", body: "Staff have gathered everything. Review each flag for this patient; staff send the referral once you have.", tab: "medicines", action: "Go to Medicines & flags", tone: "warn" };
+    if (r.status === "requested" && !r.prepared_at) return { heading: "In progress: staff are retrieving the records", body: "They retrieve the records and upload the patient's papers. You are then asked to review everything that goes in the packet.", tab: "records", action: "See the records so far", tone: "info" };
+    if (r.status === "requested" || r.amendment_open) {
+      const order = ["documents", "meds_checked", "dose_differences", "flags"];
+      const todo = order.map((k) => item(r, k)).find((i) => i && !i.ok);
+      if (todo) {
+        const tab = (todo.tab ?? "medicines") as StepKey;
+        return { heading: todo.label, body: todo.detail || "Only you see the clinical content; staff send once you have reviewed the packet.", tab, action: `Go to ${STEP_LABEL[tab]}`, tone: "warn" };
+      }
+      if (!r.packet_reviewed_at) return { heading: "Review the packet", body: "Check the records chosen for the packet and the letter, then mark the packet reviewed. Staff then send it.", tab: "summary", action: "Go to the letter", tone: "warn" };
+    }
     if (r.status === "response_returned") return { heading: "Review the specialist's response", body: "Record that you have seen the outcome. Staff then inform the patient and follow up.", tab: "response", action: "Go to the response", tone: "warn" };
     if (["accepted", "followup_pending"].includes(r.status)) {
       if (!r.patient_informed_at) return { heading: `${r.destination_name} accepted the referral`, body: "Staff tell the patient and record it. Then you or staff can close the referral.", tab: "response", action: "Go to follow-up", tone: "info" };
       return { heading: "Close the referral", body: "The patient has been told. Close the referral once any follow-up tasks have an outcome.", tab: "response", action: "Go to follow-up", tone: "warn" };
     }
-    if (r.status === "requested") return { heading: "Flags reviewed: staff will send it", body: "Staff send the referral with the patient's details; the receiving side confirms the patient when it arrives.", tab: "summary", action: "See the letter", tone: "ok" };
+    if (r.status === "requested") return { heading: "Packet reviewed: staff will send it", body: "Staff send the referral with the patient's details; the receiving side confirms the patient when it arrives.", tab: "summary", action: "See the letter", tone: "ok" };
   } else {
     if (r.amendment_open) return { heading: "Send the new version", body: "Something changed after the referral was sent. Check it and send the new version; the earlier version stays unchanged.", tab: "send", action: "Go to Check & send", tone: "warn" };
     if (r.delivery_status === "failed") return { heading: "Sending failed", body: "Retry the delivery. A retry never creates a duplicate.", tab: "send", action: "Go to Check & send", tone: "warn" };
     if (r.status === "requested") {
       const todo = (r.readiness ?? []).find((i) => i.blocking && !i.ok);
-      if (!todo) return { heading: "Ready to send", body: "Every check is done and the doctor reviewed the flags. Read the letter and send it.", tab: "send", action: "Go to Check & send", tone: "ok" };
-      if (todo.key === "prepared") return { heading: "Mark it ready for the doctor", body: "Records, papers and medicines are done. Mark it ready so the doctor can review the medication flags.", tab: "send", action: "Go to Check & send", tone: "warn" };
+      if (!todo) return { heading: "Ready to send", body: "The doctor has reviewed the packet. Send it.", tab: "send", action: "Go to Check & send", tone: "ok" };
+      if (todo.key === "prepared") return { heading: "Mark it ready for the doctor", body: "The records are retrieved and the papers uploaded. Mark it ready so the doctor can review the packet.", tab: "send", action: "Go to Check & send", tone: "warn" };
+      if (todo.who !== "staff") return { heading: "Waiting for the doctor", body: "The doctor checks the papers, medicines, flags and records, then marks the packet reviewed. You will be told when it is ready to send.", tab: "send", action: "See progress", tone: "info" };
       const tab = (todo.tab === "request" ? "request" : todo.tab ?? "send") as StepKey;
-      return { heading: todo.label, body: todo.detail || (todo.who === "doctor" ? "This needs the doctor." : ""), tab, action: `Go to ${STEP_LABEL[tab]}`, tone: todo.who === "doctor" ? "info" : "warn" };
+      return { heading: todo.label, body: todo.detail, tab, action: `Go to ${STEP_LABEL[tab]}`, tone: "warn" };
     }
     if (["accepted", "response_returned", "followup_pending"].includes(r.status)) {
       if (!r.patient_informed_at) return { heading: "Tell the patient the outcome", body: `${r.destination_name} accepted the referral. Tell the patient and the next steps, then record it.`, tab: "response", action: "Go to follow-up", tone: "warn" };

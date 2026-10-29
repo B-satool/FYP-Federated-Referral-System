@@ -33,7 +33,7 @@ export function Readiness({ r }: { r: ReferralDetail }) {
               : i.ok ? <CheckCircle color="success" titleAccess="Done" /> : <RadioButtonUnchecked titleAccess="Not done" />}
           </ListItemIcon>
           <ListItemText
-            primary={<><span>{i.label}</span>{i.blocking && !i.ok && <Tag tone={i.who === "doctor" ? "info" : "warn"} label={i.who === "doctor" ? "doctor" : "staff"} />}</>}
+            primary={<><span>{i.label}</span>{i.blocking && !i.ok && i.who !== "system" && <Tag tone={i.who === "doctor" ? "info" : "warn"} label={i.who === "doctor" ? "doctor" : "staff"} />}</>}
             secondary={
               <>
                 {i.detail}
@@ -109,6 +109,14 @@ export function SentLetter({ r, version }: { r: ReferralDetail; version: number 
   if (q.isLoading) return <Loading />;
   if (q.error) return <ErrorAlert error={q.error} />;
   const pkg = q.data!;
+  if (pkg.redacted || !pkg.envelope && !pkg.content_purged_at) {
+    return (
+      <Stack spacing={1}>
+        <Alert severity="info">The letter's clinical content is visible to doctors only. Version {version} was sent by {pkg.sent_by}, {fmtDate(pkg.sent_at)}.</Alert>
+        <Typography variant="body2" sx={{ fontFamily: "monospace", fontSize: 12 }}>Fingerprint {pkg.content_hash}</Typography>
+      </Stack>
+    );
+  }
   const verifyButton = (
     <Button variant="outlined" size="small" disabled={verify.isPending} onClick={() => verify.mutate()}>
       Check our clinic's copy against the fingerprint
@@ -136,7 +144,7 @@ export function SentLetter({ r, version }: { r: ReferralDetail; version: number 
   }
   return (
     <Stack spacing={1}>
-      <Letter r={r} env={pkg.envelope} version={version} />
+      <Letter r={r} env={pkg.envelope!} version={version} />
       <Box>{verifyButton}</Box>
       <ErrorAlert error={verify.error} />
       {result}
@@ -188,12 +196,13 @@ function Sent({ r }: { r: ReferralDetail }) {
   );
 }
 
-/** Staff: gather, mark ready for the doctor, then (after the doctor reviews the flags) send. */
+/** Staff: retrieve the records and upload papers, mark it ready for the doctor, then (after the doctor reviews the
+ * packet) send. Staff never see the clinical content (decision 2026-10-29). */
 export function SendTab({ r }: { r: ReferralDetail }) {
   const refresh = useInvalidateReferral(r.id);
   const prepare = useMutation({
     mutationFn: () => api.post(`/referrals/${r.id}/prepared`, { expected_version: r.row_version }),
-    meta: { success: "The doctor has been asked to review the medication flags." },
+    meta: { success: "The doctor has been asked to review the packet." },
     onSuccess: refresh,
   });
   const send = useMutation({
@@ -203,7 +212,7 @@ export function SendTab({ r }: { r: ReferralDetail }) {
   });
   const canSend = r.status === "requested" || r.amendment_open;
   const items = r.readiness ?? [];
-  const staffKeys = ["records", "documents", "meds_checked", "dose_differences", "evaluation"];
+  const staffKeys = ["records", "documents_read"];
   const staffDone = items.filter((i) => staffKeys.includes(i.key)).every((i) => i.ok);
   const ready = items.every((i) => !i.blocking || i.ok);
   const latest = r.packages[0]?.version;
@@ -211,7 +220,7 @@ export function SendTab({ r }: { r: ReferralDetail }) {
     <Stack spacing={2}>
       {canSend && (
         <Section title={r.amendment_open ? "Check and send the new version" : "Before sending"}
-          description="Gather the records, papers and medicines, then mark it ready. The doctor reviews the medication flags; then you send it.">
+          description="Retrieve the records and upload the patient's papers, then mark it ready. The doctor reviews the papers, medicines, flags and records for the packet; then you send it.">
           <Readiness r={r} />
           <ErrorAlert error={prepare.error || send.error} />
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ mt: 1 }}>
@@ -228,28 +237,50 @@ export function SendTab({ r }: { r: ReferralDetail }) {
           </Stack>
           {r.prepared_at && !ready && (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              Marked ready by {r.prepared_by}, {fmtDate(r.prepared_at)}. Sending becomes available once the doctor has reviewed every flag.
+              Marked ready by {r.prepared_by}, {fmtDate(r.prepared_at)}. Sending becomes available once the doctor has reviewed the packet.
             </Typography>
           )}
         </Section>
       )}
       {r.packages.length > 0 && <Sent r={r} />}
       <Section title={latest && !r.amendment_open ? `Referral letter (version ${latest} as sent)` : "What will be sent"}
-        description="Built from the checked records. Medication flags are shown exactly as the approved rules produced them.">
-        {latest && !r.amendment_open ? <SentLetter r={r} version={latest} /> : <LetterPreview r={r} />}
+        description="Built from the records the doctor reviewed. Medication flags are shown exactly as the approved rules produced them.">
+        {latest && !r.amendment_open ? <SentLetter r={r} version={latest} />
+          : <Alert severity="info">The letter's clinical content is visible to doctors only. You send it once the doctor has reviewed the packet.</Alert>}
       </Section>
     </Stack>
   );
 }
 
-/** The doctor's view of the letter (what will be or was sent) and where it stands. */
+/** The doctor's view of the letter (what will be or was sent), where it stands, and the packet review. */
 export function SummaryTab({ r }: { r: ReferralDetail }) {
+  const refresh = useInvalidateReferral(r.id);
+  const review = useMutation({
+    mutationFn: () => api.post(`/referrals/${r.id}/packet-reviewed`, { expected_version: r.row_version }),
+    meta: { success: "Packet reviewed. Staff have been told it is ready to send." },
+    onSuccess: refresh,
+  });
   const latest = r.packages[0]?.version;
+  const preparing = r.status === "requested" || r.amendment_open;
+  const doctorKeys = ["documents", "meds_checked", "dose_differences", "evaluation", "flags"];
+  const doctorDone = (r.readiness ?? []).filter((i) => doctorKeys.includes(i.key)).every((i) => i.ok);
   return (
     <Stack spacing={2}>
-      {r.readiness && r.status === "requested" && (
-        <Section title="Progress before sending" description="Staff prepare and send the referral. Items marked 'doctor' need you.">
+      {r.readiness && preparing && (
+        <Section title="Progress before sending"
+          description="Staff retrieve the records and upload papers. You check the papers, medicines and flags, review the records and this letter, then mark the packet reviewed. Staff then send it.">
           <Readiness r={r} />
+          <ErrorAlert error={review.error} />
+          {r.packet_reviewed_at ? (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              Packet reviewed by {r.packet_reviewed_by}, {fmtDate(r.packet_reviewed_at)}. Any later change to the records or medicines asks you to review it again.
+            </Typography>
+          ) : (
+            <Button variant="contained" size="large" sx={{ mt: 1 }} disabled={!r.prepared_at || !doctorDone || review.isPending}
+              onClick={() => review.mutate()}>
+              Mark the packet reviewed
+            </Button>
+          )}
         </Section>
       )}
       {latest ? <SentLetter r={r} version={latest} /> : <LetterPreview r={r} />}

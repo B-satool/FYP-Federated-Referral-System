@@ -134,7 +134,7 @@ Built on 2026-10-27, at the project lead's request. It is offline and small, and
     words are not loaded.
   - A medicine mapped this way says "Brand from the DRAP product register".
   - **21 names** that DRAP uses for two different medicines (e.g. Glare: gliclazide or ibuprofen) are never guessed.
-    The Medicines tab lists each product with its company and DRAP number, and **doctor or staff** pick. The choice
+    The Medicines tab lists each product with its company and DRAP number, and the **doctor** picks (only doctors see medicines since 2026-10-29). The choice
     is recorded and the flags are checked again.
   - Products DRAP marks as not for human use (veterinary) are left out. 5,434 rows have never had their DRAP page
     fetched, so they could still include some.

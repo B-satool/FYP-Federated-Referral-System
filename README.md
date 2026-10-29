@@ -2,12 +2,11 @@
 ### Referral Preparation and Follow-through Platform (version 2)
 
 A web application for referring a patient from one clinic or hospital in Karachi to a doctor or department at another, or for requesting a test or scan from a laboratory or radiology department elsewhere.
-- **Doctor:** chooses a referral or a test/scan request and fills it in. For a referral, the doctor later reviews the medication flags.
+- **Doctor:** chooses a referral or a test/scan request and fills it in (reason and consultation notes). For a referral, the doctor later **reviews the packet**: checks the papers, confirms the medicines with the patient, decides every flag, reviews the records and the letter. **Only doctors see clinical content**; staff see titles, statuses and counts.
 - **Referring staff:**
   - gather the patient's records from every linked hospital, clinic and laboratory (up to five, most recently visited first)
-  - check the papers the patient brought (OCR)
-  - confirm the current medicines, including over-the-counter ones
-  - mark the referral ready for the doctor, then send it once the doctor has reviewed the flags
+  - upload the papers the patient brought (OCR reads them for the doctor)
+  - mark the referral ready for the doctor, then send it once the doctor has reviewed the packet
   - send test and scan orders
 - **Receiving staff:** take the referral in, confirm the patient (match their record or register them as new) and assign a doctor. Laboratory and radiology staff confirm the patient on orders the same way.
 - **Receiving doctor:** accepts or declines (the requesting doctor is told either way), can keep the shared records longer, and marks the referral complete when finished.
@@ -25,7 +24,9 @@ A web application for referring a patient from one clinic or hospital in Karachi
 | Requirements (SRS) | [`docs/requirements/FYP SRS.pdf`](docs/requirements/FYP%20SRS.pdf) |
 | Development roadmap | [`docs/requirements/FYP Development Roadmap.pdf`](docs/requirements/FYP%20Development%20Roadmap.pdf) |
 | Seed patients (5 synthetic Karachi patients) and their expected results | [`seed-data/README.md`](seed-data/README.md) |
-| How it is built: boundaries, roles, flows, data lifecycle, AI and privacy | [`docs/architecture.md`](docs/architecture.md) |
+| **Software Design Specification** (full, versioned design; regenerated from the code) | [`docs/sds/SDS.md`](docs/sds/SDS.md) |
+| Short architecture overview: boundaries, roles, flows, data lifecycle, AI and privacy | [`docs/architecture.md`](docs/architecture.md) |
+| SRS evaluation report | [`docs/srs-evaluation-report.md`](docs/srs-evaluation-report.md) |
 | Every decision, with its reasons and approval status | [`docs/decisions/`](docs/decisions/) |
 | Supervisor demo script (25 min) | [`docs/demo-script.md`](docs/demo-script.md) |
 | Tests: how to run and what they cover | [`docs/testing.md`](docs/testing.md) |
@@ -106,8 +107,8 @@ Open **http://localhost:3000**, click **Sign in with your institution account**,
 
 | Username | Person | Institution, department | What they do |
 |---|---|---|---|
-| `dr.ali` | Dr Ali Raza | Dr Ali's Clinic, General practice | **Doctor**: makes referrals and test requests, reviews medication flags, sees results, closes the referral |
-| `staff.ali` | Hina Raza | Dr Ali's Clinic | **Staff**: retrieves records, checks papers and medicines, sends referrals and test orders, follow-up; takes in referrals sent to the clinic |
+| `dr.ali` | Dr Ali Raza | Dr Ali's Clinic, General practice | **Doctor**: makes referrals and test requests, reviews the packet (papers, medicines, flags, records, letter), sees results, closes the referral |
+| `staff.ali` | Hina Raza | Dr Ali's Clinic | **Staff**: retrieves records, uploads papers, sends referrals and test orders, tells the patient, closes; takes in referrals sent to the clinic. Sees titles and statuses, not clinical content |
 | `tech.ali` | Bilal Ahmed | Dr Ali's Clinic, in-clinic tests (ECG) | Test orders done at the clinic |
 | `admin.ali` | Adeel Shah | Dr Ali's Clinic | Administrator: accounts and roles, record sharing, audit (no patient records) |
 | `dr.asma` | Dr Asma Rauf | Ziauddin, Cardiology | Accepts or declines cardiology referrals and marks them complete; can also refer |
@@ -174,13 +175,16 @@ Each seed patient has a referral scenario in [`seed-data/README.md`](seed-data/R
 
 1. **Dr Ali** (`dr.ali`): **Work queue** → **New request** → **Refer to a doctor or department** → find *Imtiaz* → Aga Khan University Hospital, General Surgery → reason → **A procedure is planned** → type *Laparoscopic cholecystectomy* (the features it involves tick themselves; correct them if needed) → **Submit request**. It now shows **In progress**; Medicines & flags says staff are still gathering.
 2. **Hina** (`staff.ali`) opens it from her **Work queue**:
-   - **Records** → **Retrieve records** (own clinic, Ziauddin, Chughtai Lab). The last 6 months are ticked by default; older records are offered. If the patient says he was seen elsewhere, **Ask for records** there.
-   - **Papers** → upload `seed-data/documents/P5_prescription_cardiology_2025-06-18.jpg`. Open it and confirm each medicine against the photo; each one merges with the clinic's record.
-   - **Medicines & flags** → **Add a medicine** (e.g. Panadol, over the counter; or *Glare*, which asks which company's product it is) → **I asked the patient about all their medicines**.
+   - **Records** → **Retrieve records** (own clinic, Ziauddin, Chughtai Lab). She sees each record's title, source and date only. If the patient says he was seen elsewhere, **Ask for records** there.
+   - **Papers** → upload `seed-data/documents/P5_prescription_cardiology_2025-06-18.jpg`.
    - **Check & send** → **Ready for the doctor's review**.
-3. **Dr Ali**: **Medicines & flags** → **Mark as reviewed** on the 4 flags (aspirin and clopidogrel before surgery, insulin and metformin around fasting).
-4. **Hina**: **Check & send** → read the referral letter → **Send to Aga Khan University Hospital**. It carries his name, date of birth, sex and CNIC; Aga Khan has not been asked anything before this.
-5. **Mariam** (`staff.aku`): **Incoming referrals** → open it → **Acknowledge receipt** → **Confirm the patient** (he is not registered there: write how you checked → **Register as a new patient**) → **Assign to doctor**: Dr Naveed Baig → **Assign**. Dr Ali's Clinic is told he was registered as new.
+3. **Dr Ali** reviews the packet:
+   - **Papers**: confirm each medicine read from the photo; each merges with the clinic's record.
+   - **Medicines & flags**: **Add a medicine** (e.g. Panadol, over the counter; or *Glare*, which asks which company's product it is) → **I asked the patient about all their medicines** → decide each flag (aspirin and clopidogrel before surgery, insulin and metformin around fasting, plus DDInter and label flags).
+   - **Records**: the last 6 months are ticked; tick or untick others.
+   - Read the letter → **Mark the packet reviewed**.
+4. **Hina**: **Check & send** → **Send to Aga Khan University Hospital**. It carries his name, date of birth, sex and CNIC; Aga Khan has not been asked anything before this.
+5. **Mariam** (`staff.aku`): **Incoming referrals** → open it (she sees who, from where, the urgency and the record titles) → **Acknowledge receipt** → **Confirm the patient** (he is not registered there: write how you checked → **Register as a new patient**) → **Assign to doctor**: Dr Naveed Baig → **Assign**. Dr Ali's Clinic is told he was registered as new.
 6. **Dr Naveed** (`dr.naveed`): **Incoming referrals** (only referrals assigned to him) → **Accept referral**. The **Shared records** panel shows they are kept 30 days (**Keep for another 30 days** if needed). When finished: **Mark as complete**; the shared records are removed 72 hours later.
 7. **Hina**: **Outcome & follow-up** → **Record that the patient was told** → add any task. **Dr Ali** (or Hina): **Close referral**. **History** shows every step.
 
@@ -209,7 +213,7 @@ python -m venv .venv
 .\.venv\Scripts\python -m pytest tests -q
 
 # Medication-rule logic, interactions, label rules, the extraction validator, AI selection checks, grant expiry,
-# working-set timing, manifests, role templates, DRAP brand matching, model providers, privacy and Vision OCR. Expect: 130 passed
+# working-set timing, manifests, role templates, DRAP brand matching, model providers, privacy, Vision OCR and staff views. Expect: 136 passed
 docker compose run --rm --no-deps -v ${PWD}/services/central/tests:/srv/tests central python -m pytest tests -q
 
 # Browser robot: the referral and test-request journeys across 7 accounts, and an administrator changing a role

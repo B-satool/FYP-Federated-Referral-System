@@ -72,6 +72,16 @@ Ported from `architecture-spec-v3.md` and `data-lifecycle.patch` (both written f
 | AI model and privacy | Gemma 4 through Ollama (`gemma4:cloud`) for packet selection and paper reading. Input always de-identified; external models only with `LLM_EXTERNAL_ALLOWED=true` and https; every call audited. Needs Ollama credits to run. | [cloud-model-privacy](decisions/2026-10-28-cloud-model-privacy.md) |
 | Handwriting | Google Cloud Vision reads handwritten prescriptions (`OCR_ENGINE=google_vision`), falling back to Tesseract. Needs a key. | [handwriting-ocr](decisions/2026-10-28-handwriting-ocr.md) |
 
+## 1e. Doctor-only clinical content (2026-10-29, Sumaiya)
+
+| Change | Decision |
+|---|---|
+| **Only doctors see clinical content.** Staff and administrators see titles, sources, dates, statuses and counts. Staff retrieve records, upload papers, mark ready, send, tell the patient and close. | [doctor-only-clinical-content](decisions/2026-10-29-doctor-only-clinical-content.md), AGENTS.md rule 12 |
+| **The doctor reviews the packet:** checks papers, confirms medicines (and picks ambiguous brands), decides flags, reviews the ticked records and the letter, then **Mark the packet reviewed**. A later clinical change clears the review. | same |
+| **Consultation notes** under the reason, in the letter, the package and (de-identified) the AI input. | same |
+| **Interaction flags quote the US drug label** sentence naming both drugs, when one exists (37 of 342 pairs). | same |
+| **Software Design Specification** (`docs/sds/`), regenerated from the code and versioned with every change; an SRS evaluation report (`docs/srs-evaluation-report.md`). | AGENTS.md |
+
 ## 2. Decisions the team made
 
 1. **Who refers:** any clinic or hospital can refer to any department of another hospital.

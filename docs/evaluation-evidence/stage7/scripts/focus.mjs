@@ -1,0 +1,20 @@
+import { createRequire } from "module"; import path from "path";
+const [webDir] = process.argv.slice(2);
+const { chromium } = createRequire(path.join(webDir, "package.json"))("@playwright/test");
+const BASE = "http://localhost:3000", PW = process.env.DEMO_USER_PASSWORD;
+const b = await chromium.launch({ channel: "chromium" }); const p = await (await b.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
+const st = () => p.evaluate(() => { const e = document.activeElement, c = getComputedStyle(e); return { text: (e.innerText || "").slice(0, 28), bg: c.backgroundColor, outline: `${c.outlineStyle} ${c.outlineWidth} ${c.outlineColor}`, shadow: c.boxShadow, border: c.borderColor }; });
+await p.goto(BASE + "/"); await p.waitForTimeout(1500);
+const btn = p.getByRole("button", { name: /sign in/i });
+const before = await btn.evaluate((e) => { const c = getComputedStyle(e); return { bg: c.backgroundColor, outline: c.outlineStyle, shadow: c.boxShadow }; });
+await p.keyboard.press("Tab"); await p.keyboard.press("Tab");
+console.log("[F1] sign-in button unfocused:", JSON.stringify(before), "\n     keyboard-focused:", JSON.stringify(await st()));
+await btn.click(); await p.locator("#username").fill("dr.malik"); await p.locator("#password").fill(PW); await p.locator("#kc-login").click();
+await p.getByRole("button", { name: "Sign out" }).waitFor({ timeout: 60000 });
+await p.goto(BASE + "/referrals/5"); await p.waitForTimeout(2500);
+const seen = new Map();
+for (let i = 0; i < 60; i++) { await p.keyboard.press("Tab"); const s = await st(); const key = s.text; if (!seen.has(key)) seen.set(key, s); }
+const rows = [...seen.values()];
+const noIndicator = rows.filter((r) => r.outline.startsWith("none") && r.shadow === "none");
+console.log(`[F2] referral workspace: ${rows.length} distinct focus stops; ${noIndicator.length} with neither outline nor box-shadow:`, JSON.stringify(noIndicator.slice(0, 8).map((r) => r.text)));
+await b.close();

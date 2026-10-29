@@ -35,7 +35,7 @@ from ..models import EvidenceItem, Referral, SelectionRun
 from ..security import audit
 
 log = logging.getLogger("selection")
-PROMPT_VERSION = "packet-selection/2"  # 2: de-identified input
+PROMPT_VERSION = "packet-selection/3"  # 2: de-identified input; 3: the doctor's consultation notes
 MAX_ITEMS = 150  # cap sent to the model; older non-default items are dropped first and the cut is reported
 DATED = {"visit", "lab", "lab_report", "imaging"}
 INACTIVE = {"resolved", "inactive", "remission", "entered-in-error", "refuted"}
@@ -43,7 +43,7 @@ INACTIVE = {"resolved", "inactive", "remission", "entered-in-error", "refuted"}
 # commands such as "stop" or "start taking" are caught by ADVICE.
 DOSING = re.compile(r"\b(doses?|dosage|dosing|titrat\w*|adjust\w*)\b", re.I)
 
-SYSTEM = """You help prepare a medical referral. You are given the referral (reason, department, planned procedure)
+SYSTEM = """You help prepare a medical referral. You are given the referral (reason, the doctor's consultation notes, department, planned procedure)
 and the records retrieved for the patient (de-identified: the patient's age and sex, and each record's date as days
 before the referral). Recommend which records the receiving specialist needs.
 
@@ -134,7 +134,9 @@ def _payload(r: Referral, items: list[EvidenceItem]) -> dict:
     scrub = privacy.Scrubber(r.patient_name, [r.patient_cnic, r.patient_local_id, r.reference], on)
     return {
         "patient": {"age_years": privacy.age_years(r.patient_birth_date, on), "sex": r.patient_sex},
-        "referral": {"kind": r.kind, "reason": scrub.text(r.reason), "department": department_name(r.destination_department),
+        "referral": {"kind": r.kind, "reason": scrub.text(r.reason),
+                     "consultation_notes": scrub.text((r.consultation_notes or "")[:2000]) or None,
+                     "department": department_name(r.destination_department),
                      "planned_procedure": scrub.text(r.planned_procedure) if r.procedure_status == "planned" else None,
                      "procedure_status": r.procedure_status, "urgency": r.urgency},
         "records": [{"id": e.id, "category": e.category, "when": scrub.when(e.clinical_time),
@@ -213,6 +215,8 @@ def recommend(db: Session, r: Referral, actor: str, principal=None,
         run.status, run.error = "rejected", f"{type(exc).__name__}: {exc}"[:500]
     else:
         run.status, run.missing = "completed", missing
+        if r.packet_reviewed_at is not None:  # the AI changed what is ticked after the doctor reviewed it
+            r.packet_reviewed_by = r.packet_reviewed_at = None
         db.flush()
         db.refresh(r)  # a local model can take minutes: the working set may have been removed meanwhile
         if r.working_set_purged_at is not None:

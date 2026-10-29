@@ -125,7 +125,7 @@
           "setting": "Clinic visit",
           "doctor": "Dr Ali",
           "reason": "Blood pressure review",
-          "summary": "Older than 6 months, should not appear in the automatic selection."
+          "summary": "BP 138/86. Advised low-salt diet and regular walking. Recheck in 3 months."
         }
       ],
       "medications": [

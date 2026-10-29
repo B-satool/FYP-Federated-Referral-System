@@ -20,7 +20,7 @@ OPEN = ("requested", "submitted", "acknowledged", "accepted", "response_returned
 
 
 def _ref(r: Referral, **extra) -> dict:
-    return {**referral_out(r), **extra}
+    return {**referral_out(r, False), **extra}  # queue rows never carry clinical content
 
 
 @router.get("/work-queue")
@@ -46,7 +46,7 @@ def work_queue(db: Session = Depends(get_db), principal: Principal = Depends(get
             if resp:
                 out["responses_to_review"].append(_ref(r, specialist_name=resp.specialist_name, received_at=resp.received_at))
         ids = [r.id for r in mine]
-        out["results_to_see"] = [{**diagnostic_out(d), "referral_reference": next(x.reference for x in mine if x.id == d.referral_id),
+        out["results_to_see"] = [{**diagnostic_out(d, False), "referral_reference": next(x.reference for x in mine if x.id == d.referral_id),
                                   "patient_name": next(x.patient_name for x in mine if x.id == d.referral_id)}
                                  for d in db.scalars(select(DiagnosticRequest).where(
                                      DiagnosticRequest.referral_id.in_(ids), DiagnosticRequest.status == "reported",
@@ -68,7 +68,7 @@ def work_queue(db: Session = Depends(get_db), principal: Principal = Depends(get
                                                                               PatientLink.kind == "records",
                                                                               PatientLink.status == "requested"))]
         ref_ids = {r.id: r for r in referrals if r.status != "draft"}
-        out["tests_to_send"] = [{**diagnostic_out(d), "referral_reference": ref_ids[d.referral_id].reference,
+        out["tests_to_send"] = [{**diagnostic_out(d, False), "referral_reference": ref_ids[d.referral_id].reference,
                                  "patient_name": ref_ids[d.referral_id].patient_name}
                                 for d in db.scalars(select(DiagnosticRequest).where(
                                     DiagnosticRequest.referral_id.in_(list(ref_ids)),

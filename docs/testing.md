@@ -1,4 +1,4 @@
-# Testing (version 2, as of 2026-10-28)
+# Testing (version 2, as of 2026-10-29)
 
 ## How to run
 
@@ -36,15 +36,18 @@ Dr Naveed) stay untouched.
 | `tests/test_referral_expiry.py` | Accept → 30-day limit → extend → mark complete → 72 h → removal on the platform and at the hospital; decline removes straight away |
 | `tests/test_drap_brands.py` | A DRAP brand maps and is checked against DDInter; an ambiguous name is chosen by company (staff and doctor); a wrong choice is refused |
 | `services/central/tests` (unit) | Evaluator and flags; mapping and DRAP register names; AI suggestions never change flags; AI selection validation and application; model providers (Anthropic, Ollama local and cloud, OpenAI-compatible) against fake servers; de-identification and the external-model switch; Google Vision against a fake server; grant expiry and close-out; working-set timing; manifests; role templates |
-| `web/e2e/smoke.spec.ts` | Referral across seven accounts (prepare, review flags, send, intake, accept, mark complete, tell the patient, the doctor closes); test request with an MRI image |
+| `web/e2e/smoke.spec.ts` | Referral across seven accounts (staff retrieve and upload, the doctor confirms medicines, decides flags and marks the packet reviewed, staff send, intake, accept, mark complete, tell the patient, the doctor closes); test request with an MRI image |
 | `web/e2e/admin.spec.ts` | An administrator changes a role; the menu follows on the next sign-in |
 
-## Latest results (2026-10-28)
+## Latest results (2026-10-29, after merging the doctor-only change)
 
-- Unit: **130 passed**
+- Unit: **136 passed**
 - API: **22 passed**
-- Browser: **3 passed**
-- Type check and build: clean
+- Browser: the administrator and test-request journeys pass. On an 8 GB Windows laptop the referral journey can fail
+  at its 4th browser sign-in with `ERR_CONNECTION_RESET`: Docker Desktop's port forwarding stalls when memory runs
+  out (plain loads of `localhost:3000` timed out while it ran). Close other programs or restart Docker Desktop
+  (`wsl --shutdown`), then run it again.
+- Type check and build: clean.
 
 ## Not covered by automatic tests
 

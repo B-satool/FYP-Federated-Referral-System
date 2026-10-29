@@ -27,7 +27,7 @@ from ..models import DiagnosticRequest, EvidenceItem, Outbox, Referral
 from ..notifications import notify_doctor, notify_staff
 from ..referrals.router import DiagnosticIn, add_diagnostic, validate_diagnostic
 from ..referrals.state import event, transition
-from ..security import DOCTOR, STAFF, audit, error, get_principal, load_referral
+from ..security import DOCTOR, STAFF, audit, error, get_principal, load_referral, sees_clinical
 from ..sending.packages import intake_details
 from ..serializers import diagnostic_out
 from ..tasks import enqueue
@@ -56,7 +56,7 @@ def _orders(db: Session, r: Referral) -> list[DiagnosticRequest]:
 @router.get("/referrals/{referral_id}/diagnostics")
 def list_requests(referral_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     r = load_referral(db, referral_id, principal, "view")
-    return [diagnostic_out(d) for d in db.scalars(select(DiagnosticRequest).where(DiagnosticRequest.referral_id == r.id)
+    return [diagnostic_out(d, sees_clinical(principal)) for d in db.scalars(select(DiagnosticRequest).where(DiagnosticRequest.referral_id == r.id)
                                                   .order_by(DiagnosticRequest.id))]
 
 
@@ -72,7 +72,7 @@ def add_request(referral_id: int, body: DiagnosticIn, db: Session = Depends(get_
     dx = add_diagnostic(db, r, body, principal)
     audit(db, principal, "diagnostic.add", "diagnostic_request", dx.reference, "success", r.id, {"test": dx.test})
     db.commit()
-    return diagnostic_out(dx)
+    return diagnostic_out(dx, sees_clinical(principal))
 
 
 @router.post("/diagnostics/{dx_id}/send")
@@ -107,7 +107,7 @@ def send_request(dx_id: int, db: Session = Depends(get_db), principal: Principal
         notify_doctor(db, r, "tests_sent", f"{r.reference}: tests sent", r.patient_name, tab="tests")
     db.commit()
     enqueue("deliver_outbox")
-    return diagnostic_out(dx)
+    return diagnostic_out(dx, sees_clinical(principal))
 
 
 class CancelIn(BaseModel):
@@ -125,7 +125,7 @@ def cancel_request(dx_id: int, body: CancelIn, db: Session = Depends(get_db), pr
     audit(db, principal, "diagnostic.cancel", "diagnostic_request", dx.reference, "success", r.id, {"reason": body.reason})
     _check_complete(db, r, principal.display_name, principal.institution_id)
     db.commit()
-    return diagnostic_out(dx)
+    return diagnostic_out(dx, sees_clinical(principal))
 
 
 @router.post("/diagnostics/{dx_id}/seen")
@@ -141,13 +141,13 @@ def mark_seen(dx_id: int, db: Session = Depends(get_db), principal: Principal = 
             notify_staff(db, r, "results_seen", f"{r.reference}: doctor has seen the results",
                          "Tell the patient and close the request.", tab="tests")
         db.commit()
-    return diagnostic_out(dx)
+    return diagnostic_out(dx, sees_clinical(principal))
 
 
 @router.get("/diagnostics/{dx_id}/attachments/{n}")
 def attachment(dx_id: int, n: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     """An image or file returned with the report."""
-    dx, r = _load(db, dx_id, principal, "view_result")
+    dx, r = _load(db, dx_id, principal, "view_result", roles=(DOCTOR,))  # results are clinical: doctors only
     item = next((a for a in dx.attachments or [] if a.get("n") == n), None)
     if item is None:
         raise error(404, "not_found", "Attachment not found")

@@ -10,7 +10,7 @@ DOCTOR, STAFF = central("dr.ali"), central("staff.ali")
 
 
 def _meds(rid: int) -> dict:
-    return ok(STAFF.get(f"/referrals/{rid}/medications"))
+    return ok(DOCTOR.get(f"/referrals/{rid}/medications"))
 
 
 def _entry(rid: int, name: str) -> dict:
@@ -22,7 +22,7 @@ def test_register_brand_and_choosing_an_ambiguous_one_by_company():
     rid = r["id"]
     ok(STAFF.post(f"/referrals/{rid}/retrieve"))
     for name in ("Coagurin 5 mg", "Glare 400 mg", "Lofen 50 mg"):
-        ok(STAFF.post(f"/referrals/{rid}/medications/manual", {"name": name, "frequency": "once daily"}), 201)
+        ok(DOCTOR.post(f"/referrals/{rid}/medications/manual", {"name": name, "frequency": "once daily"}), 201)
 
     coagurin = _entry(rid, "Coagurin")
     assert coagurin["ingredient"] == "warfarin" and "DRAP" in coagurin["mapping_note"]
@@ -36,21 +36,23 @@ def test_register_brand_and_choosing_an_ambiguous_one_by_company():
 
     # a product that is not one of the options is refused
     bad = {**options["ibuprofen"], "company": "Some Other Pharma"}
-    assert STAFF.post(f"/referrals/{rid}/medications/{glare['id']}/mapping",
+    assert DOCTOR.post(f"/referrals/{rid}/medications/{glare['id']}/mapping",
                       {"ingredient": "ibuprofen", "company": bad["company"], "drap_reg_no": bad["drap_reg_no"]}).status_code == 422
 
-    # staff pick by the company on the pack; the flags are checked again
+    # the doctor picks by the company on the pack (staff cannot: decision 2026-10-29); the flags are checked again
     c = options["ibuprofen"]
-    ok(STAFF.post(f"/referrals/{rid}/medications/{glare['id']}/mapping",
+    assert STAFF.post(f"/referrals/{rid}/medications/{glare['id']}/mapping",
+                      {"ingredient": "ibuprofen", "company": c["company"], "drap_reg_no": c["drap_reg_no"]}).status_code == 403
+    ok(DOCTOR.post(f"/referrals/{rid}/medications/{glare['id']}/mapping",
                   {"ingredient": "ibuprofen", "company": c["company"], "drap_reg_no": c["drap_reg_no"]}))
     glare = _entry(rid, "Glare")
     assert glare["mapping_status"] == "staff_mapped" and glare["ingredient"] == "ibuprofen"
-    assert c["company"] in glare["mapping_note"] and "Hina Raza" in glare["mapping_note"]
+    assert c["company"] in glare["mapping_note"] and "Dr Ali Raza" in glare["mapping_note"]
     flags = _meds(rid)["flags"]
     assert any(f["kind"] == "interaction" and set(f["ingredients"]) == {"ibuprofen", "warfarin"} for f in flags)
     assert not any(f["kind"] == "unrecognised_medicine" and "Glare" in f["title"] for f in flags)
 
-    # the doctor can choose too
+    # a second ambiguous brand
     lofen = _entry(rid, "Lofen")
     d = next(x for x in lofen["mapping_choices"] if x["ingredient"] == "diclofenac")
     ok(DOCTOR.post(f"/referrals/{rid}/medications/{lofen['id']}/mapping",

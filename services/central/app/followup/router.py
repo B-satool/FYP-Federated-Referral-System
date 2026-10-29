@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Clarification, ConsultationResponse, DiagnosticRequest, FollowupTask, Outbox
 from ..referrals.state import TERMINAL, event, transition
-from ..security import DOCTOR, STAFF, audit, check_version, error, get_principal, load_referral
+from ..security import DOCTOR, STAFF, audit, check_version, error, get_principal, load_referral, sees_clinical
 from ..serializers import referral_out, response_out, task_out
 from ..tasks import enqueue
 
@@ -25,7 +25,7 @@ router = APIRouter(tags=["response and follow-through"])
 
 @router.get("/referrals/{referral_id}/responses")
 def responses(referral_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    r = load_referral(db, referral_id, principal, "view")
+    r = load_referral(db, referral_id, principal, "view", roles=(DOCTOR,))  # the response is clinical: doctors only
     return [response_out(x) for x in db.scalars(select(ConsultationResponse).where(ConsultationResponse.referral_id == r.id)
                                                 .order_by(ConsultationResponse.id))]
 
@@ -47,7 +47,7 @@ def review_response(response_id: int, body: ReviewIn, db: Session = Depends(get_
         transition(db, r, "followup_pending", principal.display_name, principal)
     audit(db, principal, "response.review", "consultation_response", resp.id, "success", r.id)
     db.commit()
-    return {"response": response_out(resp), "referral": referral_out(r)}
+    return {"response": response_out(resp), "referral": referral_out(r, sees_clinical(principal))}
 
 
 class AnswerIn(BaseModel):
@@ -60,7 +60,7 @@ def answer(clarification_id: int, body: AnswerIn, db: Session = Depends(get_db),
     c = db.get(Clarification, clarification_id)
     if c is None:
         raise error(404, "not_found", "Request not found")
-    r = load_referral(db, c.referral_id, principal, "answer_info_request")
+    r = load_referral(db, c.referral_id, principal, "answer_info_request", roles=(DOCTOR,))  # a clinical answer
     if c.status != "open":
         raise error(409, "already_answered", "This request has already been answered")
     c.answer, c.answered_by, c.answered_at, c.status = body.answer.strip(), principal.display_name, utcnow(), "answered"
@@ -91,7 +91,7 @@ def patient_informed(referral_id: int, body: InformedIn, db: Session = Depends(g
     event(db, r, "patient_informed", principal.display_name, principal.institution_id, {"note": body.note})
     audit(db, principal, "referral.patient_informed", "referral", r.reference, "success", r.id)
     db.commit()
-    return referral_out(r)
+    return referral_out(r, sees_clinical(principal))
 
 
 class TaskIn(BaseModel):
@@ -168,4 +168,4 @@ def close(referral_id: int, body: CloseIn, db: Session = Depends(get_db), princi
     r.closed_at, r.closed_by = utcnow(), principal.display_name
     transition(db, r, "closed", principal.display_name, principal)
     db.commit()
-    return referral_out(r)
+    return referral_out(r, sees_clinical(principal))

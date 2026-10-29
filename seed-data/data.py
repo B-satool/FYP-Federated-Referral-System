@@ -88,7 +88,7 @@ PATIENTS = [
                     visit("2026-10-14", "Clinic visit", "Dr Ali", "Review of tooth pain after dentist visit", "Third pericoronitis episode since July. Referred for surgical opinion. BP 132/84."),
                     visit("2026-09-12", "Clinic visit", "Dr Ali", "Toothache and facial swelling", "Pericoronitis, lower left. Augmentin 5 days. Advised dental review."),
                     visit("2026-07-18", "Clinic visit", "Dr Ali", "Diabetes and blood pressure review", "Stable. Continue medicines."),
-                    visit("2026-02-10", "Clinic visit", "Dr Ali", "Routine review", "Older than 6 months, should not appear in the automatic selection."),
+                    visit("2026-02-10", "Clinic visit", "Dr Ali", "Routine review", "Diabetes and blood pressure stable. HbA1c due. Continue current medicines."),
                 ],
                 "medications": [
                     med("Alendronate 70 mg tablet", "alendronic acid", "70 mg", "once weekly", "2022-03-01", brand="Fosamax", prescriber="Dr Ali", note="Taken on an empty stomach on Sundays"),
@@ -276,7 +276,7 @@ PATIENTS = [
                     visit("2026-10-15", "Clinic visit", "Dr Ali", "Knee pain review", "Pain 8 out of 10 on walking. Painkillers not controlling. Referral to orthopaedics."),
                     visit("2026-07-22", "Private orthopaedic clinic, Karachi (outside)", "Dr Naveed Qureshi", "Right knee pain", "Advised diclofenac, physiotherapy, weight loss. Prescription brought by patient."),
                     visit("2026-07-02", "Clinic visit", "Dr Ali", "Tiredness and joint pain", "Mild anaemia on blood test. Advised iron."),
-                    visit("2026-01-20", "Clinic visit", "Dr Ali", "Blood pressure review", "Older than 6 months, should not appear in the automatic selection."),
+                    visit("2026-01-20", "Clinic visit", "Dr Ali", "Blood pressure review", "BP 138/86. Advised low-salt diet and regular walking. Recheck in 3 months."),
                 ],
                 "medications": [
                     med("Diclofenac sodium 50 mg tablet", "diclofenac", "50 mg", "twice daily after food", "2026-07-22", brand="Voltral", prescriber="Dr Naveed Qureshi", note="From the outside orthopaedic prescription"),

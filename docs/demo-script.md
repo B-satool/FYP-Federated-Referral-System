@@ -11,39 +11,42 @@
 
 Each step names the SRS requirement it shows.
 
-## 1. The doctor asks, staff prepare (8 min)
+## 1. The doctor asks, staff gather (5 min)
 
 1. **Dr Ali**: **Work queue** → **New request** → **Refer to a doctor or department**.
    - Patient *Imtiaz Ali Soomro*; Aga Khan University Hospital, General Surgery; urgency *Routine*.
-   - Reason; **A procedure is planned**: *Laparoscopic cholecystectomy*. Point out that its features tick themselves
+   - Reason (the headline) and consultation notes; **A procedure is planned**: *Laparoscopic cholecystectomy*. Point out that its features tick themselves
      (surgery, anaesthesia, fasting, bleeding risk). FR-11, FR-12.
    - **Submit request**. The Medicines tab says staff are still gathering.
 2. **Hina**: open it from her **Work queue**.
    - **Records** → **Retrieve records**. Show where each record came from (own clinic, Ziauddin, Chughtai Lab) and
-     the "held until the referral is finished" note.
-   - The **default selection**: the last 6 months are ticked, older records are offered but unticked. Staff decide.
-     FR-16, FR-21.
-   - **Papers** → upload `seed-data/documents/P5_prescription_cardiology_2025-06-18.jpg`, open it, and confirm the
-     medicines against the photo. Each merges with the clinic's record. FR-22 to FR-28.
+     the "held until the referral is finished" note. FR-16, FR-21.
+   - Point out that **Hina sees titles only** ("Lab result", "Medicine", "Diagnosis"), never values: only doctors
+     see clinical content (AGENTS.md rule 12).
+   - **Papers** → upload `seed-data/documents/P5_prescription_cardiology_2025-06-18.jpg`. FR-22, FR-24.
+   - **Check & send** → **Ready for the doctor's review**.
+
+## 2. The doctor reviews the packet (7 min)
+
+3. **Dr Ali**:
+   - **Papers**: open the photo and confirm each medicine read from it. Each merges with the clinic's record.
+     FR-25 to FR-28.
    - **Medicines & flags** → **Add a medicine**: *Panadol*, over the counter. Then add *Glare 80 mg*: it asks
      "Which Glare is it?" and lists gliclazide (Mass Pharma) and ibuprofen (Shrooq). Pick one; the flags are checked
-     again. FR-33, FR-62.
-   - **I asked the patient about all their medicines** → **Check & send** → **Ready for the doctor's review**.
-
-## 2. The doctor reviews the flags (4 min)
-
-3. **Dr Ali**: **Medicines & flags**.
+     again. FR-33, FR-62. Then **I asked the patient about all their medicines**.
+   - **Records**: the last 6 months are ticked by default and older records are offered. The doctor decides.
    - Rule flags: aspirin and clopidogrel before surgery; insulin and metformin around fasting.
    - DDInter interactions and drug-label warnings, each with its source and quote.
    - Mark each **Reviewed**, **Ignore** (with a note) or **Research**.
    - Say: a decision means "seen", never a treatment change; the model can never create or hide a flag.
      FR-61 to FR-71.
+   - Read the letter → **Mark the packet reviewed**. Any later change to records or medicines asks for a new review.
 
 ## 3. Send and receive (6 min)
 
 4. **Hina**: **Check & send** → read the referral letter → **Send to Aga Khan University Hospital**. It carries the
    name, date of birth, sex and CNIC, and a fingerprint (SHA-256) is stored. FR-47 to FR-49.
-5. **Mariam** (`staff.aku`): **Incoming referrals** → open it:
+5. **Mariam** (`staff.aku`): **Incoming referrals** → open it (she sees who, from where, the urgency and record titles):
    - **Acknowledge receipt**;
    - **Confirm the patient**: he is new there, so write how you checked and **Register as a new patient**;
    - **Assign** Dr Naveed Baig.

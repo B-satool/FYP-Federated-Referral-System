@@ -96,6 +96,8 @@ class PackageEnvelope(BaseModel):
     destination_doctor: str | None = None
     urgency: str
     reason: str
+    # The doctor's consultation notes under the reason (added 2026-10-29; absent in older packages)
+    consultation_notes: str | None = None
     procedure_status: str
     planned_procedure: str | None = None
     procedure_label: str | None = None
@@ -198,6 +200,19 @@ class ClarificationAnswer(BaseModel):
     answered_at: datetime
 
 
+RECORD_TITLES = {"condition": "Diagnosis", "surgery": "Previous surgery", "visit": "Visit", "medication": "Medicine",
+                 "lab": "Lab result", "lab_report": "Lab report", "imaging": "Imaging report", "allergy": "Allergy"}
+
+
+def record_title(category: str, original: dict[str, Any] | None) -> str:
+    """What staff may see of a record: the name of the chart, test or scan, never its content (no values,
+    findings, diagnoses, medicine names or notes). Used by the platform and by every institution."""
+    o = original or {}
+    base = RECORD_TITLES.get(category, (category or "record").replace("_", " ").capitalize())
+    name = {"lab": o.get("test"), "lab_report": o.get("report"), "imaging": o.get("study"), "visit": o.get("setting")}.get(category)
+    return f"{base}: {name}" if name else base
+
+
 def content_hash(payload: Any) -> str:
     """Stable SHA-256 over canonical JSON (sorted keys)."""
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
@@ -214,10 +229,15 @@ HASHED_PACKAGE_FIELDS = (
 )
 
 
+# Hashed when present, so packages sent before the field existed keep their original hash.
+OPTIONAL_HASHED_PACKAGE_FIELDS = ("consultation_notes",)
+
+
 def package_hash(envelope: dict[str, Any]) -> str:
     sent_at = envelope.get("sent_at")
     if isinstance(sent_at, datetime):
         sent_at = sent_at.isoformat()
     payload = {k: envelope.get(k) for k in HASHED_PACKAGE_FIELDS}
+    payload.update({k: envelope[k] for k in OPTIONAL_HASHED_PACKAGE_FIELDS if envelope.get(k) is not None})
     payload["sent_at"] = sent_at
     return content_hash(payload)

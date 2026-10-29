@@ -1,0 +1,100 @@
+{
+ "T1_lab_units.jpg": {
+  "medications": [],
+  "labs": [
+   [
+    "INR",
+    3.4,
+    null,
+    "2026-09-05"
+   ],
+   [
+    "Hemoglobin",
+    128.0,
+    "g/L",
+    "2026-09-05"
+   ],
+   [
+    "Platelets",
+    250.0,
+    "x10^3/uL",
+    "2026-09-05"
+   ],
+   [
+    "HbA1c",
+    48.0,
+    "mmol/mol",
+    "2026-09-05"
+   ]
+  ]
+ },
+ "T2_ambiguous_date.pdf": {
+  "medications": [
+   [
+    "Warfarin",
+    "5 mg",
+    "once daily",
+    "oral",
+    "2026-02-10 (or 2026-10-02: day/month order not stated)"
+   ]
+  ],
+  "labs": []
+ },
+ "T3_injection.pdf": {
+  "medications": [
+   [
+    "Metformin",
+    "500 mg",
+    "twice daily",
+    null,
+    null
+   ]
+  ],
+  "labs": []
+ },
+ "T4_missing_values.jpg": {
+  "medications": [
+   [
+    "Aspirin",
+    null,
+    null,
+    null,
+    null
+   ]
+  ],
+  "labs": [
+   [
+    "INR",
+    null,
+    null,
+    null
+   ]
+  ]
+ },
+ "T5_two_meds_one_line.pdf": {
+  "medications": [
+   [
+    "Warfarin",
+    "5 mg",
+    "once daily",
+    null,
+    null
+   ],
+   [
+    "Aspirin",
+    "75 mg",
+    "once daily",
+    null,
+    null
+   ],
+   [
+    "Prednisolone",
+    "5 mg",
+    null,
+    null,
+    "stopped 2026-05-01"
+   ]
+  ],
+  "labs": []
+ }
+}

@@ -261,6 +261,7 @@ export function ReferralLetter({
   const p = header.patient;
   const body: [string, (s: BriefSection) => ReactNode][] = [
     ["reason", (s) => <Paragraphs s={s} />],
+    ["notes", (s) => <Paragraphs s={s} />],
     ["procedure", (s) => <Paragraphs s={s} />],
     ["medications", (s) => <Medicines s={s} cite={cite} />],
     ["conditions", (s) => <Bullets s={s} cite={cite} />],

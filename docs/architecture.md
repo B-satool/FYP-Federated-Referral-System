@@ -1,4 +1,6 @@
-# Architecture (version 2, as of 2026-10-28)
+# Architecture (version 2, as of 2026-10-29)
+
+> **The full, versioned design is the [Software Design Specification](sds/SDS.md).** This page is a shorter overview.
 
 How the platform is built and the rules it keeps. Why things changed since v1 is in [v2-changes.md](v2-changes.md),
 and each decision is recorded in [decisions/](decisions/). Items marked **(provisional)** are defaults chosen so the
@@ -25,8 +27,11 @@ only `central_db` credentials. Redis is only the job queue.
 - **Token checks:** every service verifies the JWT and its own audience, then introspects the token, cached for 10 s.
   A disabled account stops working within seconds. Central also checks its own `users.account_status`.
 - **Roles:**
-  - `clinician`: referring or receiving doctor.
-  - `clinic_staff`: prepares and sends; takes referrals in.
+  - `clinician`: referring or receiving doctor. **The only role that sees clinical content** (AGENTS.md rule 12,
+    [decision](decisions/2026-10-29-doctor-only-clinical-content.md)).
+  - `clinic_staff`: retrieves records, uploads papers, sends, tells the patient, closes; takes referrals in. Sees
+    titles, sources, dates, statuses and counts only, never values, diagnoses, medicines, flags, papers or the letter.
+    This is enforced by the serializers' staff views and doctor-only endpoints.
   - `diagnostics_staff`: laboratory, radiology and ECG.
   - `institution_admin`: accounts, roles, record sharing and audit, but no clinical records.
   - `rule_reviewer`: medication rules and medicine names.
@@ -49,9 +54,9 @@ only `central_db` credentials. Redis is only the job queue.
 ## 3. The flows
 
 ### Referral (`REF-…`)
-1. **Request:** the doctor fills in the form: destination hospital and department (optionally a doctor), reason,
-   urgency, and the procedure in their own words with the features it involves (surgery, anaesthesia, contrast,
-   bleeding risk …).
+1. **Request:** the doctor fills in the form: destination hospital and department (optionally a doctor), reason (the
+   headline), consultation notes, urgency, and the procedure in their own words with the features it involves
+   (surgery, anaesthesia, contrast, bleeding risk …).
 2. **Linking:** staff ask other institutions to confirm the patient (records request). Linking is never done on
    matching names or IDs, and only `verified` links are used.
 3. **Retrieval** (`integration/retrieval.py`):
@@ -65,16 +70,21 @@ only `central_db` credentials. Redis is only the job queue.
      last 6 months of visits, results and imaging.
    - A model, if configured, may recommend adding records, with a reason. It never removes a default item, and
      records it leaves out are listed under "Not included".
-   - **Staff decide.** Every choice is recorded.
-5. **Papers** (`documents/processing.py`): OCR with Tesseract (printed text) or Google Cloud Vision (also handwriting).
-   Medicine and lab fields are proposed, and staff check each against the page image.
+   - **The doctor decides** while reviewing the packet. Every choice is recorded. Staff see the records by title only.
+5. **Papers** (`documents/processing.py`): staff upload them. OCR uses Tesseract (printed text) or Google Cloud Vision
+   (also handwriting). Medicine and lab fields are proposed, and **the doctor** checks each against the page image.
 6. **Medicines and flags:** see §4.
-7. **Ready → review → send:**
-   - Staff mark it ready, the doctor reviews every flag (Reviewed, Ignore or Research), and staff send.
+7. **Ready → doctor's packet review → send:**
+   - Staff mark it ready.
+   - The doctor checks the papers, confirms the medicines with the patient, decides every flag (Reviewed, Ignore or
+     Research), reviews the ticked records and the letter, and marks the **packet reviewed**. A later clinical change
+     clears the review.
+   - Staff send.
    - The package (`sending/packages.py`) gets a SHA-256 fingerprint and a manifest. It is delivered to the receiving
      institution, and a copy goes to the sending clinic's own system.
 8. **Receiving side:**
-   - Staff acknowledge it, confirm the patient on arrival (match or register as new) and assign a doctor.
+   - Intake staff acknowledge it, confirm the patient on arrival (match or register as new) and assign a doctor. They
+     see who, from where, the urgency and the record titles only; the assigned doctor sees the referral.
    - The doctor **accepts or declines** (with a reason) and can ask questions. There is **no written response**
      ([decision](decisions/2026-10-28-no-specialist-response.md)).
    - The requesting doctor and staff are notified.
@@ -100,7 +110,7 @@ a new version is sent and the earlier one stays unchanged.
   - **Hand-checked names** (`rules/terminology/medicine-names.pk.json`, `brands`) match anywhere in what was written.
   - **DRAP register brands** (`register_brands`, about 5,000) match only at the **start** of the written name. Short
     names and ordinary words are not loaded, and the hand-checked list wins.
-  - Names DRAP uses for two medicines (e.g. Glare) are never guessed: doctor or staff pick the product by company.
+  - Names DRAP uses for two medicines (e.g. Glare) are never guessed: the doctor picks the product by company.
   - An unrecognised medicine is flagged and never treated as safe.
 - **Flags** come only from the deterministic evaluator (`evaluator.py`):
   - reviewer-approved procedure rules (drug class × procedure feature);
@@ -158,6 +168,8 @@ Details and coverage figures are in [medication-flagging.md](medication-flagging
   or "safe".
 - **Audit:** every access, retrieval, link change, correction, decision, delivery, role change, removal and model call
   is recorded with actor, institution, action, target, time and outcome.
+- **Only doctors see clinical content** (rule 12): staff and administrators get titles, statuses and counts; the
+  doctor reviews the packet before staff send.
 
 ## 8. Module ownership (three members)
 

@@ -1,0 +1,47 @@
+{
+  "generated_at": "2026-10-25T17:25:54.862061+00:00",
+  "target": "http://central:8000",
+  "users": 10,
+  "seconds": 60.0,
+  "requests": 1890,
+  "http_errors": 0,
+  "transport_errors": [],
+  "throughput_rps": 31.5,
+  "p50_ms": 239,
+  "p95_ms": 533,
+  "max_ms": 1343,
+  "target_p95_ms": 2000,
+  "meets_target": true,
+  "by_operation": {
+    "evidence": {
+      "n": 315,
+      "p50_ms": 181,
+      "p95_ms": 330
+    },
+    "list referrals": {
+      "n": 315,
+      "p50_ms": 167,
+      "p95_ms": 278
+    },
+    "medications": {
+      "n": 315,
+      "p50_ms": 241,
+      "p95_ms": 387
+    },
+    "open referral": {
+      "n": 315,
+      "p50_ms": 358,
+      "p95_ms": 531
+    },
+    "save draft": {
+      "n": 315,
+      "p50_ms": 450,
+      "p95_ms": 660
+    },
+    "work queue": {
+      "n": 315,
+      "p50_ms": 251,
+      "p95_ms": 397
+    }
+  }
+}

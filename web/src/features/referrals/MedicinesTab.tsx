@@ -103,7 +103,7 @@ function MatchDialog({ referralId, entry, onClose, onDone }: { referralId: numbe
   );
 }
 
-/** A DRAP brand registered for different products: doctor or staff pick the one on the pack, by company. */
+/** A DRAP brand registered for different products: the doctor picks the one on the pack, by company. */
 function ChooseProduct({ referralId, entry, onDone }: { referralId: number; entry: MedicationEntry; onDone: () => void }) {
   const choose = useMutation({
     mutationFn: (c: NonNullable<MedicationEntry["mapping_choices"]>[number]) =>
@@ -284,14 +284,29 @@ export function MedicinesTab({ r, role }: { r: ReferralDetail; role: Role }) {
   if (q.error) return <ErrorAlert error={q.error} />;
   const v = q.data!;
   const locked = LOCKED.includes(r.status);
-  const staff = role === "staff";
-  // the doctor reviews flags once staff have gathered everything
+  // only the doctor sees and changes the medicine list and flags (decision 2026-10-29)
+  const editor = role === "doctor";
+  if (v.redacted) {
+    return (
+      <Section title="Medicines and flags" description="The doctor confirms the medicine list with the patient and reviews the medication flags. You see the progress only.">
+        <Stack spacing={1}>
+          <Typography variant="body2">{v.medicine_count ?? 0} current medicine(s) on the list.</Typography>
+          <Typography variant="body2">
+            {v.flag_count ?? 0} medication flag(s){v.flags_awaiting_doctor ? `, ${v.flags_awaiting_doctor} waiting for the doctor's decision` : ""}.
+          </Typography>
+          {v.meds_checked.at
+            ? <Tag tone="ok" label={`Medicine list confirmed by ${v.meds_checked.by}, ${fmtDate(v.meds_checked.at)}`} />
+            : <Tag tone="wait" label="The doctor has not confirmed the medicine list yet" />}
+        </Stack>
+      </Section>
+    );
+  }
   const gathering = !r.prepared_at && r.status === "requested";
-  if (role === "doctor" && gathering) {
+  if (editor && gathering) {
     return (
       <Alert severity="info">
-        Staff are still gathering the records, papers and medicines for this referral. You will be notified when the medication flags are ready for you
-        to review.
+        Staff are still retrieving the records and uploading the patient's papers. You will be notified when the referral is ready for you to check
+        the medicines and review the flags.
       </Alert>
     );
   }
@@ -303,7 +318,7 @@ export function MedicinesTab({ r, role }: { r: ReferralDetail; role: Role }) {
       <Section
         title={`Current medicines (${reps.length})`}
         description="Only medicines the patient takes now. The same medicine from different places is shown once, with every place that records it."
-        actions={!locked && staff && (
+        actions={!locked && editor && (
           <Button variant="outlined" startIcon={<Add />} onClick={() => setAdding(true)}>
             Add a medicine
           </Button>
@@ -355,10 +370,10 @@ export function MedicinesTab({ r, role }: { r: ReferralDetail; role: Role }) {
                     ))}
                   </TableCell>
                   <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
-                    {!locked && staff && ["unmapped", "ambiguous"].includes(m.mapping_status) && (
+                    {!locked && editor && ["unmapped", "ambiguous"].includes(m.mapping_status) && (
                       <Button size="small" onClick={() => setMatching(m)}>Match</Button>
                     )}
-                    {!locked && staff && (
+                    {!locked && editor && (
                       <Button size="small" onClick={() => setExcluding(m)}>Not current</Button>
                     )}
                   </TableCell>
@@ -382,7 +397,7 @@ export function MedicinesTab({ r, role }: { r: ReferralDetail; role: Role }) {
                 <Typography variant="body2">
                   {m.original_name} ({m.source_label}): {m.excluded_reason}, by {m.excluded_by}
                 </Typography>
-                {!locked && staff && <Button size="small" onClick={() => act.mutate({ path: `/referrals/${r.id}/medications/${m.id}/restore` })}>Restore</Button>}
+                {!locked && editor && <Button size="small" onClick={() => act.mutate({ path: `/referrals/${r.id}/medications/${m.id}/restore` })}>Restore</Button>}
               </Stack>
             ))}
           </details>
@@ -390,21 +405,19 @@ export function MedicinesTab({ r, role }: { r: ReferralDetail; role: Role }) {
         <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "center" }} sx={{ mt: 2 }}>
           {v.meds_checked.at ? (
             <Tag tone="ok" label={`Patient asked about all medicines: ${v.meds_checked.by}, ${fmtDate(v.meds_checked.at)}`} />
-          ) : role === "staff" && !locked ? (
+          ) : editor && !locked ? (
             <Button variant="contained" onClick={() => act.mutate({ path: `/referrals/${r.id}/medications/checked`, body: { note: "" } })}>
               I asked the patient about all their medicines
             </Button>
           ) : (
-            <Tag tone="wait" label="Staff have not yet confirmed the list with the patient" />
+            <Tag tone="wait" label="The medicine list has not been confirmed with the patient yet" />
           )}
         </Stack>
       </Section>
 
       <Section
         title="Medication flags"
-        description={staff
-          ? "Checked automatically against approved rules, drug interactions (DDInter) and US drug labels. The doctor reviews them once you mark the referral ready (Check & send)."
-          : "Checked automatically against approved rules, drug interactions (DDInter) and US drug labels. Flags under 'Needs your decision' must each be marked before staff can send; the others are for reading."}
+        description="Checked automatically against approved rules, drug interactions (DDInter) and US drug labels. Flags under 'Needs your decision' must each be marked before you can mark the packet reviewed; the others are for reading."
       >
         <ErrorAlert error={ack.error} />
         {v.evaluation && (
@@ -428,7 +441,7 @@ export function MedicinesTab({ r, role }: { r: ReferralDetail; role: Role }) {
                     actions={role === "doctor" && !a && !locked ? (
                       <DecisionButtons busy={ack.isPending} onDecide={(decision, note) => ack.mutate({ id: f.id, version: f.version, decision, note })} />
                     ) : undefined}
-                    footer={staff && !a && f.requires_decision ? <Tag tone="wait" label={gathering ? "The doctor reviews this after you mark the referral ready" : `Waiting for ${r.requesting_doctor_name} to review`} /> : undefined} />
+                    footer={undefined} />
                 );
               }} />
           ))}

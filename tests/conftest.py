@@ -50,6 +50,17 @@ def new_referral(patient_name: str, dest: str, dept: str, procedure: str | None,
     return ok(central(user).post("/referrals", body), 201)
 
 
+def doctor_review(rid: int, user: str = "dr.ali") -> dict:
+    """The doctor's part once staff marked the referral ready (decision 2026-10-29): confirm the medicine list,
+    decide on every flag, then mark the packet reviewed so staff can send it."""
+    doctor = central(user)
+    ok(doctor.post(f"/referrals/{rid}/medications/checked", {"note": "Asked about all medicines"}))
+    for f in ok(doctor.get(f"/referrals/{rid}/medications"))["flags"]:
+        ok(doctor.post(f"/referrals/{rid}/flags/{f['id']}/acknowledge", {"flag_version": f["version"]}))
+    version = ok(doctor.get(f"/referrals/{rid}"))["row_version"]
+    return ok(doctor.post(f"/referrals/{rid}/packet-reviewed", {"expected_version": version}))
+
+
 def new_test_request(patient_name: str, tests: list[dict], *, user: str = "dr.ali") -> dict:
     p = find_patient(patient_name, user)
     body = {"kind": "test", "patient_local_id": p["local_patient_id"], "reason": "Synthetic test request",

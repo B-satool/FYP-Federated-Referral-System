@@ -26,8 +26,8 @@ from ..models import Clarification, DiagnosticRequest, Referral, ReferralEvent, 
 from ..notifications import notify_staff
 from ..selection import selection
 from ..tasks import enqueue
-from ..security import CLINIC_ROLES, DOCTOR, audit, bump, check_version, error, get_principal, load_referral, require_roles
-from ..serializers import diagnostic_out, link_summary, referral_out, retrieval_out
+from ..security import CLINIC_ROLES, DOCTOR, audit, bump, check_version, error, get_principal, load_referral, require_roles, sees_clinical
+from ..serializers import HIDDEN, diagnostic_out, link_summary, referral_out, retrieval_out
 from ..workflow import after_change
 from .state import CLINICAL_LOCKED, IN_FLIGHT, PRE_SUBMISSION, TERMINAL, mark_clinical_change, transition
 
@@ -53,6 +53,7 @@ class ReferralForm(BaseModel):
     destination_department: str | None = None
     destination_doctor: str | None = None
     reason: str = ""
+    consultation_notes: str = Field("", max_length=20000)
     urgency: str = "routine"
     procedure_status: str = "unknown"
     planned_procedure: str | None = None
@@ -156,7 +157,7 @@ def create_referral(body: ReferralForm, db: Session = Depends(get_db), principal
         destination_institution=body.destination_institution if is_referral else None,
         destination_department=body.destination_department if is_referral else None,
         destination_doctor=(body.destination_doctor or None) if is_referral else None,
-        reason=body.reason.strip(), urgency=body.urgency,
+        reason=body.reason.strip(), consultation_notes=body.consultation_notes.strip(), urgency=body.urgency,
         procedure_status=body.procedure_status if is_referral else "none",
         planned_procedure=planned, procedure_tags=tags,
     )
@@ -171,7 +172,7 @@ def create_referral(body: ReferralForm, db: Session = Depends(get_db), principal
     if body.submit:
         _submit(db, r, principal)
     db.commit()
-    return referral_out(r)
+    return referral_out(r, sees_clinical(principal))
 
 
 @router.get("/referrals")
@@ -204,7 +205,7 @@ def list_referrals(patient: str | None = None, reference: str | None = None, sta
         stmt = stmt.where(Referral.status != "draft")  # a doctor's unsubmitted draft is the doctor's own
     rows = db.scalars(stmt.order_by(Referral.updated_at.desc()).limit(limit)).all()
     tests = test_destinations(db, [r.id for r in rows if r.kind == "test"])
-    return [{**referral_out(r), "test_destinations": tests.get(r.id, [])} for r in rows]
+    return [{**referral_out(r, sees_clinical(principal)), "test_destinations": tests.get(r.id, [])} for r in rows]
 
 
 def test_destinations(db: Session, referral_ids: list[int]) -> dict[int, list[dict]]:
@@ -260,17 +261,18 @@ def get_referral(referral_id: int, db: Session = Depends(get_db), principal: Pri
                           .order_by(ReferralPackage.version.desc())).all()
     dxs = db.scalars(select(DiagnosticRequest).where(DiagnosticRequest.referral_id == r.id).order_by(DiagnosticRequest.id))
     clars = db.scalars(select(Clarification).where(Clarification.referral_id == r.id).order_by(Clarification.id))
+    clinical = sees_clinical(principal)
     out = {
-        **referral_out(r),
+        **referral_out(r, sees_clinical(principal)),
         "sources": source_overview(db, r),
-        "readiness": readiness(db, r) if r.status in PRE_SUBMISSION or r.amendment_open else None,
+        "readiness": readiness(db, r, clinical) if r.status in PRE_SUBMISSION or r.amendment_open else None,
         "packages": [{"version": p.version, "sent_by": p.sent_by, "sent_at": p.sent_at, "content_hash": p.content_hash,
                       "superseded": p.superseded, "delivery_key": p.delivery_key} for p in packages],
         "links": [link_summary(x) for x in links_for(db, r.patient_institution, r.patient_local_id)],
-        "diagnostics": [diagnostic_out(d) for d in dxs],
-        "clarifications": [{"id": c.id, "question": c.question, "asked_by": c.asked_by, "asked_at": c.asked_at,
-                            "status": c.status, "answer": c.answer, "answered_by": c.answered_by,
-                            "answered_at": c.answered_at} for c in clars],
+        "diagnostics": [diagnostic_out(d, sees_clinical(principal)) for d in dxs],
+        "clarifications": [{"id": c.id, "question": c.question if clinical else HIDDEN, "asked_by": c.asked_by,
+                            "asked_at": c.asked_at, "status": c.status, "answer": c.answer if clinical else None,
+                            "answered_by": c.answered_by, "answered_at": c.answered_at} for c in clars],
     }
     db.commit()
     return out
@@ -298,12 +300,12 @@ def update_referral(referral_id: int, body: ReferralUpdate, db: Session = Depend
         raise error(409, "destination_locked", "The destination cannot change after the referral was sent; cancel and refer again")
     planned, tags = _procedure(body)
     changes = {}
-    for field in ("source_department", "destination_department", "destination_doctor", "reason", "urgency",
+    for field in ("source_department", "destination_department", "destination_doctor", "reason", "consultation_notes", "urgency",
                   "procedure_status", "planned_procedure", "procedure_tags", "destination_institution"):
         new = {"planned_procedure": planned, "procedure_tags": tags}.get(field, getattr(body, field))
         if isinstance(new, str):
             new = new.strip() or None
-        if field == "reason":
+        if field in ("reason", "consultation_notes"):
             new = new or ""
         if new != getattr(r, field):
             changes[field] = [getattr(r, field), new]
@@ -319,7 +321,7 @@ def update_referral(referral_id: int, body: ReferralUpdate, db: Session = Depend
     elif changes:
         after_change(db, r, "referral_updated", principal)
     db.commit()
-    return referral_out(r)
+    return referral_out(r, sees_clinical(principal))
 
 
 class VersionIn(BaseModel):
@@ -338,7 +340,7 @@ def submit_request(referral_id: int, body: VersionIn, db: Session = Depends(get_
         raise error(422, "tests_required", "Add at least one test or scan")
     _submit(db, r, principal)
     db.commit()
-    return referral_out(r)
+    return referral_out(r, sees_clinical(principal))
 
 
 class LinkRequestIn(BaseModel):
@@ -389,7 +391,10 @@ def _start_recommendation(db: Session, r: Referral, principal: Principal) -> boo
 def selection_status(referral_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     r = load_referral(db, referral_id, principal, "view")
     snap = selection.snapshot(db, r)
-    return {"run": selection.run_out(selection.latest_run(db, r)), "counts": snap["counts"],
+    run = selection.run_out(selection.latest_run(db, r))
+    if run and not sees_clinical(principal):
+        run["missing"] = []  # what the AI thought was missing is clinical
+    return {"run": run, "counts": snap["counts"],
             "llm_configured": settings.llm_configured, "prompt_version": selection.PROMPT_VERSION}
 
 
@@ -427,7 +432,7 @@ def cancel(referral_id: int, body: CancelIn, db: Session = Depends(get_db), prin
     r.cancel_reason = body.reason.strip()
     transition(db, r, "cancelled", principal.display_name, principal, {"reason": r.cancel_reason})
     db.commit()
-    return referral_out(r)
+    return referral_out(r, sees_clinical(principal))
 
 
 @router.get("/referrals/{referral_id}/events")

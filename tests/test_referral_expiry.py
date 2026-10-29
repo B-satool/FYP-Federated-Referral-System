@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from conftest import SURGERY, compose, new_referral
+from conftest import SURGERY, compose, doctor_review, new_referral
 from helpers import central, institution, ok, wait_for
 
 DOCTOR, STAFF = central("dr.ali"), central("staff.ali")
@@ -25,10 +25,8 @@ def _send(patient: str) -> dict:
     r = new_referral(patient, "akuh", "orthopaedics", "Total knee replacement (right)", SURGERY)
     rid = r["id"]
     ok(STAFF.post(f"/referrals/{rid}/retrieve"))
-    ok(STAFF.post(f"/referrals/{rid}/medications/checked", {"note": "Asked"}))
     ok(STAFF.post(f"/referrals/{rid}/prepared", {"expected_version": _ref(rid)["row_version"]}))
-    for f in ok(DOCTOR.get(f"/referrals/{rid}/medications"))["flags"]:
-        ok(DOCTOR.post(f"/referrals/{rid}/flags/{f['id']}/acknowledge", {"flag_version": f["version"]}))
+    doctor_review(rid)
     ok(STAFF.post(f"/referrals/{rid}/send", {"expected_version": _ref(rid)["row_version"]}))
     wait_for(lambda: _ref(rid)["status"] == "submitted", 60, what="delivery")
     return _ref(rid)

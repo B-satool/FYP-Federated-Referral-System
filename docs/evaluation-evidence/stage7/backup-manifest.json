@@ -1,0 +1,44 @@
+{
+    "created_utc":  "20261025T171141Z",
+    "git_commit":  "015ac1092d548030c106cd64bd4c812817892a45",
+    "migration_revision":  {
+                               "specialist_db":  "36047832955f",
+                               "clinic_db":  "c112edec8980",
+                               "lab_db":  "862fea1ab169",
+                               "central_db":  "e5b46b8a47c9"
+                           },
+    "seed_version":  "synthetic-seed/1.0",
+    "rule_approvals":  "",
+    "files":  [
+                  {
+                      "sha256":  "534419798E937464FB7AAB2AA8D723F0321856E83A57F12B921D3AADC610B67C",
+                      "name":  "central_db.dump",
+                      "bytes":  288020
+                  },
+                  {
+                      "sha256":  "6886321ADA2F8E18FD511C2A3442189847FDB7E5D3E93996CDFBE2987F8D518F",
+                      "name":  "clinic_db.dump",
+                      "bytes":  22731
+                  },
+                  {
+                      "sha256":  "95184A7A310A8CB37A570D07872F23D91C660204D2AC7146F4885BFE80E552E0",
+                      "name":  "documents.tgz",
+                      "bytes":  28391173
+                  },
+                  {
+                      "sha256":  "65827175B18A68CDC767323436E2B5001CE08CCA1C9F023109EC084C9FEC8EED",
+                      "name":  "keycloak.dump",
+                      "bytes":  216102
+                  },
+                  {
+                      "sha256":  "B1B1542740204A4C1477A477D5367FB10E4017CAE608FFB037997B80164E6A66",
+                      "name":  "lab_db.dump",
+                      "bytes":  19039
+                  },
+                  {
+                      "sha256":  "FC0727F7B6D43914664BE27782C5B6CC85F8608A4C0991A50B140600F8C1B223",
+                      "name":  "specialist_db.dump",
+                      "bytes":  47345
+                  }
+              ]
+}

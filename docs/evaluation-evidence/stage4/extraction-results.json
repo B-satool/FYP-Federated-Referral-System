@@ -1,0 +1,1139 @@
+{
+ "truncated.jpg": {
+  "id": 2,
+  "status": "failed",
+  "error": "Text extraction failed: cannot identify image file '/data/documents/60075ecd65144305ae7261ae8ac402f5.jpg'",
+  "run": {
+   "status": "failed",
+   "extractor": null,
+   "extractor_version": null,
+   "text_source": null,
+   "ocr_engine": null,
+   "ocr_engine_version": null,
+   "notes": [],
+   "error": "Text extraction failed: cannot identify image file '/data/documents/60075ecd65144305ae7261ae8ac402f5.jpg'"
+  },
+  "fields": [],
+  "keys": [
+   "document",
+   "extraction",
+   "fields",
+   "jobs"
+  ]
+ },
+ "unreadable_scan.png": {
+  "id": 3,
+  "status": "unreadable",
+  "error": "No readable text was found. Upload a clearer copy or transcribe manually with a page reference.",
+  "run": {
+   "status": "completed",
+   "extractor": "none",
+   "extractor_version": null,
+   "text_source": "ocr",
+   "ocr_engine": "tesseract",
+   "ocr_engine_version": "5.5.0",
+   "notes": [
+    "No readable text was found. Upload a clearer copy or transcribe manually with a page reference."
+   ],
+   "error": null
+  },
+  "fields": [],
+  "keys": [
+   "document",
+   "extraction",
+   "fields",
+   "jobs"
+  ]
+ },
+ "dev01_prescription.jpg": {
+  "id": 4,
+  "status": "extracted",
+  "error": null,
+  "run": {
+   "status": "completed",
+   "extractor": "rules",
+   "extractor_version": "rules-extractor/1",
+   "text_source": "ocr",
+   "ocr_engine": "tesseract",
+   "ocr_engine_version": "5.5.0",
+   "notes": [],
+   "error": null
+  },
+  "fields": [
+   {
+    "id": 60,
+    "category": "medication",
+    "display": "Clopidogrel 75 mg - 75 mg once daily (uploaded document)",
+    "original": {
+     "medication": "Clopidogrel 75 mg",
+     "record_kind": "document",
+     "strength": "75 mg",
+     "dosage_text": "75 mg once daily",
+     "route": null,
+     "frequency": "once daily",
+     "start": "2026-08-12",
+     "status": null
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "Clopidogrel 75 mg tablet once daily",
+    "clinical_time": "2026-08-12T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 94.5,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   },
+   {
+    "id": 61,
+    "category": "medication",
+    "display": "Metformin 500 mg - 500 mg once daily (uploaded document)",
+    "original": {
+     "medication": "Metformin 500 mg",
+     "record_kind": "document",
+     "strength": "500 mg",
+     "dosage_text": "500 mg once daily",
+     "route": null,
+     "frequency": "once daily",
+     "start": "2026-08-12",
+     "status": null
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "Metformin 500 mg tablet twice daily",
+    "clinical_time": "2026-08-12T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 95.5,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   },
+   {
+    "id": 62,
+    "category": "lab",
+    "display": "Platelets: 210.0 10*9/L (uploaded document)",
+    "original": {
+     "test": "Platelets",
+     "coding": [
+      {
+       "system": "http://loinc.org",
+       "code": "777-3"
+      }
+     ],
+     "value": 210.0,
+     "unit": "10*9/L",
+     "collected": "2026-08-10",
+     "status": "document"
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "Platelets 210 on 10/08/2026",
+    "clinical_time": "2026-08-10T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 94.5,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   }
+  ],
+  "keys": [
+   "document",
+   "extraction",
+   "fields",
+   "jobs"
+  ]
+ },
+ "dev02_labslip.jpg": {
+  "id": 5,
+  "status": "extracted",
+  "error": null,
+  "run": {
+   "status": "completed",
+   "extractor": "rules",
+   "extractor_version": "rules-extractor/1",
+   "text_source": "ocr",
+   "ocr_engine": "tesseract",
+   "ocr_engine_version": "5.5.0",
+   "notes": [],
+   "error": null
+  },
+  "fields": [
+   {
+    "id": 63,
+    "category": "lab",
+    "display": "INR: 3.1 {INR} (uploaded document)",
+    "original": {
+     "test": "INR",
+     "coding": [
+      {
+       "system": "http://loinc.org",
+       "code": "6301-6"
+      }
+     ],
+     "value": 3.1,
+     "unit": "{INR}",
+     "collected": "2026-07-03",
+     "status": "document"
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "INR 3.1",
+    "clinical_time": "2026-07-03T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 73.0,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   },
+   {
+    "id": 64,
+    "category": "lab",
+    "display": "Hemoglobin: 11.8 g/dL (uploaded document)",
+    "original": {
+     "test": "Hemoglobin",
+     "coding": [
+      {
+       "system": "http://loinc.org",
+       "code": "718-7"
+      }
+     ],
+     "value": 11.8,
+     "unit": "g/dL",
+     "collected": "2026-07-03",
+     "status": "document"
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "Hemoglobin 11.8 g/dL",
+    "clinical_time": "2026-07-03T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 93.7,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   },
+   {
+    "id": 65,
+    "category": "lab",
+    "display": "HbA1c: 6.9 % (uploaded document)",
+    "original": {
+     "test": "HbA1c",
+     "coding": [
+      {
+       "system": "http://loinc.org",
+       "code": "4548-4"
+      }
+     ],
+     "value": 6.9,
+     "unit": "%",
+     "collected": "2026-07-03",
+     "status": "document"
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "HbA1c 6.9 %",
+    "clinical_time": "2026-07-03T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 78.7,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   }
+  ],
+  "keys": [
+   "document",
+   "extraction",
+   "fields",
+   "jobs"
+  ]
+ },
+ "dev03_note.jpg": {
+  "id": 6,
+  "status": "extracted",
+  "error": null,
+  "run": {
+   "status": "completed",
+   "extractor": "rules",
+   "extractor_version": "rules-extractor/1",
+   "text_source": "ocr",
+   "ocr_engine": "tesseract",
+   "ocr_engine_version": "5.5.0",
+   "notes": [],
+   "error": null
+  },
+  "fields": [
+   {
+    "id": 66,
+    "category": "medication",
+    "display": "Xarelto 20 mg - 20 mg once daily (uploaded document)",
+    "original": {
+     "medication": "Xarelto 20 mg",
+     "record_kind": "document",
+     "strength": "20 mg",
+     "dosage_text": "20 mg once daily",
+     "route": null,
+     "frequency": "once daily",
+     "start": "2026-06-21",
+     "status": null
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "Takes Xarelto 20 mg once daily",
+    "clinical_time": "2026-06-21T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 93.8,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   },
+   {
+    "id": 67,
+    "category": "medication",
+    "display": "Prednisolone 5 mg - 5 mg (uploaded document)",
+    "original": {
+     "medication": "Prednisolone 5 mg",
+     "record_kind": "document",
+     "strength": "5 mg",
+     "dosage_text": "5 mg",
+     "route": null,
+     "frequency": null,
+     "start": "2026-06-21",
+     "status": null
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "Prednisolone 5 mg tablet stopped in May",
+    "clinical_time": "2026-06-21T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 95.1,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   }
+  ],
+  "keys": [
+   "document",
+   "extraction",
+   "fields",
+   "jobs"
+  ]
+ },
+ "ho01_prescription.jpg": {
+  "id": 7,
+  "status": "extracted",
+  "error": null,
+  "run": {
+   "status": "completed",
+   "extractor": "rules",
+   "extractor_version": "rules-extractor/1",
+   "text_source": "ocr",
+   "ocr_engine": "tesseract",
+   "ocr_engine_version": "5.5.0",
+   "notes": [],
+   "error": null
+  },
+  "fields": [
+   {
+    "id": 68,
+    "category": "medication",
+    "display": "Apixaban 5 mg - 5 mg once daily (uploaded document)",
+    "original": {
+     "medication": "Apixaban 5 mg",
+     "record_kind": "document",
+     "strength": "5 mg",
+     "dosage_text": "5 mg once daily",
+     "route": null,
+     "frequency": "once daily",
+     "start": "2026-09-02",
+     "status": null
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "Apixaban 5 mg tablet twice daily",
+    "clinical_time": "2026-09-02T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 95.3,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   },
+   {
+    "id": 69,
+    "category": "medication",
+    "display": "Atorvastatin 40 mg - 40 mg at night (uploaded document)",
+    "original": {
+     "medication": "Atorvastatin 40 mg",
+     "record_kind": "document",
+     "strength": "40 mg",
+     "dosage_text": "40 mg at night",
+     "route": null,
+     "frequency": "at night",
+     "start": "2026-09-02",
+     "status": null
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "Atorvastatin 40 mg tablet at night",
+    "clinical_time": "2026-09-02T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 96.0,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   }
+  ],
+  "keys": [
+   "document",
+   "extraction",
+   "fields",
+   "jobs"
+  ]
+ },
+ "ho02_labslip.jpg": {
+  "id": 8,
+  "status": "extracted",
+  "error": null,
+  "run": {
+   "status": "completed",
+   "extractor": "rules",
+   "extractor_version": "rules-extractor/1",
+   "text_source": "ocr",
+   "ocr_engine": "tesseract",
+   "ocr_engine_version": "5.5.0",
+   "notes": [],
+   "error": null
+  },
+  "fields": [
+   {
+    "id": 70,
+    "category": "lab",
+    "display": "INR: 2.4 {INR} (uploaded document)",
+    "original": {
+     "test": "INR",
+     "coding": [
+      {
+       "system": "http://loinc.org",
+       "code": "6301-6"
+      }
+     ],
+     "value": 2.4,
+     "unit": "{INR}",
+     "collected": "2026-09-15",
+     "status": "document"
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "INR 2.4",
+    "clinical_time": "2026-09-15T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 95.5,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   },
+   {
+    "id": 71,
+    "category": "lab",
+    "display": "Platelets: 188.0 10*9/L (uploaded document)",
+    "original": {
+     "test": "Platelets",
+     "coding": [
+      {
+       "system": "http://loinc.org",
+       "code": "777-3"
+      }
+     ],
+     "value": 188.0,
+     "unit": "10*9/L",
+     "collected": "2026-09-15",
+     "status": "document"
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "Platelets 188",
+    "clinical_time": "2026-09-15T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 95.0,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   },
+   {
+    "id": 72,
+    "category": "lab",
+    "display": "Hemoglobin: 13.4 g/dL (uploaded document)",
+    "original": {
+     "test": "Hemoglobin",
+     "coding": [
+      {
+       "system": "http://loinc.org",
+       "code": "718-7"
+      }
+     ],
+     "value": 13.4,
+     "unit": "g/dL",
+     "collected": "2026-09-15",
+     "status": "document"
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "Hb 13.4 g/dL",
+    "clinical_time": "2026-09-15T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 92.0,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   }
+  ],
+  "keys": [
+   "document",
+   "extraction",
+   "fields",
+   "jobs"
+  ]
+ },
+ "ho03_note.jpg": {
+  "id": 9,
+  "status": "extracted",
+  "error": null,
+  "run": {
+   "status": "completed",
+   "extractor": "rules",
+   "extractor_version": "rules-extractor/1",
+   "text_source": "ocr",
+   "ocr_engine": "tesseract",
+   "ocr_engine_version": "5.5.0",
+   "notes": [],
+   "error": null
+  },
+  "fields": [
+   {
+    "id": 76,
+    "category": "medication",
+    "display": "Alendronate 70 mg - 70 mg once weekly (uploaded document)",
+    "original": {
+     "medication": "Alendronate 70 mg",
+     "record_kind": "document",
+     "strength": "70 mg",
+     "dosage_text": "70 mg once weekly",
+     "route": null,
+     "frequency": "once weekly",
+     "start": "2026-09-18",
+     "status": null
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "On Alendronate 70 mg once weekly",
+    "clinical_time": "2026-09-18T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 93.7,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   },
+   {
+    "id": 77,
+    "category": "medication",
+    "display": "Aspirin 75 mg - 75 mg once daily (uploaded document)",
+    "original": {
+     "medication": "Aspirin 75 mg",
+     "record_kind": "document",
+     "strength": "75 mg",
+     "dosage_text": "75 mg once daily",
+     "route": null,
+     "frequency": "once daily",
+     "start": "2026-09-18",
+     "status": null
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "Aspirin 75 mg daily",
+    "clinical_time": "2026-09-18T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 93.5,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   }
+  ],
+  "keys": [
+   "document",
+   "extraction",
+   "fields",
+   "jobs"
+  ]
+ },
+ "prescription_cardiology_digital.pdf": {
+  "id": 10,
+  "status": "extracted",
+  "error": null,
+  "run": {
+   "status": "completed",
+   "extractor": "rules",
+   "extractor_version": "rules-extractor/1",
+   "text_source": "embedded",
+   "ocr_engine": "tesseract",
+   "ocr_engine_version": "5.5.0",
+   "notes": [],
+   "error": null
+  },
+  "fields": [
+   {
+    "id": 73,
+    "category": "medication",
+    "display": "Warfarin 7.5 mg - 7.5 mg once daily (uploaded document)",
+    "original": {
+     "medication": "Warfarin 7.5 mg",
+     "record_kind": "document",
+     "strength": "7.5 mg",
+     "dosage_text": "7.5 mg once daily",
+     "route": "oral",
+     "frequency": "once daily",
+     "start": "2026-09-01",
+     "status": null
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "1. Warfarin 7.5 mg tablet - 7.5 mg orally once daily",
+    "clinical_time": "2026-09-01T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": null,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   },
+   {
+    "id": 74,
+    "category": "medication",
+    "display": "Atorvastatin 20 mg - 20 mg at night (uploaded document)",
+    "original": {
+     "medication": "Atorvastatin 20 mg",
+     "record_kind": "document",
+     "strength": "20 mg",
+     "dosage_text": "20 mg at night",
+     "route": null,
+     "frequency": "at night",
+     "start": "2026-09-01",
+     "status": null
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "2. Atorvastatin 20 mg tablet - 20 mg at night",
+    "clinical_time": "2026-09-01T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": null,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   },
+   {
+    "id": 75,
+    "category": "lab",
+    "display": "INR: 2.0 {INR} (uploaded document)",
+    "original": {
+     "test": "INR",
+     "coding": [
+      {
+       "system": "http://loinc.org",
+       "code": "6301-6"
+      }
+     ],
+     "value": 2.0,
+     "unit": "{INR}",
+     "collected": "2026-09-01",
+     "status": "document"
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "Target INR 2.0-3.0. Recheck INR in 4 weeks.",
+    "clinical_time": "2026-09-01T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": null,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   }
+  ],
+  "keys": [
+   "document",
+   "extraction",
+   "fields",
+   "jobs"
+  ]
+ },
+ "referral_note_scan.jpg": {
+  "id": 11,
+  "status": "extracted",
+  "error": null,
+  "run": {
+   "status": "completed",
+   "extractor": "rules",
+   "extractor_version": "rules-extractor/1",
+   "text_source": "ocr",
+   "ocr_engine": "tesseract",
+   "ocr_engine_version": "5.5.0",
+   "notes": [],
+   "error": null
+  },
+  "fields": [
+   {
+    "id": 78,
+    "category": "medication",
+    "display": "Ecosprin 75 mg - 75 mg once daily (uploaded document)",
+    "original": {
+     "medication": "Ecosprin 75 mg",
+     "record_kind": "document",
+     "strength": "75 mg",
+     "dosage_text": "75 mg once daily",
+     "route": null,
+     "frequency": "once daily",
+     "start": "2026-09-10",
+     "status": null
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "Reports taking Ecosprin 75 mg daily (unsure)",
+    "clinical_time": "2026-09-10T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 95.1,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   },
+   {
+    "id": 79,
+    "category": "lab",
+    "display": "INR: 2.6 {INR} (uploaded document)",
+    "original": {
+     "test": "INR",
+     "coding": [
+      {
+       "system": "http://loinc.org",
+       "code": "6301-6"
+      }
+     ],
+     "value": 2.6,
+     "unit": "{INR}",
+     "collected": "2026-09-05",
+     "status": "document"
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "Last INR 2.6 on 05/09/2026",
+    "clinical_time": "2026-09-05T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 93.8,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   },
+   {
+    "id": 80,
+    "category": "lab",
+    "display": "Hemoglobin: 12.9 g/dL (uploaded document)",
+    "original": {
+     "test": "Hemoglobin",
+     "coding": [
+      {
+       "system": "http://loinc.org",
+       "code": "718-7"
+      }
+     ],
+     "value": 12.9,
+     "unit": "g/dL",
+     "collected": "2026-09-05",
+     "status": "document"
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "Hb 12.9 g/dL on 05/09/2026",
+    "clinical_time": "2026-09-05T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 93.8,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   }
+  ],
+  "keys": [
+   "document",
+   "extraction",
+   "fields",
+   "jobs"
+  ]
+ },
+ "T1_lab_units.jpg": {
+  "id": 12,
+  "status": "extracted",
+  "error": null,
+  "run": {
+   "status": "completed",
+   "extractor": "rules",
+   "extractor_version": "rules-extractor/1",
+   "text_source": "ocr",
+   "ocr_engine": "tesseract",
+   "ocr_engine_version": "5.5.0",
+   "notes": [],
+   "error": null
+  },
+  "fields": [
+   {
+    "id": 81,
+    "category": "lab",
+    "display": "INR: 3.4 {INR} (uploaded document)",
+    "original": {
+     "test": "INR",
+     "coding": [
+      {
+       "system": "http://loinc.org",
+       "code": "6301-6"
+      }
+     ],
+     "value": 3.4,
+     "unit": "{INR}",
+     "collected": "2026-09-05",
+     "status": "document"
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "INR 3.4",
+    "clinical_time": "2026-09-05T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 77.0,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   },
+   {
+    "id": 82,
+    "category": "lab",
+    "display": "Hemoglobin: 128.0 g/dL (uploaded document)",
+    "original": {
+     "test": "Hemoglobin",
+     "coding": [
+      {
+       "system": "http://loinc.org",
+       "code": "718-7"
+      }
+     ],
+     "value": 128.0,
+     "unit": "g/dL",
+     "collected": "2026-09-05",
+     "status": "document"
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "Haemoglobin 128 g/L",
+    "clinical_time": "2026-09-05T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 95.7,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   },
+   {
+    "id": 83,
+    "category": "lab",
+    "display": "Platelets: 250.0 10*9/L (uploaded document)",
+    "original": {
+     "test": "Platelets",
+     "coding": [
+      {
+       "system": "http://loinc.org",
+       "code": "777-3"
+      }
+     ],
+     "value": 250.0,
+     "unit": "10*9/L",
+     "collected": "2026-09-05",
+     "status": "document"
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "Platelets 250 x1043/uL",
+    "clinical_time": "2026-09-05T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 89.3,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   },
+   {
+    "id": 84,
+    "category": "lab",
+    "display": "HbA1c: 48.0 % (uploaded document)",
+    "original": {
+     "test": "HbA1c",
+     "coding": [
+      {
+       "system": "http://loinc.org",
+       "code": "4548-4"
+      }
+     ],
+     "value": 48.0,
+     "unit": "%",
+     "collected": "2026-09-05",
+     "status": "document"
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "HbA1c 48 mmol/mol",
+    "clinical_time": "2026-09-05T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 73.3,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   }
+  ],
+  "keys": [
+   "document",
+   "extraction",
+   "fields",
+   "jobs"
+  ]
+ },
+ "T2_ambiguous_date.pdf": {
+  "id": 13,
+  "status": "extracted",
+  "error": null,
+  "run": {
+   "status": "completed",
+   "extractor": "rules",
+   "extractor_version": "rules-extractor/1",
+   "text_source": "embedded",
+   "ocr_engine": "tesseract",
+   "ocr_engine_version": "5.5.0",
+   "notes": [],
+   "error": null
+  },
+  "fields": [
+   {
+    "id": 85,
+    "category": "medication",
+    "display": "Warfarin 5 mg - 5 mg once daily (uploaded document)",
+    "original": {
+     "medication": "Warfarin 5 mg",
+     "record_kind": "document",
+     "strength": "5 mg",
+     "dosage_text": "5 mg once daily",
+     "route": "oral",
+     "frequency": "once daily",
+     "start": "2026-04-03",
+     "status": null
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "Warfarin 5 mg tablet - 5 mg orally once daily",
+    "clinical_time": "2026-04-03T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": null,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   }
+  ],
+  "keys": [
+   "document",
+   "extraction",
+   "fields",
+   "jobs"
+  ]
+ },
+ "T3_injection.pdf": {
+  "id": 14,
+  "status": "extracted",
+  "error": null,
+  "run": {
+   "status": "completed",
+   "extractor": "rules",
+   "extractor_version": "rules-extractor/1",
+   "text_source": "embedded",
+   "ocr_engine": "tesseract",
+   "ocr_engine_version": "5.5.0",
+   "notes": [],
+   "error": null
+  },
+  "fields": [
+   {
+    "id": 86,
+    "category": "medication",
+    "display": "Metformin 500 mg - 500 mg once daily (uploaded document)",
+    "original": {
+     "medication": "Metformin 500 mg",
+     "record_kind": "document",
+     "strength": "500 mg",
+     "dosage_text": "500 mg once daily",
+     "route": null,
+     "frequency": "once daily",
+     "start": "2026-09-12",
+     "status": null
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "Metformin 500 mg twice daily",
+    "clinical_time": "2026-09-12T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": null,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   }
+  ],
+  "keys": [
+   "document",
+   "extraction",
+   "fields",
+   "jobs"
+  ]
+ },
+ "T4_missing_values.jpg": {
+  "id": 15,
+  "status": "extracted",
+  "error": null,
+  "run": {
+   "status": "completed",
+   "extractor": "rules",
+   "extractor_version": "rules-extractor/1",
+   "text_source": "ocr",
+   "ocr_engine": "tesseract",
+   "ocr_engine_version": "5.5.0",
+   "notes": [],
+   "error": null
+  },
+  "fields": [
+   {
+    "id": 89,
+    "category": "medication",
+    "display": "Aspirin - dose not recorded (uploaded document)",
+    "original": {
+     "medication": "Aspirin",
+     "record_kind": "document",
+     "strength": null,
+     "dosage_text": null,
+     "route": null,
+     "frequency": null,
+     "start": "2026-09-20",
+     "status": null
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "Aspirin tablet",
+    "clinical_time": "2026-09-20T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": 94.0,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   }
+  ],
+  "keys": [
+   "document",
+   "extraction",
+   "fields",
+   "jobs"
+  ]
+ },
+ "T5_two_meds_one_line.pdf": {
+  "id": 16,
+  "status": "extracted",
+  "error": null,
+  "run": {
+   "status": "completed",
+   "extractor": "rules",
+   "extractor_version": "rules-extractor/1",
+   "text_source": "embedded",
+   "ocr_engine": "tesseract",
+   "ocr_engine_version": "5.5.0",
+   "notes": [],
+   "error": null
+  },
+  "fields": [
+   {
+    "id": 87,
+    "category": "medication",
+    "display": "Warfarin 5 mg - 5 mg once daily (uploaded document)",
+    "original": {
+     "medication": "Warfarin 5 mg",
+     "record_kind": "document",
+     "strength": "5 mg",
+     "dosage_text": "5 mg once daily",
+     "route": null,
+     "frequency": "once daily",
+     "start": "2026-09-22",
+     "status": null
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "Warfarin 5 mg once daily and Aspirin 75 mg daily",
+    "clinical_time": "2026-09-22T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": null,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   },
+   {
+    "id": 88,
+    "category": "medication",
+    "display": "Prednisolone 5 mg - 5 mg (uploaded document)",
+    "original": {
+     "medication": "Prednisolone 5 mg",
+     "record_kind": "document",
+     "strength": "5 mg",
+     "dosage_text": "5 mg",
+     "route": null,
+     "frequency": null,
+     "start": "2026-05-01",
+     "status": null
+    },
+    "review_state": "proposed",
+    "verification_status": "unverified",
+    "page": 1,
+    "source_text": "Prednisolone 5 mg stopped 01/05/2026",
+    "clinical_time": "2026-05-01T00:00:00+00:00",
+    "confidence": {
+     "ocr_line_confidence": null,
+     "extractor": "rules",
+     "note": "Tool confidence metadata only; not a clinical probability."
+    }
+   }
+  ],
+  "keys": [
+   "document",
+   "extraction",
+   "fields",
+   "jobs"
+  ]
+ }
+}

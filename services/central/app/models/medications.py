@@ -90,6 +90,11 @@ class DrugInteraction(Base):
     source: Mapped[str] = mapped_column(String(40))  # ddinter
     source_version: Mapped[str] = mapped_column(String(80))
     source_ref: Mapped[str] = mapped_column(String(80))
+    # Why, in the source's own words: a sentence quoted verbatim from a US drug label's interaction
+    # section that names the other ingredient (rules/labels/interaction-quotes.json). Empty when none exists.
+    label_quote: Mapped[str | None] = mapped_column(Text, nullable=True)
+    label_source: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    label_section: Mapped[str | None] = mapped_column(String(60), nullable=True)
 
 
 class LabelRule(Base):

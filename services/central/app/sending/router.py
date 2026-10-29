@@ -16,12 +16,12 @@ from ..medications import service as med
 from ..models import Outbox, ReferralPackage
 from ..notifications import notify_doctor, notify_staff
 from ..referrals.state import event
-from ..security import STAFF, audit, bump, check_version, error, get_principal, load_referral
+from ..security import DOCTOR, STAFF, audit, bump, check_version, error, get_principal, load_referral, sees_clinical
 from ..serializers import referral_out
 from ..tasks import enqueue
 from . import brief as brief_mod
 from . import packages
-from .readiness import blocking, readiness, staff_items
+from .readiness import blocking, doctor_items, readiness, staff_items
 
 router = APIRouter(tags=["sending"])
 
@@ -29,13 +29,13 @@ router = APIRouter(tags=["sending"])
 @router.get("/referrals/{referral_id}/readiness")
 def get_readiness(referral_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     r = load_referral(db, referral_id, principal, "view")
-    return {"items": readiness(db, r), "status": r.status, "amendment_open": r.amendment_open}
+    return {"items": readiness(db, r, sees_clinical(principal)), "status": r.status, "amendment_open": r.amendment_open}
 
 
 @router.get("/referrals/{referral_id}/brief-preview")
 def brief_preview(referral_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    """What the specialist will receive if the referral is sent now."""
-    r = load_referral(db, referral_id, principal, "view")
+    """What the specialist will receive if the referral is sent now (clinical content: doctors only)."""
+    r = load_referral(db, referral_id, principal, "view", roles=(DOCTOR,))
     return brief_mod.build(db, r)
 
 
@@ -45,7 +45,7 @@ class SendIn(BaseModel):
 
 @router.post("/referrals/{referral_id}/prepared")
 def mark_prepared(referral_id: int, body: SendIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    """Staff have gathered the records, papers and medicines; the doctor can now review the flags."""
+    """Staff have retrieved the records and uploaded the papers; the doctor can now review the clinical content."""
     r = load_referral(db, referral_id, principal, "prepare", roles=(STAFF,))
     check_version(r, body.expected_version)
     if r.kind != "referral" or r.status != "requested":
@@ -57,15 +57,35 @@ def mark_prepared(referral_id: int, body: SendIn, db: Session = Depends(get_db),
     bump(r)
     event(db, r, "prepared", principal.display_name, principal.institution_id)
     audit(db, principal, "referral.prepared", "referral", r.reference, "success", r.id)
-    flags = med.unacknowledged_flags(db, r.id)
     notify_doctor(db, r, "ready_for_review", f"{r.reference}: ready for your review",
-                  f"{r.patient_name}. Staff have gathered the records and medicines."
-                  + (f" {len(flags)} medication flag(s) to review." if flags else " There are no medication flags."),
-                  tab="medicines")
-    if not flags:
-        notify_staff(db, r, "ready_to_send", f"{r.reference}: ready to send", "No medication flags to review.", tab="send")
+                  f"{r.patient_name}. Staff have retrieved the records and uploaded the papers. Check the papers, "
+                  "confirm the medicines, review the flags and the records for the packet.", tab="records")
     db.commit()
-    return referral_out(r)
+    return referral_out(r, sees_clinical(principal))
+
+
+@router.post("/referrals/{referral_id}/packet-reviewed")
+def mark_packet_reviewed(referral_id: int, body: SendIn, db: Session = Depends(get_db),
+                         principal: Principal = Depends(get_principal)):
+    """The doctor has reviewed the clinical content of the packet: papers, medicines, flags and the records
+    chosen. Staff can then send it. Any later clinical change clears this (workflow.after_change)."""
+    r = load_referral(db, referral_id, principal, "review_packet", roles=(DOCTOR,))
+    check_version(r, body.expected_version)
+    if r.kind != "referral" or (r.status != "requested" and not r.amendment_open):
+        raise error(409, "not_preparing", "Only a referral being prepared can be reviewed")
+    if r.prepared_at is None:
+        raise error(409, "not_prepared", "Staff have not marked the referral ready for review yet")
+    missing = blocking(doctor_items(db, r))
+    if missing:
+        raise error(409, "not_ready", "Some things still need to be done first", blockers=missing)
+    r.packet_reviewed_by, r.packet_reviewed_at = principal.display_name, utcnow()
+    bump(r)
+    event(db, r, "packet_reviewed", principal.display_name, principal.institution_id)
+    audit(db, principal, "referral.packet_reviewed", "referral", r.reference, "success", r.id)
+    notify_staff(db, r, "ready_to_send", f"{r.reference}: ready to send",
+                 f"{principal.display_name} has reviewed the packet.", tab="send")
+    db.commit()
+    return referral_out(r, True)
 
 
 @router.post("/referrals/{referral_id}/send")
@@ -76,7 +96,7 @@ def send(referral_id: int, body: SendIn, db: Session = Depends(get_db), principa
     pkg = packages.send(db, r, principal)
     db.commit()
     enqueue("deliver_outbox")
-    return {"referral": referral_out(r), "package_version": pkg.version, "content_hash": pkg.content_hash}
+    return {"referral": referral_out(r, sees_clinical(principal)), "package_version": pkg.version, "content_hash": pkg.content_hash}
 
 
 @router.post("/referrals/{referral_id}/retry-delivery")
@@ -104,9 +124,11 @@ def get_package(referral_id: int, version: int, db: Session = Depends(get_db), p
     pkg = db.scalars(select(ReferralPackage).where(ReferralPackage.referral_id == r.id, ReferralPackage.version == version)).first()
     if pkg is None:
         raise error(404, "not_found", "Version not found")
+    clinical = sees_clinical(principal)  # staff: what was sent and when, not its contents
     return {"version": pkg.version, "sent_by": pkg.sent_by, "sent_at": pkg.sent_at, "content_hash": pkg.content_hash,
-            "superseded": pkg.superseded, "envelope": pkg.envelope, "manifest": pkg.manifest,
-            "content_purged_at": pkg.content_purged_at}
+            "superseded": pkg.superseded, "envelope": pkg.envelope if clinical else None,
+            "manifest": pkg.manifest if clinical else None, "content_purged_at": pkg.content_purged_at,
+            "redacted": not clinical}
 
 
 class VerifyCopyIn(BaseModel):
@@ -134,8 +156,9 @@ def verify_package_copy(referral_id: int, version: int, body: VerifyCopyIn, db: 
 
 @router.post("/referrals/{referral_id}/packages/{version}/verify-own-copy")
 def verify_own_copy(referral_id: int, version: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    """Fetch this clinic's own stored copy (from its own system, with the user's token) and check it."""
-    r = load_referral(db, referral_id, principal, "view")
+    """Fetch this clinic's own stored copy (from its own system, with the user's token) and check it. The copy is
+    clinical content, so this is for doctors."""
+    r = load_referral(db, referral_id, principal, "view", roles=(DOCTOR,))
     pkg = _package(db, r, version)
     copies = sources.call(r.source_institution, "GET", "/outbound-copies", principal, params={"referral_id": r.reference})
     mine = next((c for c in copies if c["kind"] == "package" and c["version"] == version), None)

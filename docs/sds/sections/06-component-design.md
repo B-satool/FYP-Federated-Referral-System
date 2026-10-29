@@ -11,7 +11,8 @@ This section describes each component's responsibilities, main rules and collabo
 
 **Creating a request.** The doctor creates the request (`POST /referrals`, status `draft`) with:
 
-- the reason and the urgency (`urgency`: urgent within 1 week, soon within 2 weeks, routine within 4 to 6 weeks);
+- the reason (the headline) and optional **consultation notes** underneath (symptoms, history, examination), which go into the letter, the package and, de-identified, the AI recommendation;
+- the urgency (`urgency`: urgent within 1 week, soon within 2 weeks, routine within 4 to 6 weeks);
 - the procedure status (`procedure_status`: `planned`, `none` or `unknown`);
 - for a planned procedure, its name in their own words and its features (`procedure_tags`, Section 10.4).
 
@@ -21,7 +22,7 @@ The patient is taken from the referring institution's own index (`GET /patients/
 
 **Editing.** Clinical edits check `ensure_clinical_edit_allowed()`, which blocks them in `response_returned`, `followup_pending`, `closed`, `declined` and `cancelled`. `mark_clinical_change()` handles a change after a version was sent: it sets `amendment_open`, writes an `amendment_started` event and notifies staff that a new version must be sent. Every edit carries the expected `row_version` (optimistic concurrency).
 
-**Status labels.** "In progress" becomes "Ready to send" once staff mark the referral prepared. For test requests, "submitted" reads "Tests sent" and "response returned" reads "Results received".
+**Status labels.** "In progress" becomes "With the doctor for review" once staff mark it ready, and "Ready to send" once the doctor marks the packet reviewed. For test requests, "submitted" reads "Tests sent" and "response returned" reads "Results received".
 
 ## 6.2 Identity and patient linking (`central/app/identity`)
 
@@ -65,6 +66,7 @@ The patient is taken from the referring institution's own index (`GET /patients/
 
 **Upload** (`POST /referrals/{id}/documents`):
 
+- **Who:** staff or the doctor upload; only the doctor opens a paper, its fields or page images.
 - **Accepted types:** PDF, PNG and JPEG, detected from the content, not the file name.
 - **Limits:** at most 10 MB and 10 PDF pages (`MAX_UPLOAD_BYTES`, `MAX_PAGES`).
 - **Storage:** stored under a generated name with its SHA-256. A `jobs` row is created and `process_document` is queued.
@@ -84,9 +86,11 @@ The patient is taken from the referring institution's own index (`GET /patients/
 
 ## 6.5 Evidence review (`central/app/evidence_router.py`)
 
+Every action here is **doctor-only**. Staff get the staff view of each record: its title (`refcommon.exchange.record_title`, for example "Lab result: HbA1c"), source, date and whether it is ticked, never values, findings or AI reasoning.
+
 | Action | Endpoint | Effect |
 |---|---|---|
-| Select or deselect for the packet | `POST /evidence/{id}/select` | Staff decision; always wins over default and AI (`selection_source=staff`, who, when) |
+| Select or deselect for the packet | `POST /evidence/{id}/select` | The doctor's decision; always wins over default and AI (`selection_source=staff`, meaning a person's choice, with who and when) |
 | Verify against the paper | `POST /evidence/{id}/verify` | `verification_status=verified` |
 | Correct a value | `POST /evidence/{id}/correct` | New current value; original kept; revision written |
 | Mark unresolved | `POST /evidence/{id}/unresolve` | Cannot be confirmed |
@@ -116,6 +120,8 @@ Every action writes an `evidence_revisions` row and an audit event, checks the i
 
 **Evaluation:** see Section 10. Every change to records, papers, medicines or the procedure calls `workflow.after_change()`, which runs `reevaluate()`. That writes an `evaluation_runs` row and supersedes or creates flag versions.
 
+**Who:** the whole medicine list is doctor-only (decision 2026-10-29): viewing names and flags, adding medicines the patient reports, excluding, mapping ambiguous brands and confirming the list. Staff get a summary (number of medicines and flags, how many await the doctor).
+
 **Doctor's decisions** (`POST /referrals/{id}/flags/{flag_id}/acknowledge`): `reviewed`, `ignore` (not relevant for this patient) or `research` (needs follow-up), with an optional note. A decision means the flag was seen, never treatment clearance (invariant 5). Ignored flags stay visible.
 
 **AI suggestions:** possible clashes for pairs with no DDInter entry, scored offline. The doctor marks each `ignore` or `research`. They travel in the package labelled "AI suggestion, not verified" and never block sending.
@@ -134,25 +140,23 @@ Every action writes an `evidence_revisions` row and an audit event, checks the i
    - The model may add records and mark defaults as low relevance.
    - It can never remove a default item, and it never overrides a staff choice.
    - Excluded items are listed under "Not included" with the reason.
-5. **Staff decide:** they tick or untick anything, and their choice always wins.
+5. **The doctor decides:** they tick or untick anything, and their choice always wins. Staff see the ticks and titles only.
 
 Each attempt is a `selection_runs` row: status, provider, model, prompt version and hash, item count, truncation, missing phrases and error. The package's `selection` field records how every item was chosen.
 
 ## 6.8 Sending (`central/app/sending`)
 
-**Readiness** (`readiness.py`) is one checklist with no repeated items. Staff items:
+**Readiness** (`readiness.py`) is one checklist with no repeated items:
 
-- records retrieved;
-- papers checked;
-- patient asked about all medicines, including over-the-counter ones;
-- dose differences resolved;
-- medicines checked against the rules.
+- **Staff items** (before "ready for the doctor"): records retrieved; papers uploaded and read.
+- **Doctor items** (after that): papers checked; medicine list confirmed with the patient, including over-the-counter ones; dose differences resolved; medicines checked against the rules (system); every flag that requires a decision decided.
+- **The doctor's packet review** (`POST /referrals/{id}/packet-reviewed`): allowed only when the doctor items are done. It sets `packet_reviewed_by`/`_at`. Any later clinical change clears it (`workflow.clear_packet_review`, `mark_clinical_change`, and an AI recommendation that changes the selection).
 
-Then staff mark the referral ready, and the doctor reviews every flag that requires a decision. The receiving institution confirms the patient on arrival, so that is not a condition for sending.
+Staff send only when every blocking item is done. The receiving institution confirms the patient on arrival, so that is not a condition for sending. The letter preview and the sent package's content are doctor-only; staff see the version, sender, time and fingerprint.
 
 **The brief** (`brief.py`) is deterministic, with no model involved. It is laid out like a referral letter:
 
-- reason and planned procedure;
+- reason, consultation notes and planned procedure;
 - current medicines, history and recent visits;
 - investigations, grouped by panel, and imaging;
 - "what could not be obtained": unavailable, skipped, denied or expired sources, stated as limitations, never as "no history".
@@ -214,7 +218,7 @@ The delivery key is `<source>:<reference>:v<version>`. A resend after an amendme
 
 Then the doctor or staff close it (`POST /referrals/{id}/close`).
 
-**Clarifications.** Requests for more information are answered with `POST /clarifications/{id}/answer`. The answer is delivered to the receiving institution as a `clarification_answer` outbox row.
+**Clarifications.** Requests for more information are answered by the doctor with `POST /clarifications/{id}/answer` (staff see that a question exists, not its text). The answer is delivered to the receiving institution as a `clarification_answer` outbox row.
 
 **Legacy responses.** The response review endpoint remains for responses sent before 2026-10-28 (decision "no specialist response").
 
@@ -230,7 +234,7 @@ Then the doctor or staff close it (`POST /referrals/{id}/close`).
 
 ## 6.13 Institution service (`services/provider/app`)
 
-**Receiving a referral.** `POST /inbound/referrals` stores the package idempotently by delivery key and creates or updates the `case`. Case lifecycle:
+**Receiving a referral.** `POST /inbound/referrals` stores the package idempotently by delivery key and creates or updates the `case`. **Intake staff** see the case details and the attached records by title only; the **doctors** see the letter, flags and records (decision 2026-10-29). Case lifecycle:
 
 - `received`
 - → `acknowledged` (staff)

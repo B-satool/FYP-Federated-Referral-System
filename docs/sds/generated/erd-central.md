@@ -426,6 +426,9 @@ erDiagram
         string source "not null, String(40)"
         string source_version "not null, String(80)"
         string source_ref "not null, String(80)"
+        text label_quote "nullable"
+        string label_source "nullable, String(200)"
+        string label_section "nullable, String(60)"
     }
     evaluation_runs {
         int id PK "not null"
@@ -783,6 +786,7 @@ erDiagram
         string destination_department "nullable, String(60)"
         string destination_doctor "nullable, String(200)"
         text reason "not null"
+        text consultation_notes "not null"
         string urgency "not null, String(20)"
         string procedure_status "not null, String(20)"
         string planned_procedure "nullable, String(300)"
@@ -792,6 +796,8 @@ erDiagram
         datetime requested_at "nullable, DateTime(timezone=True)"
         string prepared_by "nullable, String(200)"
         datetime prepared_at "nullable, DateTime(timezone=True)"
+        string packet_reviewed_by "nullable, String(200)"
+        datetime packet_reviewed_at "nullable, DateTime(timezone=True)"
         bool amendment_open "not null"
         int current_package_version "nullable"
         int submitted_package_version "nullable"

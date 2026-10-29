@@ -111,7 +111,7 @@
           "setting": "Clinic visit",
           "doctor": "Dr Ali",
           "reason": "Routine review",
-          "summary": "Older than 6 months, should not appear in the automatic selection."
+          "summary": "Diabetes and blood pressure stable. HbA1c due. Continue current medicines."
         }
       ],
       "medications": [

@@ -120,7 +120,7 @@ export function TestsTab({ r, role }: { r: ReferralDetail; role: Role }) {
             </Stack>
           </Stack>
           <KeyValue items={[
-            ["Clinical question", d.clinical_question],
+            ["Clinical question", d.clinical_question ?? "Visible to doctors only"],
             ["Requested by", d.requested_by],
             ...(d.sent_at ? [["Sent", `${d.sent_by}, ${fmtDate(d.sent_at)}`] as [string, string]] : []),
             ...(d.status === "requested" && !d.local_patient_id ? [["Patient", `${d.destination_name} confirms the patient when the order arrives`] as [string, string]] : []),

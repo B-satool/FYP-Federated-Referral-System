@@ -11,6 +11,7 @@
 | 5 | `97915d386e71` | `76763a476e7c` | data lifecycle and packet selection | `services/central/migrations/versions/97915d386e71_data_lifecycle_and_packet_selection.py` |
 | 6 | `50cb02ecd52d` | `97915d386e71` | receiver completion | `services/central/migrations/versions/50cb02ecd52d_receiver_completion.py` |
 | 7 | `fec095fdc2b0` | `50cb02ecd52d` | ambiguous brand choices | `services/central/migrations/versions/fec095fdc2b0_ambiguous_brand_choices.py` |
+| 8 | `a1c3e5f7b9d2` | `fec095fdc2b0` | consultation notes and the doctor's packet review | `services/central/migrations/versions/a1c3e5f7b9d2_consultation_notes_and_packet_review.py` |
 
 ### `services/provider/migrations`
 

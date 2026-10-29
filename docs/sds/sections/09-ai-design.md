@@ -40,7 +40,7 @@ It also asks for at most 5 "missing" phrases, and forbids treatment, dosing or m
 
 **Payload** (after de-identification):
 
-- **Referral:** kind, reason, department, planned procedure, procedure status and urgency, with age and sex.
+- **Referral:** kind, reason, the doctor's consultation notes (at most 2,000 characters), department, planned procedure, procedure status and urgency, with age and sex. Prompt version `packet-selection/3`.
 - **Each record:** id, category, relative date, default flag and text, cut to 300 characters.
 
 **Validation** rejects the whole answer when:

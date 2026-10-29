@@ -40,6 +40,10 @@ Read `docs/architecture.md` and the relevant SRS section (`docs/requirements/FYP
 9. **Idempotency.** Delivery keys and event keys make retries safe. Keep the outbox write in the same transaction as the decision to send.
 10. **Audit.** Every access, retrieval, link change, correction, approval, submission and status change writes an audit event with actor, institution, action, target, time and outcome.
 11. **Synthetic data only.** Do not commit patient data, credentials, `.env`, model weights or uploaded files.
+12. **Only doctors see clinical content** (decision 2026-10-29).
+   - Staff and administrators get titles, statuses and counts only, through the serializers' staff views (`clinical=False`). They never see record values, diagnoses, medicines, flags, papers, notes, the letter or the package.
+   - Clinical endpoints are doctor-only on the server.
+   - The doctor reviews the packet before staff send, and a later clinical change clears that review.
 
 ## Software Design Specification
 

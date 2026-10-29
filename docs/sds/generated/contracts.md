@@ -118,6 +118,7 @@ One sent version of a referral. The requesting doctor authorised the request; st
 | `destination_doctor` | str \| None | None |  |
 | `urgency` | str | (required) |  |
 | `reason` | str | (required) |  |
+| `consultation_notes` | str \| None | None |  |
 | `procedure_status` | str | (required) |  |
 | `planned_procedure` | str \| None | None |  |
 | `procedure_label` | str \| None | None |  |
@@ -455,6 +456,7 @@ A returned diagnostic report forwarded to the referral's receiving hospital, so 
 | `destination_department` | str \| None | None |  |
 | `destination_doctor` | str \| None | None |  |
 | `reason` | str | '' |  |
+| `consultation_notes` | str | Field('', max_length=20000) |  |
 | `urgency` | str | 'routine' |  |
 | `procedure_status` | str | 'unknown' |  |
 | `planned_procedure` | str \| None | None |  |

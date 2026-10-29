@@ -130,7 +130,7 @@ function ReferralRequest() {
   const [patient, setPatient] = useState<PatientIndexEntry | null>(null);
   const [values, setValues] = useState<FormValues>({
     source_department: me?.department ?? "", destination_institution: "", destination_department: "", destination_doctor: "",
-    reason: "", urgency: "routine", procedure_status: "unknown", planned_procedure: "", procedure_tags: [],
+    reason: "", consultation_notes: "", urgency: "routine", procedure_status: "unknown", planned_procedure: "", procedure_tags: [],
   });
   // The signed-in doctor's own department, once their profile has loaded.
   useEffect(() => {
@@ -141,7 +141,7 @@ function ReferralRequest() {
       api.post<Referral>("/referrals", {
         kind: "referral", patient_local_id: patient!.local_patient_id, source_department: values.source_department || me?.department,
         destination_institution: values.destination_institution, destination_department: values.destination_department,
-        destination_doctor: values.destination_doctor || null, reason: values.reason, urgency: values.urgency,
+        destination_doctor: values.destination_doctor || null, reason: values.reason, consultation_notes: values.consultation_notes, urgency: values.urgency,
         ...procedurePayload(values), submit,
       }),
     meta: { success: "Request saved." },

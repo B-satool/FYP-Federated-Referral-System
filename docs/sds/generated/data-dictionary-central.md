@@ -284,6 +284,9 @@ A drug-drug interaction pair from an imported source (stored once, ingredient_a 
 | `source` | String(40) | no |  |  | ddinter |
 | `source_version` | String(80) | no |  |  |  |
 | `source_ref` | String(80) | no |  |  |  |
+| `label_quote` | Text | yes |  |  | Why, in the source's own words: a sentence quoted verbatim from a US drug label's interaction section that names the other ingredient (rules/labels/interaction-quotes.json). Empty when none exists. |
+| `label_source` | String(200) | yes |  |  |  |
+| `label_section` | String(60) | yes |  |  |  |
 
 Unique constraints: (ingredient_a, ingredient_b, source)
 
@@ -727,6 +730,7 @@ Unique constraints: (referral_id, version)
 | `destination_department` | String(60) | yes |  |  |  |
 | `destination_doctor` | String(200) | yes |  |  |  |
 | `reason` | Text | no |  | `''` | Clinical |
+| `consultation_notes` | Text | no |  | `''` | the doctor's consultation notes under the reason: symptoms, history, examination (clinical content) |
 | `urgency` | String(20) | no |  | `'routine'` |  |
 | `procedure_status` | String(20) | no |  | `'unknown'` | planned \| none \| unknown |
 | `planned_procedure` | String(300) | yes |  |  | in the doctor's words |
@@ -736,6 +740,8 @@ Unique constraints: (referral_id, version)
 | `requested_at` | DateTime(timezone=True) | yes |  |  |  |
 | `prepared_by` | String(200) | yes |  |  | Staff checkpoint: records, papers and medicines gathered; the doctor can now review the flags |
 | `prepared_at` | DateTime(timezone=True) | yes |  |  |  |
+| `packet_reviewed_by` | String(200) | yes |  |  | Doctor checkpoint: the doctor reviewed the records, papers, medicines and flags that go in the packet. Staff never see that content (decision 2026-10-29). A later clinical change clears it. |
+| `packet_reviewed_at` | DateTime(timezone=True) | yes |  |  |  |
 | `amendment_open` | Boolean | no |  | `False` |  |
 | `current_package_version` | Integer | yes |  |  |  |
 | `submitted_package_version` | Integer | yes |  |  |  |

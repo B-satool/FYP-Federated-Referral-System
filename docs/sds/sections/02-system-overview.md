@@ -40,8 +40,8 @@ flowchart LR
 
 | Actor | Realm role | What they do |
 |---|---|---|
-| Doctor | `clinician` | Requests referrals and test requests, reviews medication flags, receives referrals for their department, accepts or declines them, marks them complete, extends the records hold |
-| Staff (referral coordinator) | `clinic_staff` | Requests and approves patient links, retrieves records, checks uploaded papers, confirms medicines (including over-the-counter), marks a referral ready, sends it, takes in incoming referrals and assigns a doctor, records that the patient was told, closes referrals |
+| Doctor | `clinician` | Requests referrals and test requests with the reason and consultation notes. **The only role that sees clinical content:** checks uploaded papers, confirms the medicine list (including over-the-counter), decides on flags, reviews the records ticked for the packet and the letter, then marks the packet reviewed. Receives referrals for their department, accepts or declines them, marks them complete, extends the records hold, answers information requests |
+| Staff (referral coordinator) | `clinic_staff` | Requests and approves patient links, retrieves records, uploads papers, marks a referral ready for the doctor, sends it after the doctor's review, takes in incoming referrals and assigns a doctor, records that the patient was told, closes referrals. **Sees titles, statuses and counts only, never clinical content** (decision 2026-10-29) |
 | Laboratory, radiology or ECG staff | `diagnostics_staff` | Confirms arriving patients, accepts or rejects orders, schedules them, reports results with images |
 | Institution administrator | `institution_admin` | Accounts and role templates, source access grants and their expiry, audit log. No clinical record access |
 | Clinical rule reviewer | `rule_reviewer` | Approves medication rule versions and medicine names; sees the imported interaction data, label rules and AI model figures |
@@ -79,11 +79,11 @@ flowchart TD
     C --> D["Other institution's staff confirm the patient: link verified, grant created"]
     D --> E["Staff retrieve records from every linked institution (up to 5)"]
     E --> F["Rule-based default selection, then optional AI recommendation"]
-    B --> G["Staff upload the patient's papers: OCR, fields proposed, staff verify"]
+    B --> G["Staff upload the patient's papers: OCR proposes fields"]
     E & G --> H["Current-medicine list built, duplicates grouped, names mapped"]
     H --> I["Deterministic evaluator raises medication flags"]
-    I --> J["Staff confirm medicines checked with the patient, mark ready"]
-    J --> K["Doctor reviews each flag: reviewed / ignore / research"]
+    I --> J["Staff mark it ready for the doctor (they see titles only)"]
+    J --> K["Doctor checks papers, confirms medicines, decides on each flag, reviews the records and letter, marks the packet reviewed"]
     K --> L["Staff send: brief built, package hashed, outbox written (submitted)"]
     L --> M["Receiving hospital: staff acknowledge, confirm the patient, assign a doctor"]
     M --> N{"Receiving doctor decides"}

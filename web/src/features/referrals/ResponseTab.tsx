@@ -33,7 +33,9 @@ function Answer({ id, onDone }: { id: number; onDone: () => void }) {
 
 export function ResponseTab({ r, role }: { r: ReferralDetail; role: Role }) {
   const refresh = useInvalidateReferral(r.id);
-  const responses = useQuery({ queryKey: ["referral", r.id, "responses", r.row_version], queryFn: () => api.get<ConsultationResponse[]>(`/referrals/${r.id}/responses`) });
+  // a specialist response is clinical: only doctors fetch it (decision 2026-10-29)
+  const responses = useQuery({ queryKey: ["referral", r.id, "responses", r.row_version], enabled: role === "doctor",
+    queryFn: () => api.get<ConsultationResponse[]>(`/referrals/${r.id}/responses`) });
   const tasks = useQuery({ queryKey: ["referral", r.id, "tasks", r.row_version], queryFn: () => api.get<FollowupTask[]>(`/referrals/${r.id}/tasks`) });
   const [informing, setInforming] = useState(false);
   const [task, setTask] = useState({ description: "", assignee_name: "", due_date: "" });
@@ -42,7 +44,7 @@ export function ResponseTab({ r, role }: { r: ReferralDetail; role: Role }) {
   const done = () => {
     setInforming(false);
     setOutcome(null);
-    responses.refetch();
+    if (role === "doctor") responses.refetch();
     tasks.refetch();
     refresh();
   };
@@ -84,9 +86,11 @@ export function ResponseTab({ r, role }: { r: ReferralDetail; role: Role }) {
               <Stack key={c.id} spacing={1}>
                 <Typography variant="body2"><strong>{c.asked_by}</strong>, {fmtDate(c.asked_at)}: {c.question}</Typography>
                 {c.status === "answered" ? (
-                  <Typography variant="body2" color="text.secondary">Answered by {c.answered_by}, {fmtDate(c.answered_at)}: {c.answer}</Typography>
-                ) : (
+                  <Typography variant="body2" color="text.secondary">Answered by {c.answered_by}, {fmtDate(c.answered_at)}{c.answer ? `: ${c.answer}` : ""}</Typography>
+                ) : role === "doctor" ? (
                   <Answer id={c.id} onDone={done} />
+                ) : (
+                  <Tag tone="wait" label="The doctor answers this" />
                 )}
               </Stack>
             ))}

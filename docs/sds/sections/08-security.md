@@ -24,8 +24,10 @@ Identity comes only from the verified token: never from request headers or the r
 | Rule | Enforcement |
 |---|---|
 | A referral is visible and changeable only by its own institution's doctors and staff | `security.load_referral`: caller's institution must equal `referral.source_institution`, and the role must be in the allowed set (default `clinician`, `clinic_staff`). Every denial is audited and returns 403. |
-| Doctor-only actions: create a request (`POST /referrals`), decide on a medication flag | `require_roles(principal, "clinician")`; `load_referral(..., roles=("clinician",))` |
-| Preparation actions: links, retrieval, papers, evidence review, medicines, submit, send, patient informed, close | `load_referral` with the default roles: **both** `clinician` and `clinic_staff` of the referring institution may call them. The order of work (staff prepare, the doctor reviews flags, staff send) comes from the readiness checklist and the screens, not from separate role checks. |
+| **Clinical content is doctor-only** (decision 2026-10-29): record content and selection, papers and their fields, the medicine list and flags, AI suggestion decisions, the letter preview, package content, own-copy verification, clarification answers, test results and attachments, legacy responses | `load_referral(..., roles=("clinician",))`, `require_doctor`; read endpoints return a staff view (`clinical=False`) instead of refusing where staff need the list (titles, statuses, counts) |
+| Doctor-only workflow actions: create a request, submit, the packet review (`POST /referrals/{id}/packet-reviewed`) | `require_roles(principal, "clinician")`; `load_referral(..., roles=("clinician",))` |
+| Staff actions: links, retrieval, paper upload, "ready for the doctor", send (after the doctor's review), test orders, patient informed | `load_referral(..., roles=("clinic_staff",))` or the default roles |
+| Audit detail | Non-doctors never get the `changes` and `note` detail fields, which can hold clinical text |
 | Patient-link decisions | `clinic_staff`, `institution_admin` or `diagnostics_staff` of the target institution |
 | Administrators manage accounts, grants and audit; no clinical record access | `institution_admin` checks; `load_referral` does not accept it |
 | Rule and medicine-name approval | `rule_reviewer` only |

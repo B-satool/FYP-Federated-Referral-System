@@ -310,8 +310,9 @@ export function IncomingCase() {
   if (q.error) return <ErrorAlert error={q.error} />;
   const { case: c, packages, info_requests, results } = q.data!;
   const shown = packages.find((p) => p.version === version) ?? packages[0];
-  const removed = !!c.shared_removed_at || !!shown?.envelope.purged;
-  const env = removed ? undefined : shown?.envelope;
+  const removed = !!c.shared_removed_at || !!shown?.envelope?.purged;
+  const env = removed ? undefined : shown?.envelope ?? undefined;
+  const redacted = !!q.data!.redacted;
   const urgency = ref.data?.urgencies[c.urgency];
   const deptName = (code: string | null | undefined) => (code ? ref.data?.departments[code]?.name ?? code : null);
   const from = env ? `${env.requesting_doctor.name}, ${env.requesting_doctor.institution}` : c.sender_name;
@@ -338,7 +339,7 @@ export function IncomingCase() {
         {info_requests.map((ir) => (
           <Paper key={ir.id} variant="outlined" sx={{ p: 1.5 }}>
             <Typography variant="body2">
-              <strong>Q:</strong> {ir.question}
+              <strong>Q:</strong> {ir.question ?? "Visible to doctors only"}
             </Typography>
             <Typography variant="caption" color="text.secondary">
               {ir.created_by}, {fmtDate(ir.created_at)}
@@ -582,7 +583,22 @@ export function IncomingCase() {
         {holdSection}
 
         {letter}
-        {!env && !removed && <Empty>The referral letter has not been received yet.</Empty>}
+        {redacted && !removed && shown && (
+          <Section title="Records attached" description="What the referral contains, by title. Its clinical content is visible to the doctors here.">
+            <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+              {shown.record_titles.map((t, i) => (
+                <li key={i}>
+                  <Typography variant="body2">
+                    {t.title}
+                    {t.date ? ` · ${fmtDate(t.date, false)}` : ""}
+                  </Typography>
+                </li>
+              ))}
+            </Box>
+            {shown.record_titles.length === 0 && <Empty>No records attached.</Empty>}
+          </Section>
+        )}
+        {!env && !removed && !redacted && <Empty>The referral letter has not been received yet.</Empty>}
 
         {resultsSection}
 
@@ -602,8 +618,8 @@ export function IncomingCase() {
                 {packages.map((p) => (
                   <TableRow key={p.version}>
                     <TableCell>v{p.version}</TableCell>
-                    <TableCell>{p.envelope.purged ? "removed" : p.envelope.sent_by}</TableCell>
-                    <TableCell>{p.envelope.purged ? "removed" : fmtDate(p.envelope.sent_at)}</TableCell>
+                    <TableCell>{!p.envelope ? "-" : p.envelope.purged ? "removed" : p.envelope.sent_by}</TableCell>
+                    <TableCell>{!p.envelope ? "-" : p.envelope.purged ? "removed" : fmtDate(p.envelope.sent_at)}</TableCell>
                     <TableCell>{fmtDate(p.received_at)}</TableCell>
                     <TableCell>
                       <code title={p.content_hash}>{p.content_hash.slice(0, 12)}…</code>

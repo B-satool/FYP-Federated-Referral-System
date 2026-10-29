@@ -91,6 +91,17 @@ def require_roles(principal: Principal, *roles: str, action: str = "action", mes
                    message or f"This action requires one of the roles: {', '.join(roles)}")
 
 
+def sees_clinical(principal: Principal) -> bool:
+    """Only doctors see a patient's clinical content (records, papers, medicines, flags, the letter, notes).
+    Staff see titles, statuses and counts (decision 2026-10-29)."""
+    return DOCTOR in principal.roles
+
+
+def require_doctor(principal: Principal, action: str) -> None:
+    require_roles(principal, DOCTOR, action=action,
+                  message="Only a doctor sees and changes the patient's clinical records")
+
+
 def require_service(principal: Principal, role: str) -> None:
     if role not in principal.roles:
         raise deny(principal, "service_call", "service", role, "Only the authorized service identity may call this endpoint")

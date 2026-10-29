@@ -105,6 +105,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     actor S as Staff
+    actor D as Doctor
     participant C as Central
     participant Wk as Worker
     participant V as OCR engine (Tesseract, or Google Vision)
@@ -124,7 +125,8 @@ sequenceDiagram
         Wk->>Wk: rules-extractor/2
     end
     Wk->>C: evidence rows proposed and unverified, linked to page regions
-    S->>C: review against the page image: verify, correct, unresolve or exclude
+    Note over S,C: staff see the paper's name and status only
+    D->>C: review against the page image: verify, correct, unresolve or exclude
     C->>C: evidence_revisions, medicine list and flags re-evaluated
 ```
 
@@ -141,11 +143,15 @@ sequenceDiagram
     C->>E: medicines, procedure tags, conditions, approved rules, DDInter pairs, label rules
     E-->>C: flag candidates (deterministic)
     C->>C: evaluation_runs row, new flag versions, supersede changed flags
-    S->>C: POST /medications/manual, /medications/checked (asked the patient, incl. OTC)
-    S->>C: resolve dose differences, mark the referral ready
+    S->>C: POST /referrals/{id}/prepared (records retrieved, papers uploaded)
+    Note over S,C: staff see counts only, never medicine names or flags
+    D->>C: POST /medications/manual, /medications/checked (asked the patient, incl. OTC)
+    D->>C: resolve dose differences
     D->>C: POST /referrals/{id}/flags/{flag}/acknowledge (reviewed, ignore or research, note)
     C->>C: flag_reviews row for that flag version, audit
     D->>C: POST /referrals/{id}/ai-suggestions/review (ignore or research)
+    D->>C: POST /referrals/{id}/packet-reviewed (records, papers, medicines, flags, letter)
+    C-->>S: notification: ready to send
 ```
 
 ## 7.7 Sending a version and delivery
@@ -158,7 +164,7 @@ sequenceDiagram
     participant B as Receiving hospital
     participant A as Referring institution
     S->>C: POST /referrals/{id}/send
-    C->>C: readiness: every blocking item done
+    C->>C: readiness: every blocking item done, including the doctor's packet review
     C->>C: brief (deterministic), PackageEnvelope, SHA-256, manifest
     C->>C: one transaction: referral_packages + outbox deliver_package + outbox sender_copy
     Wk->>B: POST /inbound/referrals (delivery key, service token)

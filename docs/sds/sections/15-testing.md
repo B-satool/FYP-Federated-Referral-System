@@ -34,8 +34,8 @@
 
 Appendix O lists every test with its description, generated from the test files.
 
-**Latest results** (2026-10-28, local stack):
+**Latest results** (2026-10-29, local stack):
 
-- 130 unit tests pass.
+- 136 unit tests pass, including `test_staff_view.py`: staff views carry no clinical values, consultation notes keep older package hashes, interaction label quotes.
 - 21 of 22 integration tests pass. The failure is `test_admin_assigns_a_role_by_template`: Keycloak refused the role change (`502 identity_provider_refused`). The local realm was imported before the role-template change, so the `service-account-central-api` user lacks the `realm-management` role `view-realm`, which `infra/keycloak/import/referral-realm.json` now grants (Section 16).
 - The web type check passes.

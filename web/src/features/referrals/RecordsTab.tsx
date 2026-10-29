@@ -6,7 +6,7 @@ import { api } from "../../api/client";
 import type { Evidence, ReferralDetail, SelectionStatus } from "../../api/types";
 import { EvidenceRef } from "../../components/EvidenceRef";
 import { Empty, ErrorAlert, fmtDate, Loading, RetrievalStatus, Section } from "../../components/common";
-import { isStaff, useMe, useRefData } from "../../hooks";
+import { isDoctor, useMe, useRefData } from "../../hooks";
 import { HoldNotice } from "./HoldNotice";
 import { OtherPlaces } from "./LinksTab";
 import { useInvalidateReferral } from "./ReferralWorkspace";
@@ -21,7 +21,7 @@ const GROUPS: [string, string, string][] = [
 
 const AI_WORD = { include: "AI suggests including", exclude: "AI suggests leaving out", optional: "AI: might help" } as const;
 
-/** How this record came to be ticked or not: the rule-based default, the AI recommendation, or staff. */
+/** How this record came to be ticked or not: the rule-based default, the AI recommendation, or the doctor. */
 function SelectionBadges({ e }: { e: Evidence }) {
   return (
     <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, flexWrap: "wrap", rowGap: 0.5 }}>
@@ -74,7 +74,7 @@ export function RecordsTab({ r }: { r: ReferralDetail }) {
     },
   });
   const { data: me } = useMe();
-  const staff = isStaff(me);
+  const doctor = isDoctor(me); // only the doctor sees record content and decides what goes in the packet
   const selection = useQuery({
     queryKey: ["referral", r.id, "selection"],
     queryFn: () => api.get<SelectionStatus>(`/referrals/${r.id}/selection`),
@@ -172,8 +172,8 @@ export function RecordsTab({ r }: { r: ReferralDetail }) {
       {used.length > 0 && (
         <Section
           title="What goes in the referral"
-          description={staff ? "You decide. Ticked items are sent. The AI recommendation is only a suggestion and never removes an item that is included by default." : "Staff decide what is sent."}
-          actions={staff && selection.data?.llm_configured ? (
+          description={doctor ? "You decide. Ticked items are sent. The AI recommendation is only a suggestion and never removes an item that is included by default." : "The doctor reviews the records and decides what is sent. You see each record's title only."}
+          actions={doctor && selection.data?.llm_configured ? (
             <Button variant="outlined" startIcon={<AutoAwesome />} disabled={recommend.isPending || locked} onClick={() => recommend.mutate()}>
               Ask AI again
             </Button>
@@ -183,7 +183,7 @@ export function RecordsTab({ r }: { r: ReferralDetail }) {
           {selection.data && (
             <Typography variant="body2" sx={{ mb: 1 }}>
               {selection.data.counts.selected} of {selection.data.counts.retrieved} records ticked
-              {selection.data.counts.staff_overrides_of_ai ? ` · ${selection.data.counts.staff_overrides_of_ai} changed by staff from the AI suggestion` : ""}
+              {selection.data.counts.staff_overrides_of_ai ? ` · ${selection.data.counts.staff_overrides_of_ai} changed by the doctor from the AI suggestion` : ""}
             </Typography>
           )}
           {!run && selection.data?.llm_configured && <Alert severity="info">AI recommendation in progress. The default selection applies meanwhile.</Alert>}
@@ -219,7 +219,7 @@ export function RecordsTab({ r }: { r: ReferralDetail }) {
                 <Table size="small">
                   <TableBody>
                     {items.map((e) => (
-                      <EvidenceRow key={e.id} e={e} busy={toggle.isPending || locked || !staff} onToggle={(selected) => toggle.mutate({ id: e.id, selected })} />
+                      <EvidenceRow key={e.id} e={e} busy={toggle.isPending || locked || !doctor} onToggle={(selected) => toggle.mutate({ id: e.id, selected })} />
                     ))}
                   </TableBody>
                 </Table>
@@ -232,7 +232,7 @@ export function RecordsTab({ r }: { r: ReferralDetail }) {
           <Table size="small">
             <TableBody>
               {ending.map((e) => (
-                <EvidenceRow key={e.id} e={e} busy={toggle.isPending || locked || !staff} onToggle={(selected) => toggle.mutate({ id: e.id, selected })} />
+                <EvidenceRow key={e.id} e={e} busy={toggle.isPending || locked || !doctor} onToggle={(selected) => toggle.mutate({ id: e.id, selected })} />
               ))}
             </TableBody>
           </Table>

@@ -23,6 +23,10 @@
 | Medicine names | `medicine_names` (`rules/terminology/medicine-names.pk.json`): generic names, hand-checked brands, DRAP register brands, ambiguous register names | Reviewer-maintained; register brands loaded by decision 2026-10-28 |
 | Rule set fingerprint | `ruleset_releases` | Hash of the approved manual rules, label rules and interaction data in force |
 
+**Interaction explanations.** DDInter's download gives only the pair and its level. `scripts/extract_label_rules.py interactions` adds, for each pair, the shortest sentence from either drug's US label that names the other drug and talks about the combination. The drug-interactions section is preferred, and the sentence is kept verbatim in `rules/labels/interaction-quotes.json`, loaded onto `drug_interactions.label_quote`.
+- **Excluded:** drug-class mentions ("calcium channel blockers"), fragments cut at headings, and pairs read and found irrelevant (`REVIEWED_NOT_RELEVANT`).
+- **No quote, no explanation:** without a quote nothing is shown. No model writes explanations.
+
 **How label rules are validated.** A rule from a drug label is kept only if:
 
 - the quoted sentence appears verbatim in the cited section;
@@ -64,7 +68,7 @@ A manual rule matches a drug class against these tags, so one rule covers every 
 | Kind | Raised when | Needs the doctor's decision before sending |
 |---|---|---|
 | `confirmed` | An approved manual rule's drug class matches a current medicine and the planned procedure has a matching tag | Yes |
-| `interaction` | Two current ingredients form a DDInter pair | Only for Major |
+| `interaction` | Two current ingredients form a DDInter pair. If a US drug label has a sentence naming both, it is shown verbatim as the flag's source quote, with the label and section | Only for Major |
 | `label_warning` | A label rule's ingredient is current and its target matches a condition or procedure feature | Only for severity hint "high" |
 | `unrecognised_medicine` | A medicine's name is unmapped or ambiguous (including DRAP names registered for different medicines) | Yes |
 | `procedure_not_checked` | The procedure is unknown, or planned without features, and a current medicine has procedure rules | Yes |

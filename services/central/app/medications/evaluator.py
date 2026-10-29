@@ -47,6 +47,10 @@ class Interaction:
     severity: str  # Major | Moderate | Minor | Unknown (DDInter's level)
     source_ref: str
     source_version: str
+    # a sentence quoted verbatim from a US drug label that names both medicines, if one exists
+    label_quote: str | None = None
+    label_source: str | None = None
+    label_section: str | None = None
 
 
 @dataclass(frozen=True)
@@ -180,7 +184,10 @@ def _interaction_flags(inp: EvalInput, by_ing: dict[str, list[MedInput]]) -> lis
             message=(f"{DDINTER} records an interaction between {a} and {b} (severity: {level}). "
                      "Shown for the doctor to read; it is not advice to change either medicine."),
             medication=name, source_label=src, evidence_ids=ev, severity=x.severity, ingredients=[a, b],
-            source_type="ddinter", source_name=DDINTER, source_ref=x.source_ref, source_version=x.source_version,
+            source_type="ddinter",
+            source_name=DDINTER + (f"; explanation quoted from the {x.label_source}, {x.label_section} section"
+                                   if x.label_quote else ""),
+            source_ref=x.source_ref, source_version=x.source_version, source_quote=x.label_quote,
             auto_generated=True, requires_decision=x.severity == "Major"))
     return out
 

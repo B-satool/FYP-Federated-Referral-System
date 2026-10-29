@@ -6,16 +6,17 @@ from pathlib import Path
 
 import httpx
 import pytest
-from conftest import ROOT, SURGERY, new_referral
+from conftest import ROOT, SURGERY, doctor_review, new_referral
 from helpers import CENTRAL, central, ok, token, wait_for
 
 STAFF = central("staff.ali")
+DOCTOR = central("dr.ali")
 DOCS = ROOT / "seed-data" / "documents"
 ANGIO = ["iodinated_contrast", "arterial_access"]
 
 
 def _flags(rid: int) -> set[tuple[str, str]]:
-    meds = ok(STAFF.get(f"/referrals/{rid}/medications"))
+    meds = ok(DOCTOR.get(f"/referrals/{rid}/medications"))
     return {(f["rule_id"], f["medication"].split()[0].lower()) for f in meds["flags"] if f["kind"] == "confirmed"}
 
 
@@ -40,20 +41,20 @@ def test_imported_flags_show_source_and_decisions_are_logged():
     r = new_referral("Gondal", "akuh", "orthopaedics", "Total knee replacement (right)", SURGERY)
     rid = r["id"]
     ok(STAFF.post(f"/referrals/{rid}/retrieve"))
-    flags = ok(STAFF.get(f"/referrals/{rid}/medications"))["flags"]
+    flags = ok(DOCTOR.get(f"/referrals/{rid}/medications"))["flags"]
     ddi = [f for f in flags if f["kind"] == "interaction"]
     assert any(set(f["ingredients"]) == {"aspirin", "diclofenac"} for f in ddi), [f["ingredients"] for f in ddi]
     for f in ddi + [f for f in flags if f["kind"] == "label_warning"]:
         assert f["auto_generated"] and f["source_ref"] and f["source_version"] and f["severity"]
     assert all(f["source_quote"] for f in flags if f["kind"] == "label_warning")
-    ok(STAFF.post(f"/referrals/{rid}/medications/checked", {"note": "Asked"}))
+    ok(DOCTOR.post(f"/referrals/{rid}/medications/checked", {"note": "Asked"}))
     ok(STAFF.post(f"/referrals/{rid}/prepared", {"expected_version": ok(STAFF.get(f"/referrals/{rid}"))["row_version"]}))
     doctor = central("dr.ali")
     target, other = ddi[0], next(f for f in flags if f["kind"] == "confirmed")
     ok(doctor.post(f"/referrals/{rid}/flags/{target['id']}/acknowledge",
                    {"flag_version": target["version"], "decision": "ignore", "note": "Known; cardiology aware"}))
     ok(doctor.post(f"/referrals/{rid}/flags/{other['id']}/acknowledge", {"flag_version": other["version"], "decision": "research"}))
-    after = {f["id"]: f for f in ok(STAFF.get(f"/referrals/{rid}/medications"))["flags"]}
+    after = {f["id"]: f for f in ok(DOCTOR.get(f"/referrals/{rid}/medications"))["flags"]}
     assert after[target["id"]]["acknowledgements"][0]["decision"] == "ignore"  # still listed, with the decision
     assert after[other["id"]]["acknowledgements"][0]["decision"] == "research"
     audit = ok(doctor.get(f"/referrals/{rid}/audit"))
@@ -61,7 +62,7 @@ def test_imported_flags_show_source_and_decisions_are_logged():
     assert ignored["actor_name"] == "Dr Ali Raza" and ignored["detail"]["ruleset"]
 
     # AI suggestions: separate from flags, only the doctor reviews them, and a review changes no flag
-    meds = ok(STAFF.get(f"/referrals/{rid}/medications"))
+    meds = ok(DOCTOR.get(f"/referrals/{rid}/medications"))
     sugg = {s["pair_key"]: s for s in meds["ai_suggestions"]}
     assert "diclofenac|esomeprazole" in sugg and meds["ai_label"] == "AI suggestion, not verified"
     assert sugg["diclofenac|esomeprazole"]["model_version"] and sugg["diclofenac|esomeprazole"]["data_version"]
@@ -69,7 +70,7 @@ def test_imported_flags_show_source_and_decisions_are_logged():
     body = {"pair_key": "diclofenac|esomeprazole", "decision": "research"}
     assert STAFF.post(f"/referrals/{rid}/ai-suggestions/review", body).status_code == 403
     ok(doctor.post(f"/referrals/{rid}/ai-suggestions/review", body))
-    meds = ok(STAFF.get(f"/referrals/{rid}/medications"))
+    meds = ok(DOCTOR.get(f"/referrals/{rid}/medications"))
     assert sorted((f["flag_key"], f["version"]) for f in meds["flags"]) == before
     assert {s["pair_key"]: s for s in meds["ai_suggestions"]}["diclofenac|esomeprazole"]["review"]["decision"] == "research"
 
@@ -78,7 +79,7 @@ def test_procedure_without_features_is_not_checked():
     """A procedure written without saying what it involves: procedure rules are not run, and say so."""
     r = new_referral("Imtiaz", "akuh", "general_surgery", "Gallbladder operation", [])
     ok(STAFF.post(f"/referrals/{r['id']}/retrieve"))
-    meds = ok(STAFF.get(f"/referrals/{r['id']}/medications"))
+    meds = ok(DOCTOR.get(f"/referrals/{r['id']}/medications"))
     kinds = {f["kind"] for f in meds["flags"]}
     assert "confirmed" not in kinds and "procedure_not_checked" in kinds
 
@@ -101,7 +102,7 @@ def test_p2_every_linked_hospital_and_stopped_medicine():
     assert res["ziauddin"]["status"] == "successful" and res["ziauddin"]["last_activity"] == "2026-10-10"
     assert res["akuh"]["status"] in ("successful", "partial") and res["akuh"]["last_activity"] == "2026-08-30"
     assert not [x for x in res.values() if x["status"] == "skipped"]
-    meds = ok(STAFF.get(f"/referrals/{r['id']}/medications"))["entries"]
+    meds = ok(DOCTOR.get(f"/referrals/{r['id']}/medications"))["entries"]
     assert "diclofenac" not in {m["ingredient"] for m in meds}
     # older results are retrieved for staff to add, but only the last 6 months are selected by default
     ev = ok(STAFF.get(f"/referrals/{r['id']}/evidence", params={"category": "lab"}))
@@ -121,14 +122,14 @@ def test_uploaded_prescription_merges_with_recorded_medicines():
         up = httpx.post(f"{CENTRAL}/referrals/{rid}/documents", headers={"Authorization": f"Bearer {token('staff.ali')}"},
                         files={"file": (path.name, fh, "image/jpeg")}, data={"doc_type": "prescription"}, timeout=60)
     doc_id = ok(up, 201)["document"]["id"]
-    detail = wait_for(lambda: (d := ok(STAFF.get(f"/documents/{doc_id}")))["document"]["status"] in ("extracted", "unreadable", "failed") and d,
+    detail = wait_for(lambda: (d := ok(DOCTOR.get(f"/documents/{doc_id}")))["document"]["status"] in ("extracted", "unreadable", "failed") and d,
                       180, 2, "OCR")
     assert detail["document"]["status"] == "extracted", detail["document"]
     read = {f["current"].get("medication", "").split()[0].lower() for f in detail["fields"] if f["category"] == "medication"}
     assert {"disprin", "plavix", "lipitor", "concor"} <= read, read
     for f in detail["fields"]:
-        ok(STAFF.post(f"/evidence/{f['id']}/verify", {"expected_row_version": f["row_version"], "note": "Checked against the paper"}))
-    entries = ok(STAFF.get(f"/referrals/{rid}/medications"))["entries"]
+        ok(DOCTOR.post(f"/evidence/{f['id']}/verify", {"expected_row_version": f["row_version"], "note": "Checked against the paper"}))
+    entries = ok(DOCTOR.get(f"/referrals/{rid}/medications"))["entries"]
     shown = [m for m in entries if not m["duplicate_of"] and m["ingredient"] in ("aspirin", "clopidogrel", "atorvastatin", "bisoprolol")]
     assert sorted(m["ingredient"] for m in shown) == ["aspirin", "atorvastatin", "bisoprolol", "clopidogrel"]
     assert all(any(d["duplicate_of"] == m["id"] for d in entries) for m in shown)

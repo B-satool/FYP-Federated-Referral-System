@@ -63,32 +63,34 @@ test("referral: doctor requests, staff prepare, doctor reviews flags, staff send
   const reference = (await dr.locator("h1").innerText()).split(" · ")[0];
   await expect(dr.getByText("In progress").first()).toBeVisible();
   await openTab(dr, "Medicines & flags");
-  await expect(dr.getByText(/Staff are still gathering/)).toBeVisible();
+  await expect(dr.getByText(/Staff are still retrieving/)).toBeVisible();
 
-  // 2. Clinic staff gather the records and medicines, then mark it ready for the doctor.
+  // 2. Clinic staff retrieve the records and mark it ready for the doctor. They see titles, not content.
   const staff = await asUser(browser, "staff.ali");
   await go(staff, `${url}?tab=records`);
   await staff.getByRole("button", { name: /Retrieve records/ }).click();
   await expect(staff.getByRole("cell", { name: "Ziauddin Hospital" })).toBeVisible({ timeout: 30_000 });
   await expect(staff.getByText("retrieved", { exact: true }).first()).toBeVisible();
+  await expect(staff.getByText(/You see each record's title only/)).toBeVisible();
   await shot(staff, "v2-records");
   await openTab(staff, "Medicines & flags");
-  await staff.getByRole("button", { name: "Add a medicine" }).click();
-  await staff.getByLabel("Medicine (as the patient says it)").fill("Panadol");
-  await staff.getByLabel("Strength").fill("500 mg");
-  await staff.getByLabel("How often").fill("as needed");
-  await staff.getByRole("button", { name: "Add medicine" }).click();
-  await expect(staff.getByRole("cell", { name: /Panadol/ })).toBeVisible();
-  await staff.getByRole("button", { name: "I asked the patient about all their medicines" }).click();
-  await expect(staff.getByText(/Patient asked about all medicines: /)).toBeVisible();
+  await expect(staff.getByText(/You see the progress only/)).toBeVisible();
+  await expect(staff.getByRole("button", { name: "Add a medicine" })).toHaveCount(0);
   await openTab(staff, "Check & send");
   await staff.getByRole("button", { name: "Ready for the doctor's review" }).click();
   await expect(staff.getByText(/Marked ready by/)).toBeVisible({ timeout: 30_000 });
 
-  // 3. The doctor reviews the flags (no "Add a medicine" for doctors).
+  // 3. The doctor adds what the patient reports, confirms the medicines, decides on each flag, then marks the packet reviewed.
   await go(dr, `${url}?tab=medicines`);
   await expect(dr.getByText("Medication requires review: antiplatelet agent before surgery").first()).toBeVisible();
-  await expect(dr.getByRole("button", { name: "Add a medicine" })).toHaveCount(0);
+  await dr.getByRole("button", { name: "Add a medicine" }).click();
+  await dr.getByLabel("Medicine (as the patient says it)").fill("Panadol");
+  await dr.getByLabel("Strength").fill("500 mg");
+  await dr.getByLabel("How often").fill("as needed");
+  await dr.getByRole("button", { name: "Add medicine" }).click();
+  await expect(dr.getByRole("cell", { name: /Panadol/ })).toBeVisible();
+  await dr.getByRole("button", { name: "I asked the patient about all their medicines" }).click();
+  await expect(dr.getByText(/Patient asked about all medicines: /)).toBeVisible();
   await expect(dr.getByText(/Automatically generated, not clinically reviewed/).first()).toBeVisible();
   const needed = dr.getByRole("region", { name: "Needs your decision" });
   await needed.getByRole("button", { name: "Ignore" }).first().click();
@@ -103,11 +105,15 @@ test("referral: doctor requests, staff prepare, doctor reviews flags, staff send
     await expect(btn).toHaveCount(n - 1, { timeout: 20_000 });
   }
   await shot(dr, "v2-flags-doctor");
+  await openTab(dr, "Referral letter");
+  await expect(dr.getByRole("article", { name: /Referral letter/ })).toBeVisible();
+  await dr.getByRole("button", { name: "Mark the packet reviewed" }).click();
+  await expect(dr.getByText(/Packet reviewed by Dr Ali Raza/)).toBeVisible({ timeout: 20_000 });
 
-  // 4. Staff read the letter and send it (staff cannot withdraw a request).
+  // 4. Staff send it without seeing the letter (staff cannot withdraw a request).
   await go(staff, `${url}?tab=send`);
   await expect(staff.getByRole("button", { name: "Send to Aga Khan University Hospital" })).toBeEnabled({ timeout: 30_000 });
-  await expect(staff.getByRole("article", { name: /Referral letter/ })).toBeVisible();
+  await expect(staff.getByText(/visible to doctors only/).first()).toBeVisible();
   await staff.waitForLoadState("networkidle");
   await shot(staff, "v2-check-and-send");
   await staff.getByRole("button", { name: "Send to Aga Khan University Hospital" }).click();

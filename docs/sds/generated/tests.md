@@ -1,6 +1,6 @@
 ## Automated tests
 
-107 tests in 20 files.
+113 tests in 21 files.
 
 ### `services/central/tests/test_ai_suggestions.py` (unit (no services), 4)
 
@@ -147,6 +147,17 @@
 | `test_failure_keeps_the_default` |  |
 | `test_include_at_low_relevance_does_not_add` |  |
 | `test_answer_arriving_after_purge_is_discarded` |  |
+
+### `services/central/tests/test_staff_view.py` (unit (no services), 6)
+
+| Test | What it checks |
+|---|---|
+| `test_record_titles_name_the_chart_never_the_content` |  |
+| `test_staff_evidence_view_has_no_values_or_ai_reasoning` |  |
+| `test_staff_referral_view_hides_reason_notes_and_procedure` |  |
+| `test_staff_test_view_hides_question_and_result` |  |
+| `test_consultation_notes_are_hashed_without_changing_older_packages` |  |
+| `test_interaction_flag_quotes_the_label_when_a_sentence_exists` |  |
 
 ### `services/central/tests/test_vision_ocr.py` (unit (no services), 3)
 

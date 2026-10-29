@@ -15,9 +15,8 @@ from ..config import DRUG_CLASSES, PROCEDURE_HINTS, PROCEDURE_TAGS, settings
 from ..db import get_db
 from ..models import (AiSuggestion, DrugInteraction, EvidenceItem, SuggestionReview, EvidenceRevision, FlagReview, LabelRule, MedicationEntry, MedicationFlag,
                       MedicationRule, MedicineName, Referral, RulesetRelease)
-from ..notifications import notify_staff
 from ..referrals.state import CLINICAL_LOCKED, TERMINAL, ensure_clinical_edit_allowed, mark_clinical_change
-from ..security import audit, error, get_principal, load_referral, require_roles
+from ..security import audit, error, get_principal, load_referral, require_roles, sees_clinical
 from ..serializers import flag_out, medication_out
 from ..workflow import after_change
 from ..lifecycle import working_set
@@ -34,6 +33,16 @@ def _acks(db: Session, flag_id: int) -> list[FlagReview]:
 def medications(referral_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     r = load_referral(db, referral_id, principal, "view")
     run = service.latest_run(db, r.id)
+    if not sees_clinical(principal):
+        # staff view (decision 2026-10-29): how far the doctor has got, never medicine names or flags
+        active = db.scalars(select(MedicationFlag).where(MedicationFlag.referral_id == r.id,
+                                                         MedicationFlag.status == "active")).all()
+        pending = sum(1 for f in active if f.requires_decision and not _acks(db, f.id))
+        return {"redacted": True, "entries": [], "excluded": [], "flags": [], "flag_history": [], "ai_suggestions": [],
+                "ai_label": suggestions.LABEL, "medicine_count": len(service.current_entries(db, r.id)),
+                "flag_count": len(active), "flags_awaiting_doctor": pending,
+                "meds_checked": {"by": r.meds_checked_by, "at": r.meds_checked_at, "note": None},
+                "evaluation": None if run is None else {"id": run.id, "status": run.status, "created_at": run.created_at}}
     flags = db.scalars(select(MedicationFlag).where(MedicationFlag.referral_id == r.id)
                        .order_by(MedicationFlag.flag_key, MedicationFlag.version.desc())).all()
     entries = service.all_entries(db, r.id)
@@ -112,7 +121,7 @@ class ManualMedIn(BaseModel):
 def add_medicine(referral_id: int, body: ManualMedIn, db: Session = Depends(get_db),
                  principal: Principal = Depends(get_principal)):
     """Staff add a medicine the patient says they take, e.g. an over-the-counter painkiller."""
-    r = load_referral(db, referral_id, principal, "edit", roles=("clinic_staff",))
+    r = load_referral(db, referral_id, principal, "edit", roles=("clinician",))
     ensure_clinical_edit_allowed(r)
     working_set.start(r)
     fields = {"medication": body.name.strip(), "strength": body.strength, "dosage_text": " ".join(
@@ -155,7 +164,7 @@ def exclude_medicine(referral_id: int, entry_id: int, body: ReasonIn, db: Sessio
                      principal: Principal = Depends(get_principal)):
     """Staff mark a recorded medicine as not current (e.g. an old prescription, or the
     other side of a dose difference). The record is kept, with who and why."""
-    r = load_referral(db, referral_id, principal, "edit")
+    r = load_referral(db, referral_id, principal, "edit", roles=("clinician",))
     ensure_clinical_edit_allowed(r)
     m = _entry(db, r, entry_id)
     m.excluded, m.excluded_by, m.excluded_reason = True, principal.display_name, body.reason.strip()
@@ -171,7 +180,7 @@ def exclude_medicine(referral_id: int, entry_id: int, body: ReasonIn, db: Sessio
 @router.post("/referrals/{referral_id}/medications/{entry_id}/restore")
 def restore_medicine(referral_id: int, entry_id: int, db: Session = Depends(get_db),
                      principal: Principal = Depends(get_principal)):
-    r = load_referral(db, referral_id, principal, "edit")
+    r = load_referral(db, referral_id, principal, "edit", roles=("clinician",))
     ensure_clinical_edit_allowed(r)
     m = _entry(db, r, entry_id)
     m.excluded, m.excluded_by, m.excluded_reason = False, None, None
@@ -207,7 +216,7 @@ def set_mapping(referral_id: int, entry_id: int, body: MapIn, db: Session = Depe
                 principal: Principal = Depends(get_principal)):
     """Doctor or staff resolve a name: choose a medicine from the name list, or, for a DRAP brand name used
     for different products, the product it is (by the company on the pack)."""
-    r = load_referral(db, referral_id, principal, "map_medication")
+    r = load_referral(db, referral_id, principal, "map_medication", roles=("clinician",))
     ensure_clinical_edit_allowed(r)
     m = _entry(db, r, entry_id)
     choice = None
@@ -245,7 +254,7 @@ class CheckedIn(BaseModel):
 def medicines_checked(referral_id: int, body: CheckedIn, db: Session = Depends(get_db),
                       principal: Principal = Depends(get_principal)):
     """Staff confirm they asked the patient about every medicine, including over-the-counter ones."""
-    r = load_referral(db, referral_id, principal, "edit")
+    r = load_referral(db, referral_id, principal, "edit", roles=("clinician",))
     ensure_clinical_edit_allowed(r)
     r.meds_checked_by, r.meds_checked_at, r.meds_checked_note = principal.display_name, utcnow(), body.note or None
     audit(db, principal, "medication.checked_with_patient", "referral", r.reference, "success", r.id)
@@ -281,10 +290,7 @@ def acknowledge_flag(referral_id: int, flag_id: int, body: AckIn, db: Session = 
                           ruleset_hash=run.ruleset_hash if run else None))
         audit(db, principal, f"flag.{body.decision}", "medication_flag", f"{f.id}v{f.version}", "success", r.id,
               {"decision": body.decision, "note": body.note, "ruleset": run.ruleset_hash if run else None})
-        db.flush()
-        if r.status == "requested" and not service.unacknowledged_flags(db, r.id):
-            notify_staff(db, r, "ready_to_send", f"{r.reference}: flags reviewed, ready to send",
-                         f"{principal.display_name} reviewed every medication flag.", tab="send")
+        db.flush()  # staff are told "ready to send" when the doctor marks the whole packet reviewed
         db.commit()
     return flag_out(f, _acks(db, f.id))
 

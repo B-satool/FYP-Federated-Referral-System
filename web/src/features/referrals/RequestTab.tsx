@@ -15,7 +15,8 @@ const LOCKED = ["response_returned", "followup_pending", "closed", "declined", "
 function toValues(r: ReferralDetail): FormValues {
   return {
     source_department: r.source_department ?? "", destination_institution: r.destination_institution ?? "",
-    destination_department: r.destination_department ?? "", destination_doctor: r.destination_doctor ?? "", reason: r.reason,
+    destination_department: r.destination_department ?? "", destination_doctor: r.destination_doctor ?? "", reason: r.reason ?? "",
+    consultation_notes: r.consultation_notes ?? "",
     urgency: r.urgency, procedure_status: r.procedure_status, planned_procedure: r.planned_procedure ?? "",
     procedure_tags: r.procedure_tags, tags_touched: true,
   };
@@ -114,7 +115,7 @@ export function RequestTab({ r, role }: { r: ReferralDetail; role: Role }) {
       api.patch(`/referrals/${r.id}`, {
         expected_version: r.row_version, source_department: values.source_department, destination_institution: values.destination_institution,
         destination_department: values.destination_department, destination_doctor: values.destination_doctor || null,
-        reason: values.reason, urgency: values.urgency, ...procedurePayload(values), submit,
+        reason: values.reason, consultation_notes: values.consultation_notes, urgency: values.urgency, ...procedurePayload(values), submit,
       }),
     meta: { success: "Request saved." },
     onSuccess: () => {
@@ -159,10 +160,11 @@ export function RequestTab({ r, role }: { r: ReferralDetail; role: Role }) {
           ) : (
             <KeyValue
               items={[
-                ["Reason", <Box component="span" sx={{ whiteSpace: "pre-wrap" }}>{r.reason || "Not written yet"}</Box>],
+                ["Reason", <Box component="span" sx={{ whiteSpace: "pre-wrap" }}>{r.redacted ? "Visible to doctors only" : r.reason || "Not written yet"}</Box>],
+                ["Consultation notes", <Box component="span" sx={{ whiteSpace: "pre-wrap" }}>{r.redacted ? "Visible to doctors only" : r.consultation_notes || "None written"}</Box>],
                 ["Urgency", `${r.urgency_label}${r.urgency_detail ? ` - ${r.urgency_detail}` : ""}`],
                 ["Planned procedure", r.procedure_label],
-                ...(r.procedure_status === "planned"
+                ...(r.procedure_status === "planned" && !r.redacted
                   ? [["What it involves", r.procedure_tag_labels.length ? r.procedure_tag_labels.join(", ") : "Not recorded (procedure checks not run)"] as [string, string]]
                   : []),
                 ["Referring to", `${r.destination_name}, ${r.destination_department_name}`],

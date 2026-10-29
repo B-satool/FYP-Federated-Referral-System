@@ -101,11 +101,14 @@ def list_documents(referral_id: int, db: Session = Depends(get_db), principal: P
     return [document_out(d) for d in db.scalars(select(Document).where(Document.referral_id == r.id).order_by(Document.id))]
 
 
-def _load_doc(db: Session, document_id: int, principal: Principal, action: str = "view") -> Document:
+def _load_doc(db: Session, document_id: int, principal: Principal, action: str = "view",
+              roles: tuple[str, ...] = ("clinician",)) -> Document:
+    """Opening a paper (its fields, file or page images) is for the doctor only: staff upload papers and
+    see their name, type and status (decision 2026-10-29)."""
     doc = db.get(Document, document_id)
     if doc is None:
         raise error(404, "not_found", "Document not found")
-    load_referral(db, doc.referral_id, principal, action)
+    load_referral(db, doc.referral_id, principal, action, roles=roles)
     return doc
 
 
@@ -152,7 +155,7 @@ def page_image(document_id: int, page: int, db: Session = Depends(get_db), princ
 
 @router.post("/documents/{document_id}/reprocess")
 def reprocess(document_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    doc = _load_doc(db, document_id, principal, "edit")
+    doc = _load_doc(db, document_id, principal, "edit", roles=("clinic_staff", "clinician"))
     if doc.deleted_at:
         raise error(410, "deleted", "Document deleted under retention policy")
     doc.status = "queued"

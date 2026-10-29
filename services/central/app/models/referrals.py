@@ -37,6 +37,8 @@ class Referral(Base):
     destination_doctor: Mapped[str | None] = mapped_column(String(200), nullable=True)
     # Clinical
     reason: Mapped[str] = mapped_column(Text, default="")
+    # the doctor's consultation notes under the reason: symptoms, history, examination (clinical content)
+    consultation_notes: Mapped[str] = mapped_column(Text, default="", server_default="")
     urgency: Mapped[str] = mapped_column(String(20), default="routine")
     procedure_status: Mapped[str] = mapped_column(String(20), default="unknown")  # planned | none | unknown
     planned_procedure: Mapped[str | None] = mapped_column(String(300), nullable=True)  # in the doctor's words
@@ -48,6 +50,10 @@ class Referral(Base):
     # Staff checkpoint: records, papers and medicines gathered; the doctor can now review the flags
     prepared_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
     prepared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Doctor checkpoint: the doctor reviewed the records, papers, medicines and flags that go in the packet.
+    # Staff never see that content (decision 2026-10-29). A later clinical change clears it.
+    packet_reviewed_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    packet_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     amendment_open: Mapped[bool] = mapped_column(Boolean, default=False)
     current_package_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     submitted_package_version: Mapped[int | None] = mapped_column(Integer, nullable=True)

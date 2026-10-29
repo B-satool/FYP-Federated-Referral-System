@@ -64,9 +64,14 @@ export type Referral = {
   status: string;
   status_label: string;
   row_version: number;
-  /** staff gathered records, papers and medicines; the doctor can now review the flags */
+  /** staff retrieved the records and uploaded the papers; the doctor can now review the packet */
   prepared_by: string | null;
   prepared_at: string | null;
+  /** the doctor reviewed the packet's clinical content; staff can send */
+  packet_reviewed_by: string | null;
+  packet_reviewed_at: string | null;
+  /** staff view: the reason, notes, procedure and other clinical content are left out (null) */
+  redacted?: boolean;
   patient: { institution_id: string; local_patient_id: string; name: string; birth_date: string | null; sex: string | null; cnic: string | null };
   source_institution: string;
   source_institution_name: string;
@@ -80,7 +85,8 @@ export type Referral = {
   destination_department: string | null;
   destination_department_name: string | null;
   destination_doctor: string | null;
-  reason: string;
+  reason: string | null;
+  consultation_notes: string | null;
   urgency: string;
   urgency_label: string;
   urgency_detail: string | null;
@@ -156,7 +162,7 @@ export type SourceOverview = {
   latest: Retrieval | null;
 };
 
-export type ReadinessItem = { key: string; label: string; ok: boolean; detail: string; who: "staff" | "doctor"; tab: string | null; blocking: boolean };
+export type ReadinessItem = { key: string; label: string; ok: boolean; detail: string; who: "staff" | "doctor" | "system"; tab: string | null; blocking: boolean };
 
 export type PatientLink = {
   id: number;
@@ -247,6 +253,8 @@ export type ReferralDetail = Referral & {
 
 export type Evidence = {
   id: number;
+  /** staff view: only the record's title, source, date and packet status */
+  redacted?: boolean;
   origin: "source" | "document" | "manual";
   category: string;
   display: string;
@@ -421,6 +429,11 @@ export type MedicationView = {
   /** possible clashes for pairs with no DDInter entry; never flags */
   ai_suggestions: AiSuggestion[];
   ai_label: string;
+  /** staff view: counts only, no medicine names or flags */
+  redacted?: boolean;
+  medicine_count?: number;
+  flag_count?: number;
+  flags_awaiting_doctor?: number;
 };
 
 export type AiSuggestion = {
@@ -644,8 +657,10 @@ export type PackageView = {
   sent_at: string;
   content_hash: string;
   superseded: boolean;
-  envelope: PackageEnvelope;
+  /** null in the staff view */
+  envelope: PackageEnvelope | null;
   manifest: Record<string, unknown> | null;
+  redacted?: boolean;
   content_purged_at: string | null;
 };
 
@@ -681,10 +696,14 @@ export type LetterFlag = FlagSource & {
   acknowledged: { by: string; at: string; decision?: FlagDecision; note?: string } | null;
 };
 
+export type RecordTitle = { title: string; category: string; source_institution: string | null; date: string | null };
+
 export type CaseDetail = {
   case: Case;
-  packages: { version: number; received_at: string; content_hash: string; envelope: PackageEnvelope }[];
-  info_requests: { id: number; package_version: number; question: string; status: string; created_by: string; created_at: string; answer: string | null; answered_by: string | null; answered_at: string | null }[];
+  /** intake staff view: no envelope, only the records' titles */
+  redacted?: boolean;
+  packages: { version: number; received_at: string; content_hash: string; envelope: PackageEnvelope | null; record_titles: RecordTitle[] }[];
+  info_requests: { id: number; package_version: number; question: string | null; status: string; created_by: string; created_at: string; answer: string | null; answered_by: string | null; answered_at: string | null }[];
   responses: { id: number; package_version: number; content: ConsultationResponse["content"]; status: string; drafted_by: string; row_version: number; returned_by: string | null; returned_at: string | null }[];
   results: { id: number; received_at: string; purged?: boolean; order_ref: string; test: string; performed_by_institution: string; report_text: string; values: { test: string; value: string; unit?: string; reference?: string; flag?: string }[]; reported_by: string; reported_at: string }[];
 };

@@ -13,6 +13,7 @@ Design decisions taken after the SRS, newest last. Each record states what was d
 | [2026-10-28-referral-access-window](../decisions/2026-10-28-referral-access-window.md) | Decision: shared records are viewed through the platform, for an access window the referred doctor sets | agreed by the project team (reported by the project lead on 2026-10-28). Not yet built. **Section 3 (the 7/30/90-day window) is replaced by [2026-10-28-referral-expiry.md](2026-10-28-referral-expiry.md)**, which is built |
 | [2026-10-28-referral-expiry](../decisions/2026-10-28-referral-expiry.md) | Decision: a referral's shared records expire when the referred doctor has finished with it | decided by the project lead on 2026-10-28. Built and tested the same day. |
 | [2026-10-28-retrieval-all-sources](../decisions/2026-10-28-retrieval-all-sources.md) | Decision: retrieve from every linked institution, with limits by count and specialty | agreed by the project team (reported by the project lead on 2026-10-28). Step 1 is built. Steps 2 to 4 are planned. |
+| [2026-10-29-doctor-only-clinical-content](../decisions/2026-10-29-doctor-only-clinical-content.md) | Decision: only doctors see clinical content; the doctor reviews the referral packet | decided by the project lead on 2026-10-29, for the whole team. Built and tested the same day. |
 
 ## Non-negotiable invariants (from `AGENTS.md`)
 
@@ -37,3 +38,7 @@ Design decisions taken after the SRS, newest last. Each record states what was d
 9. **Idempotency.** Delivery keys and event keys make retries safe. Keep the outbox write in the same transaction as the decision to send.
 10. **Audit.** Every access, retrieval, link change, correction, approval, submission and status change writes an audit event with actor, institution, action, target, time and outcome.
 11. **Synthetic data only.** Do not commit patient data, credentials, `.env`, model weights or uploaded files.
+12. **Only doctors see clinical content** (decision 2026-10-29).
+   - Staff and administrators get titles, statuses and counts only, through the serializers' staff views (`clinical=False`). They never see record values, diagnoses, medicines, flags, papers, notes, the letter or the package.
+   - Clinical endpoints are doctor-only on the server.
+   - The doctor reviews the packet before staff send, and a later clinical change clears that review.

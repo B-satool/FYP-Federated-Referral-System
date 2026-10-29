@@ -47,5 +47,6 @@ The invariants in `AGENTS.md` bind every change. They are reproduced exactly in 
 | 9 | Idempotent delivery; outbox write in the same transaction | `outbox`, `inbound_messages`, institution `outbox`, unique keys |
 | 10 | Audit every access and change | `audit_events` in every database |
 | 11 | Synthetic data only | Seed data, `.gitignore` |
+| 12 | Only doctors see clinical content; the doctor reviews the packet | `security.sees_clinical`, `require_doctor`, staff views in `serializers.py`, institution `get_case`; `sending/readiness.py`, `POST /referrals/{id}/packet-reviewed` |
 
 Some invariants were changed by recorded decisions: the temporary working set (2026-10-27), referral expiry (2026-10-28) and the DRAP brand load (2026-10-28). Appendix P lists the records.

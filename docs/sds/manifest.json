@@ -1,8 +1,8 @@
 {
   "fingerprints": {
-    "sections": "4ee51ec82da973ff2d4c63c5041b82851ef56dd2aa496aeaacb5e3fc72b7da36",
-    "source": "04be9f11e4785153998ef82f4b27ef76be25cbe922178c820b34f38f29d9cdc0",
-    "structure": "f22b30e6f290b8116c67afebecad94f2d697a6b35802c96d961b7a814b095df6"
+    "sections": "36962e9bc84937a1f6763b88911ff977dd927b499f97f9be77e7e7c9d43d707e",
+    "source": "85b4897e8f0cd6ac67b1a9479fe8948002a1dd37c9570ca33ca286bc925f1da6",
+    "structure": "4abc1cd543c76b395bd84caff2342f5a99f2d3ba10a2c883eddc758af8f97f06"
   },
   "history": [
     {
@@ -16,6 +16,12 @@
       "date": "2026-10-29",
       "summary": "Docker Compose inventory now included in Appendix J (it was skipped in v1.0.0 because PyYAML was not visible to the generator); PyYAML is now required and Compose's own YAML tags are accepted.",
       "version": "1.0.1"
+    },
+    {
+      "changes": 18,
+      "date": "2026-10-29",
+      "summary": "Only doctors see clinical content and the doctor reviews the referral packet before staff send (both institutions); consultation notes under the reason; drug-interaction flags quote the US drug label sentence when one exists; realistic seed visit wording.",
+      "version": "1.1.0"
     }
   ],
   "inventory": {
@@ -57,7 +63,8 @@
       "[2026-10-28-no-specialist-response](../decisions/2026-10-28-no-specialist-response.md)",
       "[2026-10-28-referral-access-window](../decisions/2026-10-28-referral-access-window.md)",
       "[2026-10-28-referral-expiry](../decisions/2026-10-28-referral-expiry.md)",
-      "[2026-10-28-retrieval-all-sources](../decisions/2026-10-28-retrieval-all-sources.md)"
+      "[2026-10-28-retrieval-all-sources](../decisions/2026-10-28-retrieval-all-sources.md)",
+      "[2026-10-29-doctor-only-clinical-content](../decisions/2026-10-29-doctor-only-clinical-content.md)"
     ],
     "dependencies": {
       "libs/common/pyproject.toml": [
@@ -328,7 +335,7 @@
       ],
       "central POST /referrals/{referral_id}/evidence/manual": [
         "ensure_clinical_edit_allowed()",
-        "load_referral(edit)"
+        "load_referral(edit, roles=('clinician',))"
       ],
       "central POST /referrals/{referral_id}/flags/{flag_id}/acknowledge": [
         "load_referral(acknowledge_flag, roles=('clinician',))"
@@ -338,29 +345,33 @@
       ],
       "central POST /referrals/{referral_id}/medications/checked": [
         "ensure_clinical_edit_allowed()",
-        "load_referral(edit)"
+        "load_referral(edit, roles=('clinician',))"
       ],
       "central POST /referrals/{referral_id}/medications/manual": [
         "ensure_clinical_edit_allowed()",
-        "load_referral(edit, roles=('clinic_staff',))"
+        "load_referral(edit, roles=('clinician',))"
       ],
       "central POST /referrals/{referral_id}/medications/{entry_id}/exclude": [
         "ensure_clinical_edit_allowed()",
-        "load_referral(edit)"
+        "load_referral(edit, roles=('clinician',))"
       ],
       "central POST /referrals/{referral_id}/medications/{entry_id}/mapping": [
         "ensure_clinical_edit_allowed()",
-        "load_referral(map_medication)"
+        "load_referral(map_medication, roles=('clinician',))"
       ],
       "central POST /referrals/{referral_id}/medications/{entry_id}/restore": [
         "ensure_clinical_edit_allowed()",
-        "load_referral(edit)"
+        "load_referral(edit, roles=('clinician',))"
       ],
       "central POST /referrals/{referral_id}/packages/{version}/verify": [
         "load_referral(view)"
       ],
       "central POST /referrals/{referral_id}/packages/{version}/verify-own-copy": [
         "load_referral(view)"
+      ],
+      "central POST /referrals/{referral_id}/packet-reviewed": [
+        "check_version()",
+        "load_referral(review_packet)"
       ],
       "central POST /referrals/{referral_id}/patient-informed": [
         "load_referral(inform_patient)"
@@ -417,7 +428,8 @@
       ],
       "institution GET /cases/{case_id}": [
         "_get_case()",
-        "require_own(clinician, clinic_staff, institution_admin, what=see incoming referrals)"
+        "require_own(clinician, clinic_staff, institution_admin, what=see incoming referrals)",
+        "role clinician required"
       ],
       "institution GET /fhir/patients/{local_id}/records": [
         "decide_access()",
@@ -438,7 +450,8 @@
         "_require_diagnostics()"
       ],
       "institution GET /outbound-copies": [
-        "require_own(clinician, clinic_staff, what=read our copies of sent referrals)"
+        "require_own(clinician, clinic_staff, what=read our copies of sent referrals)",
+        "role clinician required"
       ],
       "institution GET /patients": [
         "require_own(clinic_staff, clinician, institution_admin, diagnostics_staff, what=search the patient index)"
@@ -637,6 +650,7 @@
       "central POST /referrals/{referral_id}/medications/{entry_id}/restore",
       "central POST /referrals/{referral_id}/packages/{version}/verify",
       "central POST /referrals/{referral_id}/packages/{version}/verify-own-copy",
+      "central POST /referrals/{referral_id}/packet-reviewed",
       "central POST /referrals/{referral_id}/patient-informed",
       "central POST /referrals/{referral_id}/prepared",
       "central POST /referrals/{referral_id}/recommend",
@@ -709,7 +723,8 @@
         "76763a476e7c",
         "97915d386e71",
         "50cb02ecd52d",
-        "fec095fdc2b0"
+        "fec095fdc2b0",
+        "a1c3e5f7b9d2"
       ],
       "provider": [
         "64628844a0ce",
@@ -893,6 +908,9 @@
           "id": "Integer",
           "ingredient_a": "String(100)",
           "ingredient_b": "String(100)",
+          "label_quote": "Text null",
+          "label_section": "String(60) null",
+          "label_source": "String(200) null",
           "severity": "String(20)",
           "source": "String(40)",
           "source_ref": "String(80)",
@@ -1260,6 +1278,7 @@
           "cancel_reason": "Text null",
           "closed_at": "DateTime(timezone=True) null",
           "closed_by": "String(200) null",
+          "consultation_notes": "Text",
           "created_at": "DateTime(timezone=True)",
           "created_by_id": "String(64)",
           "created_by_name": "String(200)",
@@ -1274,6 +1293,8 @@
           "meds_checked_at": "DateTime(timezone=True) null",
           "meds_checked_by": "String(200) null",
           "meds_checked_note": "Text null",
+          "packet_reviewed_at": "DateTime(timezone=True) null",
+          "packet_reviewed_by": "String(200) null",
           "patient_birth_date": "String(20) null",
           "patient_cnic": "String(15) null",
           "patient_informed_at": "DateTime(timezone=True) null",
@@ -1723,5 +1744,5 @@
     ]
   },
   "released": "2026-10-29",
-  "version": "1.0.1"
+  "version": "1.1.0"
 }

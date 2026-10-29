@@ -23,7 +23,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from refcommon.auth import KeycloakConfig, Principal, ServiceTokenProvider, TokenVerifier, forbid, make_principal_dependency
 from refcommon.db import make_session_factory, session_dependency, utcnow
-from refcommon.exchange import ClarificationAnswer, DiagnosticOrder, ProviderEvent, ResultForward
+from refcommon.exchange import ClarificationAnswer, DiagnosticOrder, ProviderEvent, ResultForward, record_title
 from refcommon.sourcekit import (
     ALL_CATEGORIES,
     DEFAULT_GRANT_DAYS,
@@ -556,7 +556,9 @@ def list_sent_copies(referral_id: str, db: Session = Depends(get_db), principal:
     rows = db.scalars(select(SentCopy).where(SentCopy.central_referral_id == referral_id).order_by(SentCopy.id)).all()
     record_audit(db, AuditEvent, principal, "sent_copy.read", "referral", referral_id, "success", referral_context=referral_id)
     db.commit()
-    return [{"kind": c.kind, "version": c.version, "received_at": c.received_at, "content": c.content} for c in rows]
+    doctor = "clinician" in principal.roles  # staff see that a copy is kept, not its clinical content
+    return [{"kind": c.kind, "version": c.version, "received_at": c.received_at,
+             "content": c.content if doctor else None, "redacted": not doctor} for c in rows]
 
 
 class IntakeIn(BaseModel):
@@ -689,6 +691,13 @@ def assign(case_id: int, body: AssignIn, db: Session = Depends(get_db), principa
     return _case_out(case, db)
 
 
+def _record_titles(envelope: dict | None) -> list[dict]:
+    """The records in a received package by title only (test or scan name, visit setting), never their content."""
+    return [{"title": record_title(e.get("category", ""), e.get("original")), "category": e.get("category"),
+             "source_institution": e.get("source_institution"), "date": e.get("clinical_time")}
+            for e in (envelope or {}).get("evidence", [])]
+
+
 @app.get("/cases/{case_id}", tags=["incoming referrals"])
 def get_case(case_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     require_own(principal, "clinician", *INTAKE_ROLES, what="see incoming referrals")
@@ -701,10 +710,22 @@ def get_case(case_id: int, db: Session = Depends(get_db), principal: Principal =
     results = db.scalars(select(ForwardedResult).where(ForwardedResult.case_id == case.id).order_by(ForwardedResult.id)).all()
     record_audit(db, AuditEvent, principal, "case.view", "referral", case.central_referral_id, "success")
     db.commit()
+    if "clinician" not in principal.roles:
+        # Intake staff (decision 2026-10-29): who, from where, how urgent, which department and what records are
+        # attached by title. The referral's clinical content is for the doctors here.
+        return {
+            "case": _case_out(case, db), "redacted": True,
+            "packages": [{"version": p.version, "received_at": p.received_at, "content_hash": p.content_hash,
+                          "envelope": None, "record_titles": _record_titles(p.envelope)} for p in packages],
+            "info_requests": [{"id": i.id, "package_version": i.package_version, "question": None, "status": i.status,
+                               "created_by": i.created_by, "created_at": i.created_at, "answer": None,
+                               "answered_by": i.answered_by, "answered_at": i.answered_at} for i in infos],
+            "responses": [], "results": [],
+        }
     return {
-        "case": _case_out(case, db),
+        "case": _case_out(case, db), "redacted": False,
         "packages": [{"version": p.version, "received_at": p.received_at, "content_hash": p.content_hash,
-                      "envelope": p.envelope} for p in packages],
+                      "envelope": p.envelope, "record_titles": _record_titles(p.envelope)} for p in packages],
         "info_requests": [{"id": i.id, "package_version": i.package_version, "question": i.question, "status": i.status,
                            "created_by": i.created_by, "created_at": i.created_at, "answer": i.answer,
                            "answered_by": i.answered_by, "answered_at": i.answered_at} for i in infos],

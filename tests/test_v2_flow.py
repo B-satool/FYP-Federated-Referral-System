@@ -42,41 +42,56 @@ def test_p5_referral_flow():
     assert {k: v["status"] for k, v in by.items()} == {"drali": "successful", "chughtai": "successful",
                                                        "ziauddin": "successful"}, by
 
-    # 3. Current medicines only (hyoscine was stopped) and exactly the expected flags.
-    meds = ok(STAFF.get(f"/referrals/{rid}/medications"))
+    # 3. Only the doctor sees clinical content: staff get titles, counts and statuses (decision 2026-10-29).
+    staff_meds = ok(STAFF.get(f"/referrals/{rid}/medications"))
+    assert staff_meds["redacted"] and staff_meds["entries"] == [] and staff_meds["flags"] == [] and staff_meds["medicine_count"] >= 6
+    staff_ev = ok(STAFF.get(f"/referrals/{rid}/evidence"))
+    assert staff_ev and all(e["redacted"] and e["original"] == {} for e in staff_ev)
+    assert any(e["display"].startswith("Lab result: ") for e in staff_ev)
+    assert _ref(rid)["reason"] is not None and ok(STAFF.get(f"/referrals/{rid}"))["reason"] is None
+    assert STAFF.get(f"/referrals/{rid}/brief-preview").status_code == 403
+
+    # 4. Current medicines only (hyoscine was stopped) and exactly the expected flags (the doctor's view).
+    meds = ok(DOCTOR.get(f"/referrals/{rid}/medications"))
     names = {m["ingredient"] for m in meds["entries"] if not m["duplicate_of"]}
     assert names == {"insulin glargine", "metformin", "aspirin", "clopidogrel", "atorvastatin", "bisoprolol"}, names
     flags = {(f["rule_id"], f["medication"]) for f in meds["flags"] if f["kind"] == "confirmed"}
     assert {f[0] for f in flags} == {"RULE-002", "RULE-006", "RULE-007"}, flags
     assert len([f for f in flags if f[0] == "RULE-002"]) == 2  # aspirin and clopidogrel
 
-    # 4. Staff (not the doctor) add medicines the patient reports; a duplicate is shown once.
-    otc = {"name": "Panadol", "strength": "500 mg", "dose": "500 mg", "frequency": "as needed", "over_the_counter": True}
-    assert DOCTOR.post(f"/referrals/{rid}/medications/manual", otc).status_code == 403
-    ok(STAFF.post(f"/referrals/{rid}/medications/manual", otc), 201)
-    ok(STAFF.post(f"/referrals/{rid}/medications/manual", {"name": "Lipitor", "strength": "40 mg", "dose": "40 mg",
-                                                            "frequency": "at night"}), 201)
-    meds = ok(STAFF.get(f"/referrals/{rid}/medications"))
-    lipitor = [m for m in meds["entries"] if m["ingredient"] == "atorvastatin"]
-    assert len(lipitor) == 2 and sum(1 for m in lipitor if m["duplicate_of"]) == 1
-
-    # 5. The doctor cannot review flags until staff mark the referral ready.
+    # 5. Staff retrieve and mark it ready; they cannot see or change medicines, papers or records.
     flag = meds["flags"][0]
     assert DOCTOR.post(f"/referrals/{rid}/flags/{flag['id']}/acknowledge",
-                       {"flag_version": flag["version"]}).status_code == 409
-    assert _blockers(rid) == {"meds_checked", "prepared", "flags"}, _blockers(rid)
-    assert STAFF.post(f"/referrals/{rid}/prepared", {"expected_version": _ref(rid)["row_version"]}).status_code == 409
-    ok(STAFF.post(f"/referrals/{rid}/medications/checked", {"note": "Asked about all medicines"}))
+                       {"flag_version": flag["version"]}).status_code == 409  # not ready for review yet
+    otc = {"name": "Panadol", "strength": "500 mg", "dose": "500 mg", "frequency": "as needed", "over_the_counter": True}
+    assert STAFF.post(f"/referrals/{rid}/medications/manual", otc).status_code == 403
+    assert STAFF.post(f"/evidence/{staff_ev[0]['id']}/select", {"selected": False}).status_code == 403
+    assert _blockers(rid) == {"prepared", "meds_checked", "flags", "packet_reviewed"}, _blockers(rid)
     prepared = ok(STAFF.post(f"/referrals/{rid}/prepared", {"expected_version": _ref(rid)["row_version"]}))
-    assert prepared["status_label"] == "Ready to send"
+    assert prepared["status_label"] == "With the doctor for review"
     queue = ok(DOCTOR.get("/work-queue"))
     assert any(x["id"] == rid for x in queue["flags_to_acknowledge"])
 
-    # 6. Only the doctor reviews flags; staff cannot cancel; then staff send.
+    # 6. The doctor adds what the patient reports (a duplicate is shown once), confirms the list, reviews the
+    #    flags and the packet; staff cannot send before that, and the doctor cannot send at all.
+    ok(DOCTOR.post(f"/referrals/{rid}/medications/manual", otc), 201)
+    ok(DOCTOR.post(f"/referrals/{rid}/medications/manual", {"name": "Lipitor", "strength": "40 mg", "dose": "40 mg",
+                                                             "frequency": "at night"}), 201)
+    meds = ok(DOCTOR.get(f"/referrals/{rid}/medications"))
+    lipitor = [m for m in meds["entries"] if m["ingredient"] == "atorvastatin"]
+    assert len(lipitor) == 2 and sum(1 for m in lipitor if m["duplicate_of"]) == 1
+    assert STAFF.post(f"/referrals/{rid}/medications/checked", {"note": "x"}).status_code == 403
+    ok(DOCTOR.post(f"/referrals/{rid}/medications/checked", {"note": "Asked about all medicines"}))
     assert STAFF.post(f"/referrals/{rid}/flags/{flag['id']}/acknowledge",
                       {"flag_version": flag["version"]}).status_code == 403
     for f in ok(DOCTOR.get(f"/referrals/{rid}/medications"))["flags"]:
         ok(DOCTOR.post(f"/referrals/{rid}/flags/{f['id']}/acknowledge", {"flag_version": f["version"]}))
+    r = _ref(rid)
+    assert _blockers(rid) == {"packet_reviewed"}, r["readiness"]
+    assert STAFF.post(f"/referrals/{rid}/send", {"expected_version": r["row_version"]}).status_code == 409
+    assert STAFF.post(f"/referrals/{rid}/packet-reviewed", {"expected_version": r["row_version"]}).status_code == 403
+    reviewed = ok(DOCTOR.post(f"/referrals/{rid}/packet-reviewed", {"expected_version": r["row_version"]}))
+    assert reviewed["status_label"] == "Ready to send" and reviewed["packet_reviewed_by"]
     r = _ref(rid)
     assert not _blockers(rid), r["readiness"]
     assert STAFF.post(f"/referrals/{rid}/cancel", {"expected_version": r["row_version"], "reason": "test"}).status_code == 403
@@ -84,7 +99,8 @@ def test_p5_referral_flow():
     sent = ok(STAFF.post(f"/referrals/{rid}/send", {"expected_version": r["row_version"]}))
     assert sent["package_version"] == 1
     wait_for(lambda: _ref(rid)["status"] == "submitted", 60, what="delivery")
-    pkg = ok(STAFF.get(f"/referrals/{rid}/packages/1"))["envelope"]
+    assert ok(STAFF.get(f"/referrals/{rid}/packages/1"))["envelope"] is None  # staff: what was sent, not its content
+    pkg = ok(DOCTOR.get(f"/referrals/{rid}/packages/1"))["envelope"]
     assert pkg["patient"]["cnic"] and pkg["patient"]["link_request_id"] and not pkg["patient"]["local_patient_id"]
     titles = [s["title"] for s in pkg["brief_sections"]]
     assert titles[:3] == ["Reason for referral", "Planned procedure", "Current medicines"], titles
@@ -95,6 +111,8 @@ def test_p5_referral_flow():
                                  None), 30, what="case at AKUH")
     assert ok(surgeon.get("/cases")) == []
     ok(aku_staff.post(f"/cases/{case['id']}/acknowledge"))
+    intake = ok(aku_staff.get(f"/cases/{case['id']}"))  # intake staff: who, how urgent, record titles; no content
+    assert intake["redacted"] and intake["packages"][0]["envelope"] is None and intake["packages"][0]["record_titles"]
     assert aku_staff.post(f"/cases/{case['id']}/assign", {"doctor": "Dr Naveed Baig"}).status_code == 409  # patient first
     link_id = case["link_request_id"]
     assert ok(central("staff.aku").post(f"/patient-links/{link_id}/lookup"))["candidates"] == []
@@ -112,6 +130,8 @@ def test_p5_referral_flow():
 
     # 8. The surgeon accepts; no response is written. The requesting doctor (and staff) are told.
     mine = ok(surgeon.get("/cases"))
+    full = ok(surgeon.get(f"/cases/{case['id']}"))  # the assigned doctor sees the referral itself
+    assert not full["redacted"] and full["packages"][0]["envelope"]["brief_sections"]
     assert [c["central_referral_id"] for c in mine] == [r["reference"]]
     ok(surgeon.post(f"/cases/{case['id']}/decision", {"decision": "accept"}))
     wait_for(lambda: _ref(rid)["status"] == "accepted", 60, what="acceptance at the clinic")

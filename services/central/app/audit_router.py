@@ -25,21 +25,27 @@ from .db import get_db
 from .identity import role_templates
 from .models import AuditEvent, Referral, User
 from .referrals.state import STATUS_LABELS, TEST_STATUS_LABELS
-from .security import get_principal, load_referral, require_roles
+from .security import get_principal, load_referral, require_roles, sees_clinical
 
 router = APIRouter(tags=["audit and reference data"])
 
 
-def _out(a: AuditEvent) -> dict:
+# audit detail keys that can hold clinical text (edited values, free-text notes on records)
+CLINICAL_DETAIL = {"changes", "note"}
+
+
+def _out(a: AuditEvent, clinical: bool = True) -> dict:
+    detail = a.detail if clinical else {k: v for k, v in (a.detail or {}).items() if k not in CLINICAL_DETAIL}
     return {"id": a.id, "actor_id": a.actor_id, "actor_name": a.actor_name, "institution_id": a.institution_id,
             "action": a.action, "target_type": a.target_type, "target_id": a.target_id, "referral_id": a.referral_id,
-            "outcome": a.outcome, "detail": a.detail, "created_at": a.created_at}
+            "outcome": a.outcome, "detail": detail, "created_at": a.created_at}
 
 
 @router.get("/referrals/{referral_id}/audit")
 def referral_audit(referral_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     r = load_referral(db, referral_id, principal, "view_audit")
-    return [_out(a) for a in db.scalars(select(AuditEvent).where(AuditEvent.referral_id == r.id).order_by(AuditEvent.id))]
+    clinical = sees_clinical(principal)
+    return [_out(a, clinical) for a in db.scalars(select(AuditEvent).where(AuditEvent.referral_id == r.id).order_by(AuditEvent.id))]
 
 
 @router.get("/admin/audit")
@@ -57,9 +63,9 @@ def institution_audit(action: str | None = None, outcome: str | None = None, lim
     rows = db.scalars(stmt.order_by(AuditEvent.id.desc()).limit(limit)).all()
     out = []
     for a in rows:
-        item = _out(a)
+        item = _out(a, sees_clinical(principal))  # administrators have no clinical access
         item["detail"] = {k: v for k, v in (a.detail or {}).items() if k in
-                          ("reason", "message", "from", "to", "outcome", "trigger", "changes", "action", "status")}
+                          ("reason", "message", "from", "to", "outcome", "trigger", "action", "status")}
         out.append(item)
     return out
 

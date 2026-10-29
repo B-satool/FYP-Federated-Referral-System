@@ -80,9 +80,10 @@ def provider_event(body: ProviderEvent, db: Session = Depends(get_db), principal
                                      package_version=body.package_version, question=body.data.get("question", ""),
                                      asked_by=actor_label))
             add_event(db, referral, "info_requested", actor_label, body.institution_id, detail)
-            for notify in (notify_staff, notify_doctor):
-                notify(db, referral, "info_requested", f"{inst_name} asks for more information",
-                       body.data.get("question", ""), tab="response")
+            notify_doctor(db, referral, "info_requested", f"{inst_name} asks for more information",
+                          body.data.get("question", ""), tab="response")
+            notify_staff(db, referral, "info_requested", f"{inst_name} asks for more information",
+                         "The doctor has been asked to answer.", tab="response")  # staff never see the question
         elif body.type == "response_returned":
             if not db.scalars(select(ConsultationResponse).where(ConsultationResponse.remote_key == body.event_key)).first():
                 db.add(ConsultationResponse(referral_id=referral.id, remote_key=body.event_key,

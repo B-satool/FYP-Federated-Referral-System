@@ -130,8 +130,15 @@ def seed_imported(db) -> dict:
     version = f"retrieved {report['imported']}"
     with (root / "interactions" / "ddinter-subset.csv").open(encoding="utf-8") as fh:
         pairs = list(csv.DictReader(fh))
-    db.add_all(DrugInteraction(ingredient_a=p["ingredient_a"], ingredient_b=p["ingredient_b"], severity=p["severity"],
-                               source="ddinter", source_version=version, source_ref=p["source_ref"]) for p in pairs)
+    quotes_file = root / "labels" / "interaction-quotes.json"
+    quotes = {(q["ingredient_a"], q["ingredient_b"]): q for q in
+              (json.loads(quotes_file.read_text(encoding="utf-8"))["quotes"] if quotes_file.exists() else [])}
+    for p in pairs:
+        q = quotes.get((p["ingredient_a"], p["ingredient_b"])) or {}
+        db.add(DrugInteraction(ingredient_a=p["ingredient_a"], ingredient_b=p["ingredient_b"], severity=p["severity"],
+                               source="ddinter", source_version=version, source_ref=p["source_ref"],
+                               label_quote=q.get("quote"), label_source=q.get("source_name"),
+                               label_section=q.get("section_title")))
     labels = json.loads((root / "labels" / "label-rules.json").read_text(encoding="utf-8"))
     vocab = json.loads((root / "vocab" / "label-targets.json").read_text(encoding="utf-8"))
     for r in labels["rules"]:

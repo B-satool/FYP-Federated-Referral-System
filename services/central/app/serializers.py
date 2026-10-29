@@ -1,6 +1,8 @@
 """Response shapes shared by the routers."""
 from __future__ import annotations
 
+from refcommon.exchange import record_title
+
 from .config import (DIAGNOSTIC_CATEGORIES, DRUG_CLASSES, PROCEDURE_TAGS, URGENCIES, department_name, institution_name,
                      procedure_label)
 from .integration.sources import source_name
@@ -20,7 +22,20 @@ from .models import (
 from .referrals.state import status_label
 
 
-def referral_out(r: Referral) -> dict:
+HIDDEN = "Visible to doctors only"
+
+
+def referral_out(r: Referral, clinical: bool = True) -> dict:
+    """clinical=False is the staff view: no reason, consultation notes, procedure or clarification content."""
+    out = _referral_out(r)
+    if not clinical:
+        out.update({"reason": None, "consultation_notes": None, "planned_procedure": None, "procedure_tags": [],
+                    "procedure_tag_labels": [], "procedure_label": HIDDEN, "patient_informed_note": None,
+                    "redacted": True})
+    return out
+
+
+def _referral_out(r: Referral) -> dict:
     return {
         "id": r.id, "reference": r.reference, "kind": r.kind, "status": r.status, "status_label": status_label(r),
         "row_version": r.row_version, "prepared_by": r.prepared_by, "prepared_at": r.prepared_at,
@@ -32,7 +47,7 @@ def referral_out(r: Referral) -> dict:
         "destination_institution": r.destination_institution, "destination_name": institution_name(r.destination_institution),
         "destination_department": r.destination_department,
         "destination_department_name": department_name(r.destination_department),
-        "destination_doctor": r.destination_doctor, "reason": r.reason, "urgency": r.urgency,
+        "destination_doctor": r.destination_doctor, "reason": r.reason, "consultation_notes": r.consultation_notes or "", "urgency": r.urgency,
         "urgency_label": URGENCIES.get(r.urgency, {}).get("label", r.urgency),
         "urgency_detail": URGENCIES.get(r.urgency, {}).get("detail"),
         "procedure_status": r.procedure_status, "planned_procedure": r.planned_procedure,
@@ -50,10 +65,30 @@ def referral_out(r: Referral) -> dict:
         "cancel_reason": r.cancel_reason, "decline_reason": r.decline_reason,
         "acknowledged_at": r.acknowledged_at, "accepted_at": r.accepted_at,
         "closed_at": r.closed_at, "closed_by": r.closed_by, "created_at": r.created_at, "updated_at": r.updated_at,
+        "packet_reviewed_by": r.packet_reviewed_by, "packet_reviewed_at": r.packet_reviewed_at, "redacted": False,
     }
 
 
-def evidence_out(e: EvidenceItem) -> dict:
+def evidence_title(e: EvidenceItem) -> str:
+    return record_title(e.category, e.original)
+
+
+def evidence_out(e: EvidenceItem, clinical: bool = True) -> dict:
+    """clinical=False is the staff view: title, source, date and status only."""
+    if not clinical:
+        return {
+            "id": e.id, "origin": e.origin, "category": e.category, "display": evidence_title(e), "redacted": True,
+            "original": {}, "current": {}, "source_institution": e.source_institution,
+            "source_name": source_name(e.source_institution), "source_record_type": e.source_record_type,
+            "source_record_id": None, "source_record_version": None, "link_id": e.link_id,
+            "clinical_time": e.clinical_time, "retrieved_at": e.retrieved_at, "document_id": e.document_id,
+            "page": None, "region": None, "source_text": None, "confidence": None, "review_state": e.review_state,
+            "verification_status": e.verification_status, "verified_by": e.verified_by, "verified_at": e.verified_at,
+            "selected": e.selected, "in_default": e.in_default or e.origin != "source",
+            "selection_source": e.selection_source, "selected_by": e.selected_by, "selected_at": e.selected_at,
+            "ai_recommendation": None, "ai_relevance": None, "ai_reason": None, "superseded_by": e.superseded_by,
+            "author": None, "row_version": e.row_version,
+        }
     revoked = e.verification_status == "access_revoked"
     return {
         "id": e.id, "origin": e.origin, "category": e.category,
@@ -69,7 +104,7 @@ def evidence_out(e: EvidenceItem) -> dict:
         "in_default": e.in_default or e.origin != "source", "selection_source": e.selection_source,
         "selected_by": e.selected_by, "selected_at": e.selected_at, "ai_recommendation": e.ai_recommendation,
         "ai_relevance": e.ai_relevance, "ai_reason": None if revoked else e.ai_reason,
-        "superseded_by": e.superseded_by, "author": e.author, "row_version": e.row_version,
+        "superseded_by": e.superseded_by, "author": e.author, "row_version": e.row_version, "redacted": False,
     }
 
 
@@ -143,7 +178,15 @@ def task_out(t: FollowupTask) -> dict:
             "created_at": t.created_at}
 
 
-def diagnostic_out(d: DiagnosticRequest) -> dict:
+def diagnostic_out(d: DiagnosticRequest, clinical: bool = True) -> dict:
+    """clinical=False is the staff view: the test's name, destination and status, not the clinical question or result."""
+    out = _diagnostic_out(d)
+    if not clinical:
+        out.update({"clinical_question": None, "report": None, "attachments": [], "redacted": True})
+    return out
+
+
+def _diagnostic_out(d: DiagnosticRequest) -> dict:
     return {"id": d.id, "reference": d.reference, "referral_id": d.referral_id, "category": d.category,
             "category_label": DIAGNOSTIC_CATEGORIES.get(d.category, d.category), "test": d.test, "body_area": d.body_area,
             "clinical_question": d.clinical_question, "urgency": d.urgency,

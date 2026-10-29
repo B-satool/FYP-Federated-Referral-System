@@ -2,13 +2,13 @@
 
 | | |
 |---|---|
-| Document version | **v1.0.1** |
+| Document version | **v1.1.0** |
 | Released | 2026-10-29 |
 | System | Federated referral preparation and follow-through platform (FYP), v2 code base |
 | Status | Living document: regenerated from the code on every change, frozen per release in `docs/sds/versions/` |
-| Structure fingerprint | `f22b30e6f290b811` |
-| Written-sections fingerprint | `4ee51ec82da973ff` |
-| Source fingerprint | `74772051da24eae1` |
+| Structure fingerprint | `4abc1cd543c76b39` |
+| Written-sections fingerprint | `36962e9bc84937a1` |
+| Source fingerprint | `85b4897e8f0cd6ac` |
 | Maintained by | The project team. See section 17 for how to update and release it. |
 
 ## Contents
@@ -262,8 +262,8 @@ flowchart LR
 
 | Actor | Realm role | What they do |
 |---|---|---|
-| Doctor | `clinician` | Requests referrals and test requests, reviews medication flags, receives referrals for their department, accepts or declines them, marks them complete, extends the records hold |
-| Staff (referral coordinator) | `clinic_staff` | Requests and approves patient links, retrieves records, checks uploaded papers, confirms medicines (including over-the-counter), marks a referral ready, sends it, takes in incoming referrals and assigns a doctor, records that the patient was told, closes referrals |
+| Doctor | `clinician` | Requests referrals and test requests with the reason and consultation notes. **The only role that sees clinical content:** checks uploaded papers, confirms the medicine list (including over-the-counter), decides on flags, reviews the records ticked for the packet and the letter, then marks the packet reviewed. Receives referrals for their department, accepts or declines them, marks them complete, extends the records hold, answers information requests |
+| Staff (referral coordinator) | `clinic_staff` | Requests and approves patient links, retrieves records, uploads papers, marks a referral ready for the doctor, sends it after the doctor's review, takes in incoming referrals and assigns a doctor, records that the patient was told, closes referrals. **Sees titles, statuses and counts only, never clinical content** (decision 2026-10-29) |
 | Laboratory, radiology or ECG staff | `diagnostics_staff` | Confirms arriving patients, accepts or rejects orders, schedules them, reports results with images |
 | Institution administrator | `institution_admin` | Accounts and role templates, source access grants and their expiry, audit log. No clinical record access |
 | Clinical rule reviewer | `rule_reviewer` | Approves medication rule versions and medicine names; sees the imported interaction data, label rules and AI model figures |
@@ -301,11 +301,11 @@ flowchart TD
     C --> D["Other institution's staff confirm the patient: link verified, grant created"]
     D --> E["Staff retrieve records from every linked institution (up to 5)"]
     E --> F["Rule-based default selection, then optional AI recommendation"]
-    B --> G["Staff upload the patient's papers: OCR, fields proposed, staff verify"]
+    B --> G["Staff upload the patient's papers: OCR proposes fields"]
     E & G --> H["Current-medicine list built, duplicates grouped, names mapped"]
     H --> I["Deterministic evaluator raises medication flags"]
-    I --> J["Staff confirm medicines checked with the patient, mark ready"]
-    J --> K["Doctor reviews each flag: reviewed / ignore / research"]
+    I --> J["Staff mark it ready for the doctor (they see titles only)"]
+    J --> K["Doctor checks papers, confirms medicines, decides on each flag, reviews the records and letter, marks the packet reviewed"]
     K --> L["Staff send: brief built, package hashed, outbox written (submitted)"]
     L --> M["Receiving hospital: staff acknowledge, confirm the patient, assign a doctor"]
     M --> N{"Receiving doctor decides"}
@@ -367,6 +367,7 @@ The invariants in `AGENTS.md` bind every change. They are reproduced exactly in 
 | 9 | Idempotent delivery; outbox write in the same transaction | `outbox`, `inbound_messages`, institution `outbox`, unique keys |
 | 10 | Audit every access and change | `audit_events` in every database |
 | 11 | Synthetic data only | Seed data, `.gitignore` |
+| 12 | Only doctors see clinical content; the doctor reviews the packet | `security.sees_clinical`, `require_doctor`, staff views in `serializers.py`, institution `get_case`; `sending/readiness.py`, `POST /referrals/{id}/packet-reviewed` |
 
 Some invariants were changed by recorded decisions: the temporary working set (2026-10-27), referral expiry (2026-10-28) and the DRAP brand load (2026-10-28). Appendix P lists the records.
 
@@ -741,7 +742,8 @@ This section describes each component's responsibilities, main rules and collabo
 
 **Creating a request.** The doctor creates the request (`POST /referrals`, status `draft`) with:
 
-- the reason and the urgency (`urgency`: urgent within 1 week, soon within 2 weeks, routine within 4 to 6 weeks);
+- the reason (the headline) and optional **consultation notes** underneath (symptoms, history, examination), which go into the letter, the package and, de-identified, the AI recommendation;
+- the urgency (`urgency`: urgent within 1 week, soon within 2 weeks, routine within 4 to 6 weeks);
 - the procedure status (`procedure_status`: `planned`, `none` or `unknown`);
 - for a planned procedure, its name in their own words and its features (`procedure_tags`, Section 10.4).
 
@@ -751,7 +753,7 @@ The patient is taken from the referring institution's own index (`GET /patients/
 
 **Editing.** Clinical edits check `ensure_clinical_edit_allowed()`, which blocks them in `response_returned`, `followup_pending`, `closed`, `declined` and `cancelled`. `mark_clinical_change()` handles a change after a version was sent: it sets `amendment_open`, writes an `amendment_started` event and notifies staff that a new version must be sent. Every edit carries the expected `row_version` (optimistic concurrency).
 
-**Status labels.** "In progress" becomes "Ready to send" once staff mark the referral prepared. For test requests, "submitted" reads "Tests sent" and "response returned" reads "Results received".
+**Status labels.** "In progress" becomes "With the doctor for review" once staff mark it ready, and "Ready to send" once the doctor marks the packet reviewed. For test requests, "submitted" reads "Tests sent" and "response returned" reads "Results received".
 
 ## 6.2 Identity and patient linking (`central/app/identity`)
 
@@ -795,6 +797,7 @@ The patient is taken from the referring institution's own index (`GET /patients/
 
 **Upload** (`POST /referrals/{id}/documents`):
 
+- **Who:** staff or the doctor upload; only the doctor opens a paper, its fields or page images.
 - **Accepted types:** PDF, PNG and JPEG, detected from the content, not the file name.
 - **Limits:** at most 10 MB and 10 PDF pages (`MAX_UPLOAD_BYTES`, `MAX_PAGES`).
 - **Storage:** stored under a generated name with its SHA-256. A `jobs` row is created and `process_document` is queued.
@@ -814,9 +817,11 @@ The patient is taken from the referring institution's own index (`GET /patients/
 
 ## 6.5 Evidence review (`central/app/evidence_router.py`)
 
+Every action here is **doctor-only**. Staff get the staff view of each record: its title (`refcommon.exchange.record_title`, for example "Lab result: HbA1c"), source, date and whether it is ticked, never values, findings or AI reasoning.
+
 | Action | Endpoint | Effect |
 |---|---|---|
-| Select or deselect for the packet | `POST /evidence/{id}/select` | Staff decision; always wins over default and AI (`selection_source=staff`, who, when) |
+| Select or deselect for the packet | `POST /evidence/{id}/select` | The doctor's decision; always wins over default and AI (`selection_source=staff`, meaning a person's choice, with who and when) |
 | Verify against the paper | `POST /evidence/{id}/verify` | `verification_status=verified` |
 | Correct a value | `POST /evidence/{id}/correct` | New current value; original kept; revision written |
 | Mark unresolved | `POST /evidence/{id}/unresolve` | Cannot be confirmed |
@@ -846,6 +851,8 @@ Every action writes an `evidence_revisions` row and an audit event, checks the i
 
 **Evaluation:** see Section 10. Every change to records, papers, medicines or the procedure calls `workflow.after_change()`, which runs `reevaluate()`. That writes an `evaluation_runs` row and supersedes or creates flag versions.
 
+**Who:** the whole medicine list is doctor-only (decision 2026-10-29): viewing names and flags, adding medicines the patient reports, excluding, mapping ambiguous brands and confirming the list. Staff get a summary (number of medicines and flags, how many await the doctor).
+
 **Doctor's decisions** (`POST /referrals/{id}/flags/{flag_id}/acknowledge`): `reviewed`, `ignore` (not relevant for this patient) or `research` (needs follow-up), with an optional note. A decision means the flag was seen, never treatment clearance (invariant 5). Ignored flags stay visible.
 
 **AI suggestions:** possible clashes for pairs with no DDInter entry, scored offline. The doctor marks each `ignore` or `research`. They travel in the package labelled "AI suggestion, not verified" and never block sending.
@@ -864,25 +871,23 @@ Every action writes an `evidence_revisions` row and an audit event, checks the i
    - The model may add records and mark defaults as low relevance.
    - It can never remove a default item, and it never overrides a staff choice.
    - Excluded items are listed under "Not included" with the reason.
-5. **Staff decide:** they tick or untick anything, and their choice always wins.
+5. **The doctor decides:** they tick or untick anything, and their choice always wins. Staff see the ticks and titles only.
 
 Each attempt is a `selection_runs` row: status, provider, model, prompt version and hash, item count, truncation, missing phrases and error. The package's `selection` field records how every item was chosen.
 
 ## 6.8 Sending (`central/app/sending`)
 
-**Readiness** (`readiness.py`) is one checklist with no repeated items. Staff items:
+**Readiness** (`readiness.py`) is one checklist with no repeated items:
 
-- records retrieved;
-- papers checked;
-- patient asked about all medicines, including over-the-counter ones;
-- dose differences resolved;
-- medicines checked against the rules.
+- **Staff items** (before "ready for the doctor"): records retrieved; papers uploaded and read.
+- **Doctor items** (after that): papers checked; medicine list confirmed with the patient, including over-the-counter ones; dose differences resolved; medicines checked against the rules (system); every flag that requires a decision decided.
+- **The doctor's packet review** (`POST /referrals/{id}/packet-reviewed`): allowed only when the doctor items are done. It sets `packet_reviewed_by`/`_at`. Any later clinical change clears it (`workflow.clear_packet_review`, `mark_clinical_change`, and an AI recommendation that changes the selection).
 
-Then staff mark the referral ready, and the doctor reviews every flag that requires a decision. The receiving institution confirms the patient on arrival, so that is not a condition for sending.
+Staff send only when every blocking item is done. The receiving institution confirms the patient on arrival, so that is not a condition for sending. The letter preview and the sent package's content are doctor-only; staff see the version, sender, time and fingerprint.
 
 **The brief** (`brief.py`) is deterministic, with no model involved. It is laid out like a referral letter:
 
-- reason and planned procedure;
+- reason, consultation notes and planned procedure;
 - current medicines, history and recent visits;
 - investigations, grouped by panel, and imaging;
 - "what could not be obtained": unavailable, skipped, denied or expired sources, stated as limitations, never as "no history".
@@ -944,7 +949,7 @@ The delivery key is `<source>:<reference>:v<version>`. A resend after an amendme
 
 Then the doctor or staff close it (`POST /referrals/{id}/close`).
 
-**Clarifications.** Requests for more information are answered with `POST /clarifications/{id}/answer`. The answer is delivered to the receiving institution as a `clarification_answer` outbox row.
+**Clarifications.** Requests for more information are answered by the doctor with `POST /clarifications/{id}/answer` (staff see that a question exists, not its text). The answer is delivered to the receiving institution as a `clarification_answer` outbox row.
 
 **Legacy responses.** The response review endpoint remains for responses sent before 2026-10-28 (decision "no specialist response").
 
@@ -960,7 +965,7 @@ Then the doctor or staff close it (`POST /referrals/{id}/close`).
 
 ## 6.13 Institution service (`services/provider/app`)
 
-**Receiving a referral.** `POST /inbound/referrals` stores the package idempotently by delivery key and creates or updates the `case`. Case lifecycle:
+**Receiving a referral.** `POST /inbound/referrals` stores the package idempotently by delivery key and creates or updates the `case`. **Intake staff** see the case details and the attached records by title only; the **doctors** see the letter, flags and records (decision 2026-10-29). Case lifecycle:
 
 - `received`
 - → `acknowledged` (staff)
@@ -1084,6 +1089,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     actor S as Staff
+    actor D as Doctor
     participant C as Central
     participant Wk as Worker
     participant V as OCR engine (Tesseract, or Google Vision)
@@ -1103,7 +1109,8 @@ sequenceDiagram
         Wk->>Wk: rules-extractor/2
     end
     Wk->>C: evidence rows proposed and unverified, linked to page regions
-    S->>C: review against the page image: verify, correct, unresolve or exclude
+    Note over S,C: staff see the paper's name and status only
+    D->>C: review against the page image: verify, correct, unresolve or exclude
     C->>C: evidence_revisions, medicine list and flags re-evaluated
 ```
 
@@ -1120,11 +1127,15 @@ sequenceDiagram
     C->>E: medicines, procedure tags, conditions, approved rules, DDInter pairs, label rules
     E-->>C: flag candidates (deterministic)
     C->>C: evaluation_runs row, new flag versions, supersede changed flags
-    S->>C: POST /medications/manual, /medications/checked (asked the patient, incl. OTC)
-    S->>C: resolve dose differences, mark the referral ready
+    S->>C: POST /referrals/{id}/prepared (records retrieved, papers uploaded)
+    Note over S,C: staff see counts only, never medicine names or flags
+    D->>C: POST /medications/manual, /medications/checked (asked the patient, incl. OTC)
+    D->>C: resolve dose differences
     D->>C: POST /referrals/{id}/flags/{flag}/acknowledge (reviewed, ignore or research, note)
     C->>C: flag_reviews row for that flag version, audit
     D->>C: POST /referrals/{id}/ai-suggestions/review (ignore or research)
+    D->>C: POST /referrals/{id}/packet-reviewed (records, papers, medicines, flags, letter)
+    C-->>S: notification: ready to send
 ```
 
 ## 7.7 Sending a version and delivery
@@ -1137,7 +1148,7 @@ sequenceDiagram
     participant B as Receiving hospital
     participant A as Referring institution
     S->>C: POST /referrals/{id}/send
-    C->>C: readiness: every blocking item done
+    C->>C: readiness: every blocking item done, including the doctor's packet review
     C->>C: brief (deterministic), PackageEnvelope, SHA-256, manifest
     C->>C: one transaction: referral_packages + outbox deliver_package + outbox sender_copy
     Wk->>B: POST /inbound/referrals (delivery key, service token)
@@ -1275,8 +1286,10 @@ Identity comes only from the verified token: never from request headers or the r
 | Rule | Enforcement |
 |---|---|
 | A referral is visible and changeable only by its own institution's doctors and staff | `security.load_referral`: caller's institution must equal `referral.source_institution`, and the role must be in the allowed set (default `clinician`, `clinic_staff`). Every denial is audited and returns 403. |
-| Doctor-only actions: create a request (`POST /referrals`), decide on a medication flag | `require_roles(principal, "clinician")`; `load_referral(..., roles=("clinician",))` |
-| Preparation actions: links, retrieval, papers, evidence review, medicines, submit, send, patient informed, close | `load_referral` with the default roles: **both** `clinician` and `clinic_staff` of the referring institution may call them. The order of work (staff prepare, the doctor reviews flags, staff send) comes from the readiness checklist and the screens, not from separate role checks. |
+| **Clinical content is doctor-only** (decision 2026-10-29): record content and selection, papers and their fields, the medicine list and flags, AI suggestion decisions, the letter preview, package content, own-copy verification, clarification answers, test results and attachments, legacy responses | `load_referral(..., roles=("clinician",))`, `require_doctor`; read endpoints return a staff view (`clinical=False`) instead of refusing where staff need the list (titles, statuses, counts) |
+| Doctor-only workflow actions: create a request, submit, the packet review (`POST /referrals/{id}/packet-reviewed`) | `require_roles(principal, "clinician")`; `load_referral(..., roles=("clinician",))` |
+| Staff actions: links, retrieval, paper upload, "ready for the doctor", send (after the doctor's review), test orders, patient informed | `load_referral(..., roles=("clinic_staff",))` or the default roles |
+| Audit detail | Non-doctors never get the `changes` and `note` detail fields, which can hold clinical text |
 | Patient-link decisions | `clinic_staff`, `institution_admin` or `diagnostics_staff` of the target institution |
 | Administrators manage accounts, grants and audit; no clinical record access | `institution_admin` checks; `load_referral` does not accept it |
 | Rule and medicine-name approval | `rule_reviewer` only |
@@ -1418,7 +1431,7 @@ It also asks for at most 5 "missing" phrases, and forbids treatment, dosing or m
 
 **Payload** (after de-identification):
 
-- **Referral:** kind, reason, department, planned procedure, procedure status and urgency, with age and sex.
+- **Referral:** kind, reason, the doctor's consultation notes (at most 2,000 characters), department, planned procedure, procedure status and urgency, with age and sex. Prompt version `packet-selection/3`.
 - **Each record:** id, category, relative date, default flag and text, cut to 300 characters.
 
 **Validation** rejects the whole answer when:
@@ -1503,6 +1516,10 @@ The app only looks these up (`medications/suggestions.py`, `ai_view.py`). A pair
 | Medicine names | `medicine_names` (`rules/terminology/medicine-names.pk.json`): generic names, hand-checked brands, DRAP register brands, ambiguous register names | Reviewer-maintained; register brands loaded by decision 2026-10-28 |
 | Rule set fingerprint | `ruleset_releases` | Hash of the approved manual rules, label rules and interaction data in force |
 
+**Interaction explanations.** DDInter's download gives only the pair and its level. `scripts/extract_label_rules.py interactions` adds, for each pair, the shortest sentence from either drug's US label that names the other drug and talks about the combination. The drug-interactions section is preferred, and the sentence is kept verbatim in `rules/labels/interaction-quotes.json`, loaded onto `drug_interactions.label_quote`.
+- **Excluded:** drug-class mentions ("calcium channel blockers"), fragments cut at headings, and pairs read and found irrelevant (`REVIEWED_NOT_RELEVANT`).
+- **No quote, no explanation:** without a quote nothing is shown. No model writes explanations.
+
 **How label rules are validated.** A rule from a drug label is kept only if:
 
 - the quoted sentence appears verbatim in the cited section;
@@ -1544,7 +1561,7 @@ A manual rule matches a drug class against these tags, so one rule covers every 
 | Kind | Raised when | Needs the doctor's decision before sending |
 |---|---|---|
 | `confirmed` | An approved manual rule's drug class matches a current medicine and the planned procedure has a matching tag | Yes |
-| `interaction` | Two current ingredients form a DDInter pair | Only for Major |
+| `interaction` | Two current ingredients form a DDInter pair. If a US drug label has a sentence naming both, it is shown verbatim as the flag's source quote, with the label and section | Only for Major |
 | `label_warning` | A label rule's ingredient is current and its target matches a condition or procedure feature | Only for severity hint "high" |
 | `unrecognised_medicine` | A medicine's name is unmapped or ambiguous (including DRAP names registered for different medicines) | Yes |
 | `procedure_not_checked` | The procedure is unknown, or planned without features, and a current medicine has procedure rules | Yes |
@@ -1834,9 +1851,9 @@ Delivery problems appear in the staff work queue. Logs carry request metadata, n
 
 Appendix O lists every test with its description, generated from the test files.
 
-**Latest results** (2026-10-28, local stack):
+**Latest results** (2026-10-29, local stack):
 
-- 130 unit tests pass.
+- 136 unit tests pass, including `test_staff_view.py`: staff views carry no clinical values, consultation notes keep older package hashes, interaction label quotes.
 - 21 of 22 integration tests pass. The failure is `test_admin_assigns_a_role_by_template`: Keycloak refused the role change (`502 identity_provider_refused`). The local realm was imported before the role-template change, so the `service-account-central-api` user lacks the `realm-management` role `view-realm`, which `infra/keycloak/import/referral-realm.json` now grants (Section 16).
 - The web type check passes.
 
@@ -2394,6 +2411,9 @@ erDiagram
         string source "not null, String(40)"
         string source_version "not null, String(80)"
         string source_ref "not null, String(80)"
+        text label_quote "nullable"
+        string label_source "nullable, String(200)"
+        string label_section "nullable, String(60)"
     }
     evaluation_runs {
         int id PK "not null"
@@ -2751,6 +2771,7 @@ erDiagram
         string destination_department "nullable, String(60)"
         string destination_doctor "nullable, String(200)"
         text reason "not null"
+        text consultation_notes "not null"
         string urgency "not null, String(20)"
         string procedure_status "not null, String(20)"
         string planned_procedure "nullable, String(300)"
@@ -2760,6 +2781,8 @@ erDiagram
         datetime requested_at "nullable, DateTime(timezone=True)"
         string prepared_by "nullable, String(200)"
         datetime prepared_at "nullable, DateTime(timezone=True)"
+        string packet_reviewed_by "nullable, String(200)"
+        datetime packet_reviewed_at "nullable, DateTime(timezone=True)"
         bool amendment_open "not null"
         int current_package_version "nullable"
         int submitted_package_version "nullable"
@@ -3486,6 +3509,9 @@ A drug-drug interaction pair from an imported source (stored once, ingredient_a 
 | `source` | String(40) | no |  |  | ddinter |
 | `source_version` | String(80) | no |  |  |  |
 | `source_ref` | String(80) | no |  |  |  |
+| `label_quote` | Text | yes |  |  | Why, in the source's own words: a sentence quoted verbatim from a US drug label's interaction section that names the other ingredient (rules/labels/interaction-quotes.json). Empty when none exists. |
+| `label_source` | String(200) | yes |  |  |  |
+| `label_section` | String(60) | yes |  |  |  |
 
 Unique constraints: (ingredient_a, ingredient_b, source)
 
@@ -3929,6 +3955,7 @@ Unique constraints: (referral_id, version)
 | `destination_department` | String(60) | yes |  |  |  |
 | `destination_doctor` | String(200) | yes |  |  |  |
 | `reason` | Text | no |  | `''` | Clinical |
+| `consultation_notes` | Text | no |  | `''` | the doctor's consultation notes under the reason: symptoms, history, examination (clinical content) |
 | `urgency` | String(20) | no |  | `'routine'` |  |
 | `procedure_status` | String(20) | no |  | `'unknown'` | planned \| none \| unknown |
 | `planned_procedure` | String(300) | yes |  |  | in the doctor's words |
@@ -3938,6 +3965,8 @@ Unique constraints: (referral_id, version)
 | `requested_at` | DateTime(timezone=True) | yes |  |  |  |
 | `prepared_by` | String(200) | yes |  |  | Staff checkpoint: records, papers and medicines gathered; the doctor can now review the flags |
 | `prepared_at` | DateTime(timezone=True) | yes |  |  |  |
+| `packet_reviewed_by` | String(200) | yes |  |  | Doctor checkpoint: the doctor reviewed the records, papers, medicines and flags that go in the packet. Staff never see that content (decision 2026-10-29). A later clinical change clears it. |
+| `packet_reviewed_at` | DateTime(timezone=True) | yes |  |  |  |
 | `amendment_open` | Boolean | no |  | `False` |  |
 | `current_package_version` | Integer | yes |  |  |  |
 | `submitted_package_version` | Integer | yes |  |  |  |
@@ -4301,43 +4330,43 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 
 Generated from the FastAPI route decorators. *Access checks* lists the authorisation calls made inside each handler (roles, institution scope, service identity, optimistic-concurrency checks). Every endpoint except `/health` and `/ready` also requires a valid Keycloak access token (verified signature, issuer, audience and introspection). Parameters exclude the database session and the caller's identity.
 
-#### Central platform API (`central`, port 8000): 97 endpoints
+#### Central platform API (`central`, port 8000): 98 endpoints
 
 ##### audit and reference data
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/admin/audit` | Administrators see audit metadata for their institution (no clinical record content). | require_roles(institution_admin, action=admin.audit) | action: str \| None; outcome: str \| None; limit: int | institution_audit (services/central/app/audit_router.py:46) |
-| GET | `/me` | Me. | valid access token (any role) |  | me (services/central/app/audit_router.py:68) |
-| GET | `/reference-data` | Reference data. | valid access token (any role) |  | reference_data (services/central/app/audit_router.py:82) |
-| GET | `/referrals/{referral_id}/audit` | Referral audit. | load_referral(view_audit) | referral_id: int | referral_audit (services/central/app/audit_router.py:40) |
+| GET | `/admin/audit` | Administrators see audit metadata for their institution (no clinical record content). | require_roles(institution_admin, action=admin.audit) | action: str \| None; outcome: str \| None; limit: int | institution_audit (services/central/app/audit_router.py:52) |
+| GET | `/me` | Me. | valid access token (any role) |  | me (services/central/app/audit_router.py:74) |
+| GET | `/reference-data` | Reference data. | valid access token (any role) |  | reference_data (services/central/app/audit_router.py:88) |
+| GET | `/referrals/{referral_id}/audit` | Referral audit. | load_referral(view_audit) | referral_id: int | referral_audit (services/central/app/audit_router.py:45) |
 
 ##### documents
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/documents/{document_id}` | Get document. | _load_doc → load_referral() | document_id: int | get_document (services/central/app/documents/router.py:113) |
-| GET | `/documents/{document_id}/file` | Download. | _load_doc → load_referral() | document_id: int | download (services/central/app/documents/router.py:132) |
-| GET | `/documents/{document_id}/pages/{page}` | Page image. | _load_doc → load_referral() | document_id: int; page: int | page_image (services/central/app/documents/router.py:144) |
-| POST | `/documents/{document_id}/reprocess` | Reprocess. | _load_doc → load_referral() | document_id: int | reprocess (services/central/app/documents/router.py:154) |
-| GET | `/jobs/{job_id}` | Get job. | load_referral(view) | job_id: str | get_job (services/central/app/documents/router.py:167) |
+| GET | `/documents/{document_id}` | Get document. | _load_doc → load_referral() | document_id: int | get_document (services/central/app/documents/router.py:116) |
+| GET | `/documents/{document_id}/file` | Download. | _load_doc → load_referral() | document_id: int | download (services/central/app/documents/router.py:135) |
+| GET | `/documents/{document_id}/pages/{page}` | Page image. | _load_doc → load_referral() | document_id: int; page: int | page_image (services/central/app/documents/router.py:147) |
+| POST | `/documents/{document_id}/reprocess` | Reprocess. | _load_doc → load_referral() | document_id: int | reprocess (services/central/app/documents/router.py:157) |
+| GET | `/jobs/{job_id}` | Get job. | load_referral(view) | job_id: str | get_job (services/central/app/documents/router.py:170) |
 | GET | `/referrals/{referral_id}/documents` | List documents. | load_referral(view) | referral_id: int | list_documents (services/central/app/documents/router.py:99) |
 | POST | `/referrals/{referral_id}/documents` | Upload. | ensure_clinical_edit_allowed(); load_referral(upload) | referral_id: int; file: UploadFile; doc_type: str | upload (services/central/app/documents/router.py:47) |
-| GET | `/referrals/{referral_id}/jobs` | Referral jobs. | load_referral(view) | referral_id: int | referral_jobs (services/central/app/documents/router.py:179) |
+| GET | `/referrals/{referral_id}/jobs` | Referral jobs. | load_referral(view) | referral_id: int | referral_jobs (services/central/app/documents/router.py:182) |
 
 ##### evidence
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/evidence/{evidence_id}` | Get evidence. | _load → load_referral() | evidence_id: int | get_evidence (services/central/app/evidence_router.py:75) |
-| POST | `/evidence/{evidence_id}/correct` | Correct. | _load → load_referral() | evidence_id: int; body: CorrectIn | correct (services/central/app/evidence_router.py:125) |
-| POST | `/evidence/{evidence_id}/exclude` | Exclude. | _set_state → _load → load_referral() | evidence_id: int; body: StateIn | exclude (services/central/app/evidence_router.py:177) |
-| POST | `/evidence/{evidence_id}/restore` | Restore. | _set_state → _load → load_referral() | evidence_id: int; body: StateIn | restore (services/central/app/evidence_router.py:182) |
-| POST | `/evidence/{evidence_id}/select` | Staff finalise the packet: their choice overrides the default and the AI recommendation. | _load → load_referral(); ensure_clinical_edit_allowed() | evidence_id: int; body: SelectIn | select_evidence (services/central/app/evidence_router.py:100) |
-| POST | `/evidence/{evidence_id}/unresolve` | Mark unresolved. | _set_state → _load → load_referral() | evidence_id: int; body: StateIn | mark_unresolved (services/central/app/evidence_router.py:172) |
-| POST | `/evidence/{evidence_id}/verify` | Checking a field read from a paper against the paper. Staff do this while preparing the referral; a checked medicine joins the current-medicine list. | _load → load_referral() | evidence_id: int; body: VerifyIn | verify (services/central/app/evidence_router.py:192) |
-| GET | `/referrals/{referral_id}/evidence` | List evidence. | load_referral(view) | referral_id: int; category: str \| None; include_superseded: bool | list_evidence (services/central/app/evidence_router.py:63) |
-| POST | `/referrals/{referral_id}/evidence/manual` | Manual transcription with an optional source reference; works without OCR (FR-58). | ensure_clinical_edit_allowed(); load_referral(edit) | referral_id: int; body: ManualIn | manual_entry (services/central/app/evidence_router.py:219) |
+| GET | `/evidence/{evidence_id}` | Get evidence. | _load → load_referral() | evidence_id: int | get_evidence (services/central/app/evidence_router.py:79) |
+| POST | `/evidence/{evidence_id}/correct` | Correct. | _load → load_referral() | evidence_id: int; body: CorrectIn | correct (services/central/app/evidence_router.py:131) |
+| POST | `/evidence/{evidence_id}/exclude` | Exclude. | _set_state → _load → load_referral() | evidence_id: int; body: StateIn | exclude (services/central/app/evidence_router.py:183) |
+| POST | `/evidence/{evidence_id}/restore` | Restore. | _set_state → _load → load_referral() | evidence_id: int; body: StateIn | restore (services/central/app/evidence_router.py:188) |
+| POST | `/evidence/{evidence_id}/select` | The doctor finalises the packet: their choice overrides the default and the AI recommendation. | _load → load_referral(); ensure_clinical_edit_allowed() | evidence_id: int; body: SelectIn | select_evidence (services/central/app/evidence_router.py:106) |
+| POST | `/evidence/{evidence_id}/unresolve` | Mark unresolved. | _set_state → _load → load_referral() | evidence_id: int; body: StateIn | mark_unresolved (services/central/app/evidence_router.py:178) |
+| POST | `/evidence/{evidence_id}/verify` | The doctor checks a field read from a paper against the page image; a checked medicine joins the current-medicine list. | _load → load_referral() | evidence_id: int; body: VerifyIn | verify (services/central/app/evidence_router.py:198) |
+| GET | `/referrals/{referral_id}/evidence` | List evidence. | load_referral(view) | referral_id: int; category: str \| None; include_superseded: bool | list_evidence (services/central/app/evidence_router.py:66) |
+| POST | `/referrals/{referral_id}/evidence/manual` | Manual transcription by the doctor, with an optional source reference; works without OCR (FR-58). | ensure_clinical_edit_allowed(); load_referral(edit, roles=('clinician',)) | referral_id: int; body: ManualIn | manual_entry (services/central/app/evidence_router.py:225) |
 
 ##### health
 
@@ -4356,25 +4385,25 @@ Generated from the FastAPI route decorators. *Access checks* lists the authorisa
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/drug-classes` | Drug classes. | valid access token (any role) |  | drug_classes (services/central/app/medications/router.py:517) |
-| GET | `/medicine-names` | Medicine names. | role rule_reviewer required | q: str | medicine_names (services/central/app/medications/router.py:294) |
-| POST | `/medicine-names` | Add name. | require_roles(rule_reviewer, action=medicine_name.add) | body: NameIn | add_name (services/central/app/medications/router.py:315) |
-| POST | `/medicine-names/{name_id}/retire` | Retire name. | require_roles(rule_reviewer, action=medicine_name.retire) | name_id: int | retire_name (services/central/app/medications/router.py:335) |
-| POST | `/referrals/{referral_id}/ai-suggestions/review` | The doctor marks an AI suggestion Ignore (not relevant for this patient) or Research (needs follow-up). It changes no flag. | load_referral(review_ai_suggestion, roles=('clinician',)) | referral_id: int; body: SuggestionReviewIn | review_suggestion (services/central/app/medications/router.py:70) |
-| POST | `/referrals/{referral_id}/flags/{flag_id}/acknowledge` | The doctor records a decision on the flag for this patient: reviewed, ignore or research. Any decision means 'seen'; it is never treatment clearance. Ignored flags stay in the record. | load_referral(acknowledge_flag, roles=('clinician',)) | referral_id: int; flag_id: int; body: AckIn | acknowledge_flag (services/central/app/medications/router.py:264) |
-| GET | `/referrals/{referral_id}/medications` | Medications. | load_referral(view) | referral_id: int | medications (services/central/app/medications/router.py:34) |
-| POST | `/referrals/{referral_id}/medications/checked` | Staff confirm they asked the patient about every medicine, including over-the-counter ones. | ensure_clinical_edit_allowed(); load_referral(edit) | referral_id: int; body: CheckedIn | medicines_checked (services/central/app/medications/router.py:245) |
-| POST | `/referrals/{referral_id}/medications/manual` | Staff add a medicine the patient says they take, e.g. an over-the-counter painkiller. | ensure_clinical_edit_allowed(); load_referral(edit, roles=('clinic_staff',)) | referral_id: int; body: ManualMedIn | add_medicine (services/central/app/medications/router.py:112) |
-| POST | `/referrals/{referral_id}/medications/{entry_id}/exclude` | Staff mark a recorded medicine as not current (e.g. an old prescription, or the other side of a dose difference). The record is kept, with who and why. | ensure_clinical_edit_allowed(); load_referral(edit) | referral_id: int; entry_id: int; body: ReasonIn | exclude_medicine (services/central/app/medications/router.py:154) |
-| POST | `/referrals/{referral_id}/medications/{entry_id}/mapping` | Doctor or staff resolve a name: choose a medicine from the name list, or, for a DRAP brand name used for different products, the product it is (by the company on the pack). | ensure_clinical_edit_allowed(); load_referral(map_medication) | referral_id: int; entry_id: int; body: MapIn | set_mapping (services/central/app/medications/router.py:206) |
-| POST | `/referrals/{referral_id}/medications/{entry_id}/restore` | Restore medicine. | ensure_clinical_edit_allowed(); load_referral(edit) | referral_id: int; entry_id: int | restore_medicine (services/central/app/medications/router.py:172) |
-| GET | `/rules` | List rules. | require_roles(rule_reviewer, action=rule.list); role rule_reviewer required |  | list_rules (services/central/app/medications/router.py:361) |
-| POST | `/rules` | Reviewers draft a rule. It does nothing until a reviewer approves it. | require_roles(rule_reviewer, action=rule.create) | body: RuleIn | create_rule (services/central/app/medications/router.py:407) |
-| GET | `/rules/ai` | The suggestion model's evaluation figures and its stored suggestions (reviewer only). | require_roles(rule_reviewer, action=rule.list) |  | ai_model (services/central/app/medications/router.py:87) |
-| GET | `/rules/interactions` | Imported drug-drug interactions (read-only), searchable by ingredient. | require_roles(rule_reviewer, action=rule.list) | q: str | list_interactions (services/central/app/medications/router.py:485) |
-| GET | `/rules/label-rules` | Rules read from drug labels by script (read-only), with the sentence each relies on. | require_roles(rule_reviewer, action=rule.list) | q: str; kind: str | list_label_rules (services/central/app/medications/router.py:496) |
-| PUT | `/rules/{rule_id}` | An edit is a new draft version; the approved version keeps working until the new one is approved. | require_roles(rule_reviewer, action=rule.edit) | rule_id: str; body: RuleIn | edit_rule (services/central/app/medications/router.py:422) |
-| POST | `/rules/{rule_id}/versions/{version}/decision` | Only a clinical rule reviewer may approve, reject or retire a rule version. | require_roles(rule_reviewer, action=rule.decision) | rule_id: str; version: int; body: RuleDecisionIn | decide_rule (services/central/app/medications/router.py:440) |
+| GET | `/drug-classes` | Drug classes. | valid access token (any role) |  | drug_classes (services/central/app/medications/router.py:523) |
+| GET | `/medicine-names` | Medicine names. | role rule_reviewer required | q: str | medicine_names (services/central/app/medications/router.py:300) |
+| POST | `/medicine-names` | Add name. | require_roles(rule_reviewer, action=medicine_name.add) | body: NameIn | add_name (services/central/app/medications/router.py:321) |
+| POST | `/medicine-names/{name_id}/retire` | Retire name. | require_roles(rule_reviewer, action=medicine_name.retire) | name_id: int | retire_name (services/central/app/medications/router.py:341) |
+| POST | `/referrals/{referral_id}/ai-suggestions/review` | The doctor marks an AI suggestion Ignore (not relevant for this patient) or Research (needs follow-up). It changes no flag. | load_referral(review_ai_suggestion, roles=('clinician',)) | referral_id: int; body: SuggestionReviewIn | review_suggestion (services/central/app/medications/router.py:79) |
+| POST | `/referrals/{referral_id}/flags/{flag_id}/acknowledge` | The doctor records a decision on the flag for this patient: reviewed, ignore or research. Any decision means 'seen'; it is never treatment clearance. Ignored flags stay in the record. | load_referral(acknowledge_flag, roles=('clinician',)) | referral_id: int; flag_id: int; body: AckIn | acknowledge_flag (services/central/app/medications/router.py:273) |
+| GET | `/referrals/{referral_id}/medications` | Medications. | load_referral(view) | referral_id: int | medications (services/central/app/medications/router.py:33) |
+| POST | `/referrals/{referral_id}/medications/checked` | Staff confirm they asked the patient about every medicine, including over-the-counter ones. | ensure_clinical_edit_allowed(); load_referral(edit, roles=('clinician',)) | referral_id: int; body: CheckedIn | medicines_checked (services/central/app/medications/router.py:254) |
+| POST | `/referrals/{referral_id}/medications/manual` | Staff add a medicine the patient says they take, e.g. an over-the-counter painkiller. | ensure_clinical_edit_allowed(); load_referral(edit, roles=('clinician',)) | referral_id: int; body: ManualMedIn | add_medicine (services/central/app/medications/router.py:121) |
+| POST | `/referrals/{referral_id}/medications/{entry_id}/exclude` | Staff mark a recorded medicine as not current (e.g. an old prescription, or the other side of a dose difference). The record is kept, with who and why. | ensure_clinical_edit_allowed(); load_referral(edit, roles=('clinician',)) | referral_id: int; entry_id: int; body: ReasonIn | exclude_medicine (services/central/app/medications/router.py:163) |
+| POST | `/referrals/{referral_id}/medications/{entry_id}/mapping` | Doctor or staff resolve a name: choose a medicine from the name list, or, for a DRAP brand name used for different products, the product it is (by the company on the pack). | ensure_clinical_edit_allowed(); load_referral(map_medication, roles=('clinician',)) | referral_id: int; entry_id: int; body: MapIn | set_mapping (services/central/app/medications/router.py:215) |
+| POST | `/referrals/{referral_id}/medications/{entry_id}/restore` | Restore medicine. | ensure_clinical_edit_allowed(); load_referral(edit, roles=('clinician',)) | referral_id: int; entry_id: int | restore_medicine (services/central/app/medications/router.py:181) |
+| GET | `/rules` | List rules. | require_roles(rule_reviewer, action=rule.list); role rule_reviewer required |  | list_rules (services/central/app/medications/router.py:367) |
+| POST | `/rules` | Reviewers draft a rule. It does nothing until a reviewer approves it. | require_roles(rule_reviewer, action=rule.create) | body: RuleIn | create_rule (services/central/app/medications/router.py:413) |
+| GET | `/rules/ai` | The suggestion model's evaluation figures and its stored suggestions (reviewer only). | require_roles(rule_reviewer, action=rule.list) |  | ai_model (services/central/app/medications/router.py:96) |
+| GET | `/rules/interactions` | Imported drug-drug interactions (read-only), searchable by ingredient. | require_roles(rule_reviewer, action=rule.list) | q: str | list_interactions (services/central/app/medications/router.py:491) |
+| GET | `/rules/label-rules` | Rules read from drug labels by script (read-only), with the sentence each relies on. | require_roles(rule_reviewer, action=rule.list) | q: str; kind: str | list_label_rules (services/central/app/medications/router.py:502) |
+| PUT | `/rules/{rule_id}` | An edit is a new draft version; the approved version keeps working until the new one is approved. | require_roles(rule_reviewer, action=rule.edit) | rule_id: str; body: RuleIn | edit_rule (services/central/app/medications/router.py:428) |
+| POST | `/rules/{rule_id}/versions/{version}/decision` | Only a clinical rule reviewer may approve, reject or retire a rule version. | require_roles(rule_reviewer, action=rule.decision) | rule_id: str; version: int; body: RuleDecisionIn | decide_rule (services/central/app/medications/router.py:446) |
 
 ##### notifications
 
@@ -4408,18 +4437,18 @@ Generated from the FastAPI route decorators. *Access checks* lists the authorisa
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/referrals` | List referrals. | require_roles(clinic_staff, clinician, action=referral.search); role clinician required | patient: str \| None; reference: str \| None; status: str \| None; destination: str \| None; kind: str \| None; mine: bool; date_from: date \| None; date_to: date \| None; limit: int | list_referrals (services/central/app/referrals/router.py:178) |
-| POST | `/referrals` | Only a doctor applies for a referral or a test. | require_roles(clinician, action=referral.create) | body: ReferralForm | create_referral (services/central/app/referrals/router.py:142) |
-| GET | `/referrals/{referral_id}` | Get referral. | load_referral(view); role clinician required | referral_id: int | get_referral (services/central/app/referrals/router.py:252) |
-| PATCH | `/referrals/{referral_id}` | Doctors edit their request. After it was sent, a clinical change opens an amendment. | check_version(); load_referral(edit) | referral_id: int; body: ReferralUpdate | update_referral (services/central/app/referrals/router.py:286) |
-| POST | `/referrals/{referral_id}/cancel` | Only a doctor withdraws a request; staff cannot stop it. | check_version(); load_referral(cancel) | referral_id: int; body: CancelIn | cancel (services/central/app/referrals/router.py:423) |
-| GET | `/referrals/{referral_id}/events` | Events. | load_referral(view) | referral_id: int | events (services/central/app/referrals/router.py:434) |
-| POST | `/referrals/{referral_id}/links` | Staff ask another institution (where the patient has been) to confirm the patient. | load_referral(link) | referral_id: int; body: LinkRequestIn | request_referral_link (services/central/app/referrals/router.py:349) |
-| POST | `/referrals/{referral_id}/recommend` | Staff ask for the AI recommendation again (for example after adding papers). | load_referral(prepare, roles=('clinic_staff',)) | referral_id: int | recommend_selection (services/central/app/referrals/router.py:397) |
-| GET | `/referrals/{referral_id}/retrievals` | Retrieval history. | load_referral(view) | referral_id: int | retrieval_history (services/central/app/referrals/router.py:411) |
-| POST | `/referrals/{referral_id}/retrieve` | Retrieve records. | load_referral(retrieve) | referral_id: int | retrieve_records (services/central/app/referrals/router.py:363) |
-| GET | `/referrals/{referral_id}/selection` | Selection status. | load_referral(view) | referral_id: int | selection_status (services/central/app/referrals/router.py:389) |
-| POST | `/referrals/{referral_id}/submit` | Submit request. | check_version(); load_referral(submit_request) | referral_id: int; body: VersionIn | submit_request (services/central/app/referrals/router.py:330) |
+| GET | `/referrals` | List referrals. | require_roles(clinic_staff, clinician, action=referral.search); role clinician required | patient: str \| None; reference: str \| None; status: str \| None; destination: str \| None; kind: str \| None; mine: bool; date_from: date \| None; date_to: date \| None; limit: int | list_referrals (services/central/app/referrals/router.py:179) |
+| POST | `/referrals` | Only a doctor applies for a referral or a test. | require_roles(clinician, action=referral.create) | body: ReferralForm | create_referral (services/central/app/referrals/router.py:143) |
+| GET | `/referrals/{referral_id}` | Get referral. | load_referral(view); role clinician required | referral_id: int | get_referral (services/central/app/referrals/router.py:253) |
+| PATCH | `/referrals/{referral_id}` | Doctors edit their request. After it was sent, a clinical change opens an amendment. | check_version(); load_referral(edit) | referral_id: int; body: ReferralUpdate | update_referral (services/central/app/referrals/router.py:288) |
+| POST | `/referrals/{referral_id}/cancel` | Only a doctor withdraws a request; staff cannot stop it. | check_version(); load_referral(cancel) | referral_id: int; body: CancelIn | cancel (services/central/app/referrals/router.py:428) |
+| GET | `/referrals/{referral_id}/events` | Events. | load_referral(view) | referral_id: int | events (services/central/app/referrals/router.py:439) |
+| POST | `/referrals/{referral_id}/links` | Staff ask another institution (where the patient has been) to confirm the patient. | load_referral(link) | referral_id: int; body: LinkRequestIn | request_referral_link (services/central/app/referrals/router.py:351) |
+| POST | `/referrals/{referral_id}/recommend` | Staff ask for the AI recommendation again (for example after adding papers). | load_referral(prepare, roles=('clinic_staff',)) | referral_id: int | recommend_selection (services/central/app/referrals/router.py:402) |
+| GET | `/referrals/{referral_id}/retrievals` | Retrieval history. | load_referral(view) | referral_id: int | retrieval_history (services/central/app/referrals/router.py:416) |
+| POST | `/referrals/{referral_id}/retrieve` | Retrieve records. | load_referral(retrieve) | referral_id: int | retrieve_records (services/central/app/referrals/router.py:365) |
+| GET | `/referrals/{referral_id}/selection` | Selection status. | load_referral(view) | referral_id: int | selection_status (services/central/app/referrals/router.py:391) |
+| POST | `/referrals/{referral_id}/submit` | Submit request. | check_version(); load_referral(submit_request) | referral_id: int; body: VersionIn | submit_request (services/central/app/referrals/router.py:332) |
 
 ##### response and follow-through
 
@@ -4438,15 +4467,16 @@ Generated from the FastAPI route decorators. *Access checks* lists the authorisa
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/referrals/{referral_id}/brief-preview` | What the specialist will receive if the referral is sent now. | load_referral(view) | referral_id: int | brief_preview (services/central/app/sending/router.py:36) |
-| GET | `/referrals/{referral_id}/delivery` | Delivery. | load_referral(view) | referral_id: int | delivery (services/central/app/sending/router.py:93) |
-| GET | `/referrals/{referral_id}/packages/{version}` | Get package. | load_referral(view) | referral_id: int; version: int | get_package (services/central/app/sending/router.py:102) |
-| POST | `/referrals/{referral_id}/packages/{version}/verify` | Compare a copy of the package (held by the sender or the receiver) with the fingerprint kept at sending. | load_referral(view) | referral_id: int; version: int; body: VerifyCopyIn | verify_package_copy (services/central/app/sending/router.py:124) |
-| POST | `/referrals/{referral_id}/packages/{version}/verify-own-copy` | Fetch this clinic's own stored copy (from its own system, with the user's token) and check it. | load_referral(view) | referral_id: int; version: int | verify_own_copy (services/central/app/sending/router.py:136) |
-| POST | `/referrals/{referral_id}/prepared` | Staff have gathered the records, papers and medicines; the doctor can now review the flags. | check_version(); load_referral(prepare) | referral_id: int; body: SendIn | mark_prepared (services/central/app/sending/router.py:47) |
+| GET | `/referrals/{referral_id}/brief-preview` | What the specialist will receive if the referral is sent now (clinical content: doctors only). | load_referral(view) | referral_id: int | brief_preview (services/central/app/sending/router.py:36) |
+| GET | `/referrals/{referral_id}/delivery` | Delivery. | load_referral(view) | referral_id: int | delivery (services/central/app/sending/router.py:113) |
+| GET | `/referrals/{referral_id}/packages/{version}` | Get package. | load_referral(view) | referral_id: int; version: int | get_package (services/central/app/sending/router.py:122) |
+| POST | `/referrals/{referral_id}/packages/{version}/verify` | Compare a copy of the package (held by the sender or the receiver) with the fingerprint kept at sending. | load_referral(view) | referral_id: int; version: int; body: VerifyCopyIn | verify_package_copy (services/central/app/sending/router.py:146) |
+| POST | `/referrals/{referral_id}/packages/{version}/verify-own-copy` | Fetch this clinic's own stored copy (from its own system, with the user's token) and check it. The copy is clinical content, so this is for doctors. | load_referral(view) | referral_id: int; version: int | verify_own_copy (services/central/app/sending/router.py:158) |
+| POST | `/referrals/{referral_id}/packet-reviewed` | The doctor has reviewed the clinical content of the packet: papers, medicines, flags and the records chosen. Staff can then send it. Any later clinical change clears this (workflow.after_change). | check_version(); load_referral(review_packet) | referral_id: int; body: SendIn | mark_packet_reviewed (services/central/app/sending/router.py:68) |
+| POST | `/referrals/{referral_id}/prepared` | Staff have retrieved the records and uploaded the papers; the doctor can now review the clinical content. | check_version(); load_referral(prepare) | referral_id: int; body: SendIn | mark_prepared (services/central/app/sending/router.py:47) |
 | GET | `/referrals/{referral_id}/readiness` | Get readiness. | load_referral(view) | referral_id: int | get_readiness (services/central/app/sending/router.py:30) |
-| POST | `/referrals/{referral_id}/retry-delivery` | Retry reuses the same delivery key, so the receiver never gets a duplicate. | load_referral(send) | referral_id: int | retry_delivery (services/central/app/sending/router.py:83) |
-| POST | `/referrals/{referral_id}/send` | Staff send the referral once every check is done. | check_version(); load_referral(send) | referral_id: int; body: SendIn | send (services/central/app/sending/router.py:72) |
+| POST | `/referrals/{referral_id}/retry-delivery` | Retry reuses the same delivery key, so the receiver never gets a duplicate. | load_referral(send) | referral_id: int | retry_delivery (services/central/app/sending/router.py:103) |
+| POST | `/referrals/{referral_id}/send` | Staff send the referral once every check is done. | check_version(); load_referral(send) | referral_id: int; body: SendIn | send (services/central/app/sending/router.py:92) |
 
 ##### tests and scans
 
@@ -4497,7 +4527,7 @@ Generated from the FastAPI route decorators. *Access checks* lists the authorisa
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| POST | `/inbound/clarification-answers` | Receive answer. | _require_central() | body: ClarificationAnswer | receive_answer (services/provider/app/main.py:585) |
+| POST | `/inbound/clarification-answers` | Receive answer. | _require_central() | body: ClarificationAnswer | receive_answer (services/provider/app/main.py:587) |
 | POST | `/inbound/orders` | Receive order. | _require_central() | body: DiagnosticOrder | receive_order (services/provider/app/main.py:486) |
 | POST | `/inbound/referral-expired` | The referral's time is up: remove this institution's copy of the shared records (the packages and the results forwarded with them). Its own decision, questions and response are its record and are kept. | _require_central() | body: ExpiredIn | referral_expired (services/provider/app/main.py:464) |
 | POST | `/inbound/referrals` | Idempotent receipt of a sent referral version (keyed by delivery key). | _require_central() | raw: dict | receive_package (services/provider/app/main.py:419) |
@@ -4508,29 +4538,29 @@ Generated from the FastAPI route decorators. *Access checks* lists the authorisa
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/cases` | List cases. | _visible → _is_intake → has_any(clinic_staff, institution_admin); _visible → role clinician required; require_own(clinician, clinic_staff, institution_admin, what=see incoming referrals) |  | list_cases (services/provider/app/main.py:645) |
-| GET | `/cases/{case_id}` | Get case. | _get_case(); require_own(clinician, clinic_staff, institution_admin, what=see incoming referrals) | case_id: int | get_case (services/provider/app/main.py:693) |
-| POST | `/cases/{case_id}/acknowledge` | Staff confirm the referral has been received here. | _get_case(); require_own(clinic_staff, institution_admin, what=acknowledge a referral) | case_id: int | acknowledge (services/provider/app/main.py:652) |
-| POST | `/cases/{case_id}/assign` | Staff send the referral to the doctor who will see the patient (can be changed until they decide). | _get_case(); require_own(clinic_staff, institution_admin, what=assign a referral) | case_id: int; body: AssignIn | assign (services/provider/app/main.py:673) |
+| GET | `/cases` | List cases. | _visible → _is_intake → has_any(clinic_staff, institution_admin); _visible → role clinician required; require_own(clinician, clinic_staff, institution_admin, what=see incoming referrals) |  | list_cases (services/provider/app/main.py:647) |
+| GET | `/cases/{case_id}` | Get case. | _get_case(); require_own(clinician, clinic_staff, institution_admin, what=see incoming referrals); role clinician required | case_id: int | get_case (services/provider/app/main.py:702) |
+| POST | `/cases/{case_id}/acknowledge` | Staff confirm the referral has been received here. | _get_case(); require_own(clinic_staff, institution_admin, what=acknowledge a referral) | case_id: int | acknowledge (services/provider/app/main.py:654) |
+| POST | `/cases/{case_id}/assign` | Staff send the referral to the doctor who will see the patient (can be changed until they decide). | _get_case(); require_own(clinic_staff, institution_admin, what=assign a referral) | case_id: int; body: AssignIn | assign (services/provider/app/main.py:675) |
 
 ##### intake
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| POST | `/intake/patient` | Staff here confirmed who an arriving patient is (through the central link request): the incoming referral and test orders for that request now point at this record. | require_own(clinic_staff, institution_admin, diagnostics_staff, what=confirm an arriving patient) | body: IntakeIn | intake_patient (services/provider/app/main.py:568) |
+| POST | `/intake/patient` | Staff here confirmed who an arriving patient is (through the central link request): the incoming referral and test orders for that request now point at this record. | require_own(clinic_staff, institution_admin, diagnostics_staff, what=confirm an arriving patient) | body: IntakeIn | intake_patient (services/provider/app/main.py:570) |
 
 ##### laboratory and imaging
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/orders` | List orders. | _require_diagnostics() |  | list_orders (services/provider/app/main.py:928) |
-| GET | `/orders/{order_id}` | Get order. | _get_order(); _require_diagnostics() | order_id: int | get_order (services/provider/app/main.py:935) |
-| POST | `/orders/{order_id}/accept` | Accept order. | _get_order(); _require_diagnostics() | order_id: int | accept_order (services/provider/app/main.py:952) |
-| GET | `/orders/{order_id}/attachments/{attachment_id}` | Order attachment. | _get_order(); _require_diagnostics() | order_id: int; attachment_id: int | order_attachment (services/provider/app/main.py:941) |
-| POST | `/orders/{order_id}/done` | Order done. | _get_order(); _require_diagnostics() | order_id: int | order_done (services/provider/app/main.py:992) |
-| POST | `/orders/{order_id}/reject` | A rejection always carries a reason (wrong test, preparation needed, no capacity). | _get_order(); _require_diagnostics() | order_id: int; body: RejectIn | reject_order (services/provider/app/main.py:967) |
-| POST | `/orders/{order_id}/report` | Return the report (with images for scans). It is also filed in this institution's own records. | _get_order(); _require_diagnostics() | order_id: int; body: ReportIn | report_order (services/provider/app/main.py:1052) |
-| POST | `/orders/{order_id}/schedule` | Schedule order. | _get_order(); _require_diagnostics() | order_id: int; body: ScheduleIn | schedule_order (services/provider/app/main.py:982) |
+| GET | `/orders` | List orders. | _require_diagnostics() |  | list_orders (services/provider/app/main.py:949) |
+| GET | `/orders/{order_id}` | Get order. | _get_order(); _require_diagnostics() | order_id: int | get_order (services/provider/app/main.py:956) |
+| POST | `/orders/{order_id}/accept` | Accept order. | _get_order(); _require_diagnostics() | order_id: int | accept_order (services/provider/app/main.py:973) |
+| GET | `/orders/{order_id}/attachments/{attachment_id}` | Order attachment. | _get_order(); _require_diagnostics() | order_id: int; attachment_id: int | order_attachment (services/provider/app/main.py:962) |
+| POST | `/orders/{order_id}/done` | Order done. | _get_order(); _require_diagnostics() | order_id: int | order_done (services/provider/app/main.py:1013) |
+| POST | `/orders/{order_id}/reject` | A rejection always carries a reason (wrong test, preparation needed, no capacity). | _get_order(); _require_diagnostics() | order_id: int; body: RejectIn | reject_order (services/provider/app/main.py:988) |
+| POST | `/orders/{order_id}/report` | Return the report (with images for scans). It is also filed in this institution's own records. | _get_order(); _require_diagnostics() | order_id: int; body: ReportIn | report_order (services/provider/app/main.py:1073) |
+| POST | `/orders/{order_id}/schedule` | Schedule order. | _get_order(); _require_diagnostics() | order_id: int; body: ScheduleIn | schedule_order (services/provider/app/main.py:1003) |
 
 ##### patients
 
@@ -4543,19 +4573,19 @@ Generated from the FastAPI route decorators. *Access checks* lists the authorisa
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| POST | `/cases/{case_id}/complete` | The referred doctor has finished with the referral. The shared records are removed 72 hours later. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int | complete_case (services/provider/app/main.py:850) |
-| POST | `/cases/{case_id}/decision` | Decide. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: DecisionIn | decide (services/provider/app/main.py:724) |
-| POST | `/cases/{case_id}/extend-hold` | The referred doctor needs the shared records for longer: kept for another 30 days from now. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: ExtendHoldIn | extend_hold (services/provider/app/main.py:870) |
-| POST | `/cases/{case_id}/info-requests` | Request info. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: InfoIn | request_info (services/provider/app/main.py:753) |
-| PUT | `/cases/{case_id}/response` | Save response. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: ResponseIn | save_response (services/provider/app/main.py:789) |
-| POST | `/cases/{case_id}/response/send` | The receiving doctor signs off and returns the response in one step. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: SendIn | send_response (services/provider/app/main.py:817) |
-| POST | `/outbox/{item_id}/retry` | Retry outbox. | require_own(clinician, diagnostics_staff, institution_admin, what=retry delivery) | item_id: int | retry_outbox (services/provider/app/main.py:1090) |
+| POST | `/cases/{case_id}/complete` | The referred doctor has finished with the referral. The shared records are removed 72 hours later. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int | complete_case (services/provider/app/main.py:871) |
+| POST | `/cases/{case_id}/decision` | Decide. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: DecisionIn | decide (services/provider/app/main.py:745) |
+| POST | `/cases/{case_id}/extend-hold` | The referred doctor needs the shared records for longer: kept for another 30 days from now. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: ExtendHoldIn | extend_hold (services/provider/app/main.py:891) |
+| POST | `/cases/{case_id}/info-requests` | Request info. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: InfoIn | request_info (services/provider/app/main.py:774) |
+| PUT | `/cases/{case_id}/response` | Save response. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: ResponseIn | save_response (services/provider/app/main.py:810) |
+| POST | `/cases/{case_id}/response/send` | The receiving doctor signs off and returns the response in one step. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: SendIn | send_response (services/provider/app/main.py:838) |
+| POST | `/outbox/{item_id}/retry` | Retry outbox. | require_own(clinician, diagnostics_staff, institution_admin, what=retry delivery) | item_id: int | retry_outbox (services/provider/app/main.py:1111) |
 
 ##### records
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/outbound-copies` | Our own copies for one referral (doctors and staff here). | require_own(clinician, clinic_staff, what=read our copies of sent referrals) | referral_id: str | list_sent_copies (services/provider/app/main.py:553) |
+| GET | `/outbound-copies` | Our own copies for one referral (doctors and staff here). | require_own(clinician, clinic_staff, what=read our copies of sent referrals); role clinician required | referral_id: str | list_sent_copies (services/provider/app/main.py:553) |
 | GET | `/patients/{local_id}/activity` | When the patient was last seen here (visit, test or scan). Used to choose the most recently visited institution of each kind. | decide_access(); forbid() | local_id: str | patient_activity (services/provider/app/main.py:348) |
 
 ##### sharing
@@ -4699,6 +4729,7 @@ One sent version of a referral. The requesting doctor authorised the request; st
 | `destination_doctor` | str \| None | None |  |
 | `urgency` | str | (required) |  |
 | `reason` | str | (required) |  |
+| `consultation_notes` | str \| None | None |  |
 | `procedure_status` | str | (required) |  |
 | `planned_procedure` | str \| None | None |  |
 | `procedure_label` | str \| None | None |  |
@@ -5036,6 +5067,7 @@ A returned diagnostic report forwarded to the referral's receiving hospital, so 
 | `destination_department` | str \| None | None |  |
 | `destination_doctor` | str \| None | None |  |
 | `reason` | str | '' |  |
+| `consultation_notes` | str | Field('', max_length=20000) |  |
 | `urgency` | str | 'routine' |  |
 | `procedure_status` | str | 'unknown' |  |
 | `planned_procedure` | str \| None | None |  |
@@ -5684,6 +5716,7 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 | 5 | `97915d386e71` | `76763a476e7c` | data lifecycle and packet selection | `services/central/migrations/versions/97915d386e71_data_lifecycle_and_packet_selection.py` |
 | 6 | `50cb02ecd52d` | `97915d386e71` | receiver completion | `services/central/migrations/versions/50cb02ecd52d_receiver_completion.py` |
 | 7 | `fec095fdc2b0` | `50cb02ecd52d` | ambiguous brand choices | `services/central/migrations/versions/fec095fdc2b0_ambiguous_brand_choices.py` |
+| 8 | `a1c3e5f7b9d2` | `fec095fdc2b0` | consultation notes and the doctor's packet review | `services/central/migrations/versions/a1c3e5f7b9d2_consultation_notes_and_packet_review.py` |
 
 #### `services/provider/migrations`
 
@@ -5782,6 +5815,7 @@ Data files loaded at seed time or read by the services. Large data sets are summ
 | `rules/interactions/README.md` | 1 KB |  |
 | `rules/interactions/ddinter-import-report.json` | 1 KB | imported, files: 8, files_sha256, ddinter_rows, ddinter_drugs, ddinter_drugs_not_mapped_to_our_ingredients |
 | `rules/interactions/ddinter-subset.csv` | 28 KB | 342 rows |
+| `rules/labels/interaction-quotes.json` | 20 KB | version, extractor_version, content_sha256, status, stats: 4, quotes: 37 |
 | `rules/labels/label-rules.json` | 88 KB | version, extractor_version, vocabulary, content_sha256, status, stats: 7 |
 | `rules/medication/seed-rules.json` | 6 KB | version, note, rules: 11 |
 | `rules/roles/templates.v1.json` | 4 KB | template_set_id, version, note, screens: 10, templates: 5 |
@@ -5803,7 +5837,7 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 
 ### Automated tests
 
-107 tests in 20 files.
+113 tests in 21 files.
 
 #### `services/central/tests/test_ai_suggestions.py` (unit (no services), 4)
 
@@ -5951,6 +5985,17 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 | `test_include_at_low_relevance_does_not_add` |  |
 | `test_answer_arriving_after_purge_is_discarded` |  |
 
+#### `services/central/tests/test_staff_view.py` (unit (no services), 6)
+
+| Test | What it checks |
+|---|---|
+| `test_record_titles_name_the_chart_never_the_content` |  |
+| `test_staff_evidence_view_has_no_values_or_ai_reasoning` |  |
+| `test_staff_referral_view_hides_reason_notes_and_procedure` |  |
+| `test_staff_test_view_hides_question_and_result` |  |
+| `test_consultation_notes_are_hashed_without_changing_older_packages` |  |
+| `test_interaction_flag_quotes_the_label_when_a_sentence_exists` |  |
+
 #### `services/central/tests/test_vision_ocr.py` (unit (no services), 3)
 
 | Test | What it checks |
@@ -6032,6 +6077,7 @@ Design decisions taken after the SRS, newest last. Each record states what was d
 | [2026-10-28-referral-access-window](../decisions/2026-10-28-referral-access-window.md) | Decision: shared records are viewed through the platform, for an access window the referred doctor sets | agreed by the project team (reported by the project lead on 2026-10-28). Not yet built. **Section 3 (the 7/30/90-day window) is replaced by [2026-10-28-referral-expiry.md](2026-10-28-referral-expiry.md)**, which is built |
 | [2026-10-28-referral-expiry](../decisions/2026-10-28-referral-expiry.md) | Decision: a referral's shared records expire when the referred doctor has finished with it | decided by the project lead on 2026-10-28. Built and tested the same day. |
 | [2026-10-28-retrieval-all-sources](../decisions/2026-10-28-retrieval-all-sources.md) | Decision: retrieve from every linked institution, with limits by count and specialty | agreed by the project team (reported by the project lead on 2026-10-28). Step 1 is built. Steps 2 to 4 are planned. |
+| [2026-10-29-doctor-only-clinical-content](../decisions/2026-10-29-doctor-only-clinical-content.md) | Decision: only doctors see clinical content; the doctor reviews the referral packet | decided by the project lead on 2026-10-29, for the whole team. Built and tested the same day. |
 
 ### Non-negotiable invariants (from `AGENTS.md`)
 
@@ -6056,3 +6102,7 @@ Design decisions taken after the SRS, newest last. Each record states what was d
 9. **Idempotency.** Delivery keys and event keys make retries safe. Keep the outbox write in the same transaction as the decision to send.
 10. **Audit.** Every access, retrieval, link change, correction, approval, submission and status change writes an audit event with actor, institution, action, target, time and outcome.
 11. **Synthetic data only.** Do not commit patient data, credentials, `.env`, model weights or uploaded files.
+12. **Only doctors see clinical content** (decision 2026-10-29).
+   - Staff and administrators get titles, statuses and counts only, through the serializers' staff views (`clinical=False`). They never see record values, diagnoses, medicines, flags, papers, notes, the letter or the package.
+   - Clinical endpoints are doctor-only on the server.
+   - The doctor reviews the packet before staff send, and a later clinical change clears that review.

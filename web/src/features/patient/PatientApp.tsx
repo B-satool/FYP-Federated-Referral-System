@@ -9,6 +9,7 @@ import { useMe, usePageTitle } from "../../hooks";
 import { tokens } from "../../theme";
 import { DeviceKeyPanel } from "../keys/DeviceKey";
 import { ConsentDetail, ConsentTab, usePendingConsents } from "./Consent";
+import { AddPaper, MyCopy } from "./MyCopy";
 
 /**
  * The patient's own view, laid out as a phone app (for the MVP it runs inside the website).
@@ -24,7 +25,7 @@ type PatientReferral = {
   status: string;
   status_label: string;
   open: boolean;
-  from: { institution: string | null; department: string | null; doctor: string };
+  from: { institution: string | null; department: string | null; doctor: string; doctor_id: string | null };
   to: { institution: string; department: string | null; doctor: string | null } | null;
   urgency: string;
   urgency_detail: string | null;
@@ -33,6 +34,8 @@ type PatientReferral = {
   tests: { test: string; where: string; status: string; status_label: string; scheduled_for: string | null }[];
   created_at: string | null;
   closed_at: string | null;
+  copy_available: boolean;
+  purged_at: string | null;
   timeline: Step[];
 };
 type Place = { institution_id: string; name: string; kind: string };
@@ -293,6 +296,13 @@ function ReferralDetail({ referral: r, onBack }: { referral: PatientReferral; on
               <Typography variant="body2" color="text.secondary">{t.where}{t.scheduled_for ? ` · booked for ${fmtDate(t.scheduled_for)}` : ""}</Typography>
             </Card>
           ))}
+        </>
+      )}
+      {r.kind === "referral" && (
+        <>
+          <Heading>Your copy</Heading>
+          <Card><MyCopy reference={r.reference} available={r.copy_available} purgedAt={r.purged_at} /></Card>
+          {r.open && !r.purged_at && <><Heading>Add a paper</Heading><Card><AddPaper reference={r.reference} doctorId={r.from.doctor_id} /></Card></>}
         </>
       )}
       <Heading>What has happened</Heading>

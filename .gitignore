@@ -37,3 +37,6 @@ shared-db-credentials.md
 
 # Pinned participant registry (generated per installation by scripts/onboard_participants.py)
 infra/participants/participants.json
+
+# On-device OCR engine and model, copied from node_modules at build (web/scripts/copy-ocr-assets.mjs)
+web/public/ocr/

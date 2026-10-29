@@ -47,6 +47,10 @@ def _new_job(db: Session, kind: str, principal: Principal, referral_id: int, doc
 async def upload(referral_id: int, file: UploadFile = File(...), doc_type: str = Form("other"),
                  db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     r = load_referral(db, referral_id, principal, "upload", roles=("clinician",))  # staff never handle content (D14)
+    if r.kind == "referral":  # spec v4 10, D15: our servers never read a scanned paper; it is encrypted on the device
+        audit_now(principal, "document.upload", "referral", r.reference, "refused", r.id, {"reason": "plaintext upload"})
+        raise error(409, "encrypt_on_device", "Scanned papers for a referral are encrypted on your device and read there. "
+                                              "Add them on the Papers step.")
     ensure_clinical_edit_allowed(r)
     if doc_type not in DOC_TYPES:
         raise error(422, "invalid_doc_type", f"Document type must be one of {sorted(DOC_TYPES)}")

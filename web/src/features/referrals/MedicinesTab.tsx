@@ -38,11 +38,17 @@ export function medicinesFrom(items: OpenedItem[]): { list: SavedList | null; li
   const ok = latestById(items).filter((i) => i.state === "ok" && i.content);
   const lists = ok.filter((i) => i.content!.category === "medication_list");
   const listItem = lists[lists.length - 1] ?? null;
-  const recorded = ok.filter((i) => i.content!.category === "medication").map((i) => {
+  const recorded: Med[] = ok.filter((i) => i.content!.category === "medication").map((i) => {
     const rec = i.content!.record as Record<string, string | null>;
     return { id: `rec:${i.title.item_id}`, name: [rec.name, rec.brand ? `(${rec.brand})` : null].filter(Boolean).join(" ") || i.title.label,
       strength: rec.strength, dose: rec.dose, frequency: rec.frequency, source: i.content!.source_name ?? i.title.source_name ?? "record" };
   });
+  // medicines the doctor checked on a scanned paper (read on the device)
+  for (const i of ok.filter((x) => x.content!.category === "scan_reading")) {
+    const read = ((i.content!.record as { medicines?: { name: string; strength?: string; dose?: string; frequency?: string }[] }).medicines ?? []);
+    read.forEach((m, n) => recorded.push({ id: `paper:${i.title.item_id}:${n}`, name: m.name, strength: m.strength, dose: m.dose,
+      frequency: m.frequency, source: i.origin === "patient" ? "a paper the patient added" : "a scanned paper" }));
+  }
   return { list: listItem ? (listItem.content!.record as unknown as SavedList) : null, listItem, recorded };
 }
 

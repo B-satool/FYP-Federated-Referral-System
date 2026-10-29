@@ -84,6 +84,18 @@ class SimulatedPatient:
         return _run("out = consent_router.revoke_consent(args['ref'], consent_router.RevokeIn(revocation=args['rev']), "
                     "db, p)\nprint(json.dumps(out, default=str))", {**self.args, "ref": reference, "rev": rev})
 
+    def copy(self, reference: str) -> tuple[int, dict]:
+        return tuple(_run("from app import patient_access\nfrom fastapi import HTTPException\ntry:\n"
+                          "    r = patient_access.my_copy(args['ref'], db, p)\n    out = [r.status_code, json.loads(r.body)]\n"
+                          "except HTTPException as exc:\n    out = [exc.status_code, {'detail': exc.detail}]\n"
+                          "print(json.dumps(out, default=str))", {**self.args, "ref": reference}))
+
+    def add_paper(self, reference: str, body: dict) -> tuple[int, dict]:
+        return tuple(_run("from app import patient_access\nfrom fastapi import HTTPException\ntry:\n"
+                          "    out = [201, patient_access.add_papers(args['ref'], patient_access.PatientBatchIn(**args['b']), db, p)]\n"
+                          "except HTTPException as exc:\n    out = [exc.status_code, {'detail': exc.detail}]\n"
+                          "print(json.dumps(out, default=str))", {**self.args, "ref": reference, "b": body}))
+
 
 class PatientViaKeycloak(SimulatedPatient):
     simulated = False
@@ -117,6 +129,14 @@ class PatientViaKeycloak(SimulatedPatient):
         rev = e2e.sign_object(self.sig, {"type": "refx.consent.revocation/v1", "consent": reference,
                                          "revoked_at": e2e.now_iso()})
         return ok(central(self.username).post(f"/patient-access/consents/{reference}/revoke", {"revocation": rev}))
+
+    def copy(self, reference) -> tuple[int, dict]:
+        resp = central(self.username).get(f"/patient-access/referrals/{reference}/copy")
+        return resp.status_code, resp.json()
+
+    def add_paper(self, reference, body) -> tuple[int, dict]:
+        resp = central(self.username).post(f"/patient-access/referrals/{reference}/papers", body)
+        return resp.status_code, resp.json()
 
 
 def patient(username: str, name: str, cnic: str) -> SimulatedPatient:

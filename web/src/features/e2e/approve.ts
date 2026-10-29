@@ -25,7 +25,9 @@ export async function recipients(r: ReferralDetail): Promise<Recipients> {
   return { department, patient, departmentFingerprint: await fingerprint(department.enc_public_key) };
 }
 
-export async function approve(r: ReferralDetail, keys: UnlockedKeys, chosen: OpenedItem[], to: Recipients): Promise<Manifest> {
+/** `notForPatient`: batches the patient's copy leaves out (the doctor's notes, unless the doctor shares them; spec v4 4). */
+export async function approve(r: ReferralDetail, keys: UnlockedKeys, chosen: OpenedItem[], to: Recipients,
+  notForPatient: Set<string> = new Set()): Promise<Manifest> {
   if (!keys.entry) throw new Error("Your key is waiting for your hospital to sign it");
   const usable = chosen.filter((i) => i.state === "ok" && i.dek && i.plainHash);
   if (!usable.length) throw new Error("Choose at least one record or add your notes");
@@ -41,7 +43,8 @@ export async function approve(r: ReferralDetail, keys: UnlockedKeys, chosen: Ope
   const deks = new Map(usable.map((i) => [i.title.batch_id, i.dek!]));
   const wraps = [];
   for (const [batch, dek] of deks) {
-    for (const target of [to.department, to.patient].filter(Boolean) as DirectoryEntry[]) {
+    const targets = [to.department, notForPatient.has(batch) ? null : to.patient].filter(Boolean) as DirectoryEntry[];
+    for (const target of targets) {
       wraps.push({ batch_id: batch, recipient_key_id: target.enc_key_id,
         wrapped: await wrap(target.enc_public_key, dek, wrapContext(r.reference, batch, target.enc_key_id)) });
     }

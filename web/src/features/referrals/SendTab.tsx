@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Alert, Box, Button, Link, List, ListItem, ListItemIcon, ListItemText, Stack, Table, TableBody, TableCell, TableHead,
+import { Alert, Box, Button, Checkbox, FormControlLabel, Link, List, ListItem, ListItemIcon, ListItemText, Stack, Table, TableBody, TableCell, TableHead,
   TableRow, TextField, Typography } from "@mui/material";
 import CheckCircle from "@mui/icons-material/CheckCircle";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
@@ -137,6 +137,7 @@ export function SummaryTab({ r }: { r: ReferralDetail }) {
   const refresh = useInvalidateReferral(r.id);
   const opened = useOpenedRecords(r);
   const [notes, setNotes] = useState("");
+  const [shareNotes, setShareNotes] = useState(false);
   const [to, setTo] = useState<Recipients | null>(null);
   const [toError, setToError] = useState<unknown>(null);
   useEffect(() => {
@@ -151,13 +152,15 @@ export function SummaryTab({ r }: { r: ReferralDetail }) {
   const sign = useMutation({
     mutationFn: async () => {
       let all = chosen;
+      const notForPatient = new Set<string>();
       if (notes.trim()) {
         const added = await uploadOwnItems(r.id, r.reference, dk.keys!, [{ category: "note", kind: "note",
-          label: "Notes for the specialist", record: { text: notes.trim() } }]);
+          label: "Notes for the specialist", record: { text: notes.trim(), shared_with_patient: shareNotes } }]);
+        if (!shareNotes) notForPatient.add(added[0].split(":")[0]);
         const ids = new Set([...chosen.map((i) => i.title.item_id), ...added]);
         all = latestById((await opened.refetch()).data ?? []).filter((i) => ids.has(i.title.item_id));
       }
-      return approve(r, dk.keys!, all, to!);
+      return approve(r, dk.keys!, all, to!, notForPatient);
     },
     meta: { success: "Signed. Staff have been told it is ready to send." },
     onSuccess: () => { setNotes(""); refresh(); },
@@ -180,6 +183,8 @@ export function SummaryTab({ r }: { r: ReferralDetail }) {
                 </Box>
                 <TextField label="Notes for the specialist (optional)" multiline minRows={3} value={notes} onChange={(e) => setNotes(e.target.value)}
                   helperText="Encrypted on this device and included in the package." />
+                <FormControlLabel control={<Checkbox checked={shareNotes} onChange={(e) => setShareNotes(e.target.checked)} />}
+                  label="Share these notes with the patient (their app copy). Otherwise only the specialist reads them." />
                 {to ? (
                   <Alert severity="info" data-testid="recipient-key">
                     Sending to {r.destination_department_name}, {r.destination_name}: department key {to.departmentFingerprint}

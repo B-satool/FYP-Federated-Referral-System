@@ -1,7 +1,7 @@
 /**
- * The doctor's own items for a referral (consultation notes, the medicine list asked from the patient, scanned
- * papers), encrypted on this device before upload (spec v4 5.6). One data key per upload ("batch"), wrapped to the
- * doctor's own key; the approval later re-wraps it to the receiving department and the patient.
+ * Items encrypted on this device before upload (spec v4 5.6): the doctor's own items (consultation notes, the medicine
+ * list asked from the patient, scanned papers) and papers the patient adds in the app. One data key per upload
+ * ("batch"), wrapped to each recipient's verified public key; the platform gets titles and ciphertext only.
  */
 import { api } from "../../api/client";
 import type { UnlockedKeys } from "../../crypto/session";
@@ -10,6 +10,7 @@ import { b64e, CHUNK_SIZE, encrypt, encryptChunks, itemAad, newDek, randomBytes,
 export type OwnItem =
   | { category: string; kind: "note" | "prescription" | "other"; label: string; record: Record<string, unknown> }
   | { category: "scan"; kind: "scan"; label: string; bytes: Uint8Array; mime: string };
+export type Recipient = { keyId: string; publicKey: string };
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -17,9 +18,9 @@ export function newBatchId(prefix: "doc" | "pat" = "doc"): string {
   return `${prefix}-${b64e(randomBytes(9)).replace(/[^A-Za-z0-9]/g, "").slice(0, 12).toLowerCase()}`;
 }
 
-/** Encrypt and upload; returns the new item ids. The platform receives titles and ciphertext only. */
-export async function uploadOwnItems(referralId: number, reference: string, keys: UnlockedKeys, items: OwnItem[]): Promise<string[]> {
-  const batch = newBatchId();
+/** Encrypt items under one new data key and wrap it to each recipient. */
+export async function encryptBatch(prefix: "doc" | "pat", reference: string, items: OwnItem[], recipients: Recipient[]) {
+  const batch = newBatchId(prefix);
   const dek = newDek();
   const out = [];
   for (const [n, it] of items.entries()) {
@@ -33,7 +34,16 @@ export async function uploadOwnItems(referralId: number, reference: string, keys
       out.push({ title, sealed: await encrypt(dek, utf8(JSON.stringify(content)), itemAad(reference, itemId, batch)) });
     }
   }
-  const wraps = [{ recipient_key_id: keys.encKeyId, wrapped: await wrap(keys.encPublic, dek, wrapContext(reference, batch, keys.encKeyId)) }];
-  await api.post(`/referrals/${referralId}/encrypted-batches`, { batch_id: batch, items: out, wraps });
-  return out.map((x) => x.title.item_id);
+  const wraps = [];
+  for (const r of recipients) {
+    wraps.push({ recipient_key_id: r.keyId, wrapped: await wrap(r.publicKey, dek, wrapContext(reference, batch, r.keyId)) });
+  }
+  return { batch_id: batch, items: out, wraps };
+}
+
+/** The doctor's own items, wrapped to the doctor's own key; returns the new item ids. */
+export async function uploadOwnItems(referralId: number, reference: string, keys: UnlockedKeys, items: OwnItem[]): Promise<string[]> {
+  const body = await encryptBatch("doc", reference, items, [{ keyId: keys.encKeyId, publicKey: keys.encPublic }]);
+  await api.post(`/referrals/${referralId}/encrypted-batches`, body);
+  return body.items.map((x) => x.title.item_id);
 }

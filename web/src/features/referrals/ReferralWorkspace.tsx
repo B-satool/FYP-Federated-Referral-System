@@ -8,6 +8,7 @@ import type { ReferralDetail } from "../../api/types";
 import { ErrorAlert, Loading, ReferralStatus, Tag, UrgencyTag } from "../../components/common";
 import { seesContent, useMe, usePageTitle } from "../../hooks";
 import { DocumentsTab } from "../documents/DocumentsTab";
+import { PapersTab } from "../e2e/Papers";
 import { AuditTab } from "./AuditTab";
 import { JourneyNav, NextStepBanner, StepPager } from "./Journey";
 import { MedicinesTab } from "./MedicinesTab";
@@ -109,7 +110,7 @@ export function ReferralWorkspace() {
       <Box role="tabpanel" id="journey-panel" aria-labelledby={`tab-${tab}`}>
         {tab === "request" && <RequestTab r={r} role={role} />}
         {tab === "records" && (role === "doctor" ? <DoctorRecords r={r} /> : <StaffRecords r={r} />)}
-        {tab === "papers" && <DocumentsTab r={r} />}
+        {tab === "papers" && (r.kind === "referral" ? <PapersTab r={r} /> : <DocumentsTab r={r} />)}
         {tab === "medicines" && <MedicinesTab r={r} role={role} />}
         {tab === "tests" && <TestsTab r={r} role={role} />}
         {tab === "send" && <SendTab r={r} />}

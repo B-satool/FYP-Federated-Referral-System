@@ -124,7 +124,7 @@ def upload_note(dev: "Device", referral_id: int, text: str, label: str = "Consul
 
 
 def build_approval(dev: "Device", referral_id: int, only: set[str] | None = None, version: int | None = None,
-                   tamper: str | None = None) -> dict:
+                   tamper: str | None = None, not_for_patient: set[str] = frozenset()) -> dict:
     """What the doctor's browser does on 'Approve and sign': decrypt the chosen items, hash each plaintext, build and
     sign the manifest, and re-wrap each included batch's data key to the receiving department and the patient (both
     entries verified against pinned keys first)."""
@@ -153,7 +153,7 @@ def build_approval(dev: "Device", referral_id: int, only: set[str] | None = None
     signed = e2e.sign_object(dev.sig, manifest)
     wraps = []
     for batch in sorted({it["batch_id"] for it in items}):
-        for target in filter(None, [dept, patient]):
+        for target in filter(None, [dept, None if batch in not_for_patient else patient]):
             wraps.append({"batch_id": batch, "recipient_key_id": target["enc_key_id"],
                           "wrapped": e2e.wrap(target["enc_public_key"], deks[batch],
                                               e2e.wrap_context(resp["reference"], batch, target["enc_key_id"]))})

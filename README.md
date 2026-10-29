@@ -222,7 +222,7 @@ python -m venv .venv
 .\.venv\Scripts\pip install httpx pytest
 
 # API checks: P5 referral, P3 test request with an image, every patient's expected flags, OCR merge,
-# temporary grants, role menus and role assignment, packet selection, the package fingerprint, the clinic's own copy and the purge (resets demo data first). Expect: 22 passed
+# temporary grants, role menus and role assignment, packet selection, the package fingerprint, the clinic's own copy and the purge (resets demo data first). Expect: 25 passed
 .\.venv\Scripts\python -m pytest tests -q
 
 # Medication-rule logic, interactions, label rules, the extraction validator, AI selection checks, grant expiry,
@@ -245,6 +245,7 @@ cd web; npm ci; npx playwright install chromium; npx playwright test; cd ..
 | **Accounts** → changing a role says "The sign-in service did not accept the role change" | Keycloak was set up before the platform was allowed to assign roles. Run once: `docker compose exec keycloak sh -c '/opt/keycloak/bin/kcadm.sh config credentials --server http://localhost:8080 --realm master --user admin --password "$KC_BOOTSTRAP_ADMIN_PASSWORD" && /opt/keycloak/bin/kcadm.sh add-roles -r referral --uusername service-account-central-api --cclientid realm-management --rolename view-realm'` |
 | Login works but every page errors after switching from version 1 | The old database volume is still there. Run `docker compose down -v`, then the first-time steps. |
 | `docker compose` can't connect, or hangs | Docker Desktop isn't running, or its WSL backend froze. Quit Docker Desktop, run `wsl --shutdown`, start Docker Desktop again. |
+| `ERR_CONNECTION_RESET` / "connection aborted" on localhost:3000 or 8080, while `docker compose ps` shows everything healthy | Docker Desktop's port forwarding is stuck. Run `docker compose up -d --force-recreate web keycloak`. If that doesn't help, `wsl --shutdown`, reopen Docker Desktop and `docker compose up -d`. |
 | Port already in use (3000, 8000-8004, 8080, 5432) | Close the other program, or change the left-hand port in `docker-compose.yml`. |
 | Very slow or out of memory | Give Docker Desktop at least 4 GB (Settings → Resources). |
 | Data looks messy after testing | `.\scripts\reset-and-seed.ps1 -Force` |

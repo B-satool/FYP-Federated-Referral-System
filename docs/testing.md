@@ -39,15 +39,18 @@ Dr Naveed) stay untouched.
 | `web/e2e/smoke.spec.ts` | Referral across seven accounts (staff retrieve and upload, the doctor confirms medicines, decides flags and marks the packet reviewed, staff send, intake, accept, mark complete, tell the patient, the doctor closes); test request with an MRI image |
 | `web/e2e/admin.spec.ts` | An administrator changes a role; the menu follows on the next sign-in |
 
-## Latest results (2026-10-29, after merging the doctor-only change)
+## Latest results (2026-10-29, after merging the doctor-only change and the patient view)
 
 - Unit: **136 passed**
-- API: **22 passed**
-- Browser: the administrator and test-request journeys pass. On an 8 GB Windows laptop the referral journey can fail
-  at its 4th browser sign-in with `ERR_CONNECTION_RESET`: Docker Desktop's port forwarding stalls when memory runs
-  out (plain loads of `localhost:3000` timed out while it ran). Close other programs or restart Docker Desktop
-  (`wsl --shutdown`), then run it again.
-- Type check and build: clean.
+- API: **25 passed** (including `test_patient_access.py`)
+- Browser: **3 passed**
+- Type check and build: clean
+
+**If browser or API tests fail with `ERR_CONNECTION_RESET` or "connection aborted" on Windows:** Docker Desktop's
+port forwarding can get stuck, especially when memory is low. Check from inside Docker
+(`docker compose exec central python -c "import httpx; print(httpx.get('http://web:80/').status_code)"`). If that
+works, recreate the affected containers (`docker compose up -d --force-recreate web keycloak`); if not, restart WSL
+(`wsl --shutdown`) and Docker Desktop.
 
 ## Not covered by automatic tests
 

@@ -256,7 +256,7 @@ def patient_entry_for_cnic(db: Session, cnic: str) -> DirectoryEntry | None:
 
 # --------------------------------------------------------------------------- client-reported events
 CLIENT_EVENTS = {"directory.signature_failure", "decrypt.opened", "decrypt.failed", "manifest.verify_failure",
-                 "keys.device_unlock_failed"}
+                 "keys.device_unlock_failed", "flag.ignore", "flag.research"}  # Ignore / Research (spec v4 9.5, T-FLAG-3)
 
 
 class ClientEventIn(BaseModel):
@@ -275,7 +275,7 @@ def client_event(body: ClientEventIn, db: Session = Depends(get_db), principal: 
     if body.action not in CLIENT_EVENTS:
         raise error(422, "unknown_event", "Unknown client event")
     detail = {k: (v[:200] if isinstance(v, str) else v) for k, v in list(body.detail.items())[:20]
-              if k in {"item_ids", "reason", "count", "key_id", "subject_id", "version", "batch"}}
+              if k in {"item_ids", "reason", "count", "key_id", "subject_id", "version", "batch", "flag_key", "layer"}}
     audit(db, principal, body.action, body.target_type[:60], body.target_id[:100],
           "denied" if "failure" in body.action or "failed" in body.action else "success", body.referral_id,
           {**detail, "client_reported": True})

@@ -17,7 +17,11 @@ import { DirectoryRow, verifiedEntry } from "../../crypto/directory";
 import { useDeviceKeys } from "../../crypto/session";
 import { checkCopy, Manifest } from "../../crypto/suite";
 import { DeviceKeyPanel } from "../keys/DeviceKey";
+import { medicinesFrom, medsForEvaluation } from "../referrals/MedicinesTab";
 import { Detail } from "../referrals/Records";
+import { useMedBundle } from "./bundle";
+import { evaluate } from "./flags";
+import { Decision, Layer1Flags, NotAssessed } from "./FlagViews";
 import { CATEGORY_GROUPS, EncryptedResponse, latestById, openAll, OpenedItem, reportOpened, summary } from "./records";
 
 type ReceivedResponse = EncryptedResponse & { version: number; manifest: Manifest; manifest_sha256: string; signer: DirectoryRow | null };
@@ -92,6 +96,26 @@ function Row({ item }: { item: OpenedItem }) {
   );
 }
 
+/** The medicines in the package and the Layer 1 flags, recomputed on this device from the hash-checked bundle. */
+function ReceivedMedicines({ items, reference }: { items: OpenedItem[]; reference: string }) {
+  const bundle = useMedBundle();
+  const [decisions, setDecisions] = useState<Record<string, Decision>>({});
+  const { list, recorded } = medicinesFrom(items);
+  const meds = medsForEvaluation(list?.medicines ?? [], recorded);
+  if (!meds.length) return null;
+  const ev = bundle.data ? evaluate(meds, bundle.data) : null;
+  return (
+    <Section title="Medicines and flags" description="The referring doctor's medicine list and the medicines on record; flags checked again on this device.">
+      {list?.checked_note && <Typography variant="body2" sx={{ mb: 1 }}>Referring doctor's note: {list.checked_note}</Typography>}
+      <Box component="ul" sx={{ m: 0, mb: 1.5, pl: 2.5 }}>
+        {meds.map((m) => <li key={m.id}><Typography variant="body2">{m.name}{m.dose ? `, ${m.dose}` : ""}{m.frequency ? `, ${m.frequency}` : ""} · {m.source}</Typography></li>)}
+      </Box>
+      <ErrorAlert error={bundle.error} />
+      {ev && <Stack spacing={1.5}><Layer1Flags ev={ev} referral={reference} decisions={decisions} onDecide={(k, d) => setDecisions({ ...decisions, [k]: d })} /><NotAssessed ev={ev} /></Stack>}
+    </Section>
+  );
+}
+
 export function ReceivedPackage({ c, hospital }: { c: Case; hospital: string }) {
   const dk = useDeviceKeys();
   const q = useReceivedPackage(c, hospital);
@@ -103,6 +127,7 @@ export function ReceivedPackage({ c, hospital }: { c: Case; hospital: string }) 
     .filter(([, list]) => list.length);
   const other = items.filter((i) => !CATEGORY_GROUPS.some(([cat]) => (i.content?.category ?? i.title.category) === cat));
   return (
+    <>
     <Section title={`The referral (version ${version})`} description="Decrypted on this device with your department's key. Nothing decrypted is stored here or sent anywhere.">
       {problems.length ? (
         <Alert severity="error" sx={{ mb: 1.5 }} data-testid="package-verification">
@@ -124,5 +149,7 @@ export function ReceivedPackage({ c, hospital }: { c: Case; hospital: string }) 
         </Stack>
       )}
     </Section>
+    <ReceivedMedicines items={items} reference={c.central_referral_id} />
+    </>
   );
 }

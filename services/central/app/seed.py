@@ -75,21 +75,6 @@ def seed_names(db) -> int:
     return len(seen)
 
 
-def seed_rules(db) -> int:
-    data = json.loads((settings.repo_root / "rules" / "medication" / "seed-rules.json").read_text(encoding="utf-8"))
-    now = datetime.now(timezone.utc)
-    for x in data["rules"]:
-        r = MedicationRule(rule_id=x["rule_id"], version=1, title=x["title"], drug_class=x["drug_class"],
-                           procedure_tags=sorted(x["procedure_tags"]), message=x["message"], rationale=x["rationale"],
-                           reference=x["reference"], status="approved", content_hash="", created_by=SEED_ACTOR[1],
-                           created_by_id=SEED_ACTOR[0], decided_by=REVIEWER[1], decided_by_id=REVIEWER[0],
-                           decided_at=now, reference_checked=x["reference"],
-                           decision_note="Approved for the synthetic demonstration; a named clinician must re-check.")
-        r.content_hash = rule_hash(r)
-        db.add(r)
-    return len(data["rules"])
-
-
 def seed_links(db) -> int:
     now = datetime.now(timezone.utc)
     count = 0
@@ -180,7 +165,9 @@ def main() -> None:
             if settings.storage_root.exists():
                 for p in settings.storage_root.iterdir():
                     p.unlink() if p.is_file() else shutil.rmtree(p)
-        n_names, n_rules, n_links = seed_names(db), seed_rules(db), seed_links(db)
+        # no hand-written drug-class rules: the one file of them paired drug classes with procedures, which
+        # spec v4 9.1 forbids; drug-procedure risks come only from the AI layer, labelled unverified
+        n_names, n_rules, n_links = seed_names(db), 0, seed_links(db)
         imported = seed_imported(db)
         db.commit()
         print(f"Central seeded: {n_names} medicine names, {n_rules} approved rules, {n_links} existing patient links, "

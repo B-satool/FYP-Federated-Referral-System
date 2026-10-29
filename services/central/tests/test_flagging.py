@@ -28,12 +28,10 @@ with (ROOT / "interactions" / "ddinter-subset.csv").open(encoding="utf-8") as fh
     INTERACTIONS = tuple(Interaction(r["ingredient_a"], r["ingredient_b"], r["severity"], r["source_ref"], "test") for r in csv.DictReader(fh))
 LABELS = json.loads((ROOT / "labels" / "label-rules.json").read_text(encoding="utf-8"))
 LABEL_RULES = tuple(LabelRule(r["rule_key"], r["kind"], r["ingredient"], r["target"],
-                              VOCAB["procedure" if r["kind"] == "drug_procedure" else "condition"][r["target"]]["label"],
+                              VOCAB["condition"][r["target"]]["label"],
                               r["severity_hint"], r["summary"], r["quote"], r["section"], r["source_name"], r["source_ref"],
                               r["source_version"]) for r in LABELS["rules"])
-MANUAL = tuple(Rule(rule_id=r["rule_id"], version=1, drug_class=r["drug_class"], procedure_tags=tuple(r["procedure_tags"]),
-                    title=r["title"], message=r["message"])
-               for r in json.loads((ROOT / "medication" / "seed-rules.json").read_text())["rules"])
+MANUAL: tuple[Rule, ...] = ()  # no hand-written drug-class rules since spec v4 9.1 (they paired drugs with procedures)
 OK = SourceState("drali", "Dr Ali's Clinic", "successful")
 SURGERY = ("major_surgery", "general_anaesthesia", "prolonged_fasting", "bleeding_risk")
 _ids = iter(range(1, 10_000))
@@ -56,21 +54,6 @@ def kinds(out, kind):
 
 
 # ---------------------------------------------------------------- golden cases (seed patients)
-def test_p1_alendronate_dental_label_flag_with_quote():
-    out = run([med("alendronic acid", "bisphosphonate"), med("metformin", "biguanide"), med("amlodipine", "calcium_channel_blocker")],
-              tags=("oral_surgery", "bleeding_risk"))
-    label = [c for c in kinds(out, "label_warning") if c.ingredients == ["alendronic acid"]]
-    assert label and all(c.source_quote and c.source_type == "drug_label" and c.auto_generated for c in label)
-    assert any("jaw" in c.source_quote.lower() for c in label)
-
-
-def test_p2_metformin_contrast_label_flag():
-    out = run([med("metformin", "biguanide"), med("glimepiride", "sulfonylurea"), med("aspirin", "antiplatelet")],
-              tags=("iodinated_contrast", "arterial_access"))
-    keys = {c.flag_key for c in kinds(out, "label_warning")}
-    assert "label:metformin:iodinated_contrast" in keys
-
-
 def test_p3_aspirin_and_diclofenac_interaction():
     out = run([med("aspirin", "antiplatelet"), med("diclofenac", "nsaid"), med("losartan", "arb")], tags=SURGERY)
     pairs = {tuple(c.ingredients) for c in kinds(out, "interaction")}
@@ -85,11 +68,10 @@ def test_p4_ibuprofen_with_liver_disease_condition_flag():
     assert "label:ibuprofen:hepatic_impairment" in {c.flag_key for c in kinds(out, "label_warning")}
 
 
-def test_p5_antiplatelets_before_surgery_and_no_invented_insulin_advice():
+def test_p5_antiplatelets_interact_and_no_invented_insulin_advice():
     out = run([med("insulin glargine", "insulin"), med("metformin", "biguanide"), med("aspirin", "antiplatelet"),
                med("clopidogrel", "antiplatelet")], tags=SURGERY)
-    rules = {(c.rule_id, c.medication.lower()) for c in kinds(out, "confirmed")}
-    assert ("RULE-002", "aspirin") in rules and ("RULE-002", "clopidogrel") in rules
+    assert not kinds(out, "confirmed")  # no drug-procedure rule exists (spec v4 9.1)
     assert ("aspirin", "clopidogrel") in {tuple(c.ingredients) for c in kinds(out, "interaction")}
     for c in out.candidates:
         if "insulin" in " ".join(c.ingredients):
@@ -175,28 +157,27 @@ def test_only_serious_imported_flags_require_a_decision():
     assert all(c.requires_decision for c in kinds(out, "confirmed"))
 
 
-def test_procedure_unknown_does_not_guess_label_rules():
+def test_procedure_unknown_gives_only_condition_label_rules():
     out = run([med("metformin", "biguanide")], status="unknown")
-    assert not kinds(out, "label_warning") or all(c.flag_key.split(":")[2] in VOCAB["condition"] for c in kinds(out, "label_warning"))
-    assert kinds(out, "procedure_not_checked")
+    assert all(c.flag_key.split(":")[2] in VOCAB["condition"] for c in kinds(out, "label_warning"))
 
 
 # ---------------------------------------------------------------- extraction validator
-TEXT = "Osteonecrosis of the jaw has been reported. Patients should have a dental examination."
+TEXT = "Hepatic impairment may increase exposure to the drug. Monitor liver function."
 
 
 def cand(**kw):
-    base = dict(ingredient="alendronic acid", kind="drug_procedure", target="oral_surgery", severity_hint="moderate",
-                summary=summary_for("alendronic acid", "warnings_and_cautions", "dental or oral surgery"),
-                quote="Osteonecrosis of the jaw has been reported.", section="warnings_and_cautions")
+    base = dict(ingredient="alendronic acid", kind="drug_condition", target="hepatic_impairment", severity_hint="moderate",
+                summary=summary_for("alendronic acid", "warnings_and_cautions", VOCAB["condition"]["hepatic_impairment"]["label"]),
+                quote="Hepatic impairment may increase exposure to the drug.", section="warnings_and_cautions")
     return Candidate(**{**base, **kw})
 
 
 @pytest.mark.parametrize("change,reason", [
-    ({"quote": "Osteonecrosis of the hip has been reported."}, "verbatim"),
+    ({"quote": "Renal impairment may increase exposure to the drug."}, "verbatim"),
     ({"ingredient": "unobtainium"}, "not one of ours"),
     ({"target": "teleportation"}, "not in the vocabulary"),
-    ({"summary": "Stop taking alendronate before oral surgery."}, "advises"),
+    ({"summary": "Stop taking alendronate with liver disease."}, "advises"),
 ])
 def test_validator_rejects(change, reason):
     problems = validate(cand(**change), TEXT, {"alendronic acid"}, VOCAB)

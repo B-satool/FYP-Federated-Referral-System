@@ -1,4 +1,4 @@
-"""Build drug-condition and drug-procedure rules from US drug labels (openFDA).
+"""Build drug-condition rules from US drug labels (openFDA). (Drug-procedure rules were removed with spec v4 9.1.)
 
 Run by a person (needs internet); the application only loads the result.
   python scripts/extract_label_rules.py download <cache folder>   # fetch one label per ingredient
@@ -113,7 +113,8 @@ def extract(cache: Path) -> None:
                 continue
             for sentence in sentences(section_text):
                 stats["sentences"] += 1
-                for kind, group in (("drug_procedure", "procedure"), ("drug_condition", "condition")):
+                # drug-condition only: spec v4 9.1 forbids a drug-procedure table (those come from the AI layer)
+                for kind, group in (("drug_condition", "condition"),):
                     for target, spec in vocab[group].items():
                         if not matches(sentence, spec):
                             continue

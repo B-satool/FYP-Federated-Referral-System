@@ -2,6 +2,15 @@
 
 Newest first. Each version is frozen in `versions/`.
 
+## v1.3.0 (2026-10-29)
+
+AI packet selection runs on Groq (openai/gpt-oss-120b): LLM_REASONING_EFFORT setting, LLM_BASE_URL/LLM_API_KEY passed to the containers, wider action-word check with advice reasons withheld per record (prompt packet-selection/4)
+
+Structural changes found automatically:
+
+- Setting added: `LLM_REASONING_EFFORT=''`
+- Written sections changed: 01-introduction.md, 02-system-overview.md, 03-architectural-drivers.md, 04-architecture.md, 05-data-architecture.md, 06-component-design.md, 07-workflows.md, 08-security.md, 09-ai-design.md, 10-medication-flagging.md, 11-interfaces.md, 12-reliability.md, 13-quality-attributes.md, 14-deployment-operations.md, 15-testing.md, 16-limitations-and-risks.md, 17-maintaining-this-document.md
+
 ## v1.2.0 (2026-10-29)
 
 Patient accounts and patient view: own referrals from the platform, own records read directly from each institution

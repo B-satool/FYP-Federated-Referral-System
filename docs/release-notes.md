@@ -1,8 +1,54 @@
-# Release notes — v1.0-demo
+# Release notes
+
+## v2 (branch `main`, 2026-10-28)
+
+Version 2 rebuilds the prototype around the team's feedback. What changed and why is in `docs/v2-changes.md`, and
+each decision is in `docs/decisions/`.
+
+**What is included**
+- **Institutions:** four synthetic Karachi institutions (Dr Ali's Clinic, Chughtai Lab, Ziauddin, Aga Khan). Each has
+  its own database and its own access decisions, with expiring grants.
+- **Referrals and test or scan requests:**
+  - separate doctor and staff screens;
+  - patient confirmation on arrival;
+  - retrieval from every linked institution (up to five);
+  - a rule-based packet selection, with an optional AI recommendation;
+  - paper reading (Tesseract, or Google Cloud Vision for handwriting);
+  - a referral letter with an immutable, hashed version.
+- **The receiving doctor** accepts or declines (no written response), can keep the records longer, and marks the
+  referral complete. Then the clinic tells the patient, and the doctor or staff close it.
+- **Medication flags:**
+  - reviewer-approved procedure rules, DDInter interactions and US drug-label warnings, each with its source;
+  - about 5,000 DRAP brand names, with ambiguous names chosen by company;
+  - AI clash suggestions, labelled "not verified".
+- **Data lifecycle:** shared records are removed 72 h after the referral is marked complete (30-day safety limit,
+  extendable), straight away on decline, on the platform and at the receiver. The manifest, fingerprint and audit
+  stay.
+- **Role templates:** administrators assign staff, doctor and other roles in the app.
+- **Language models** through Ollama (local or `:cloud`), Anthropic or OpenAI-compatible servers. Input is always
+  de-identified, and an external model needs explicit permission.
+
+**Verification (2026-10-28):** unit 130 passed, API 22 passed, browser 3 passed, type check and build clean.
+See `docs/testing.md`.
+
+**Known limitations**
+1. Synthetic data. The clinical rules, procedure features and brand mappings are not clinically reviewed; the
+   DRAP brands are loaded unchecked, by decision.
+2. Live model and Vision calls have not run yet: the Ollama account needs credits, and there is no Vision key. The
+   platform falls back to the rule-based selection and Tesseract.
+3. De-identification uses patterns and can miss unusual text. Page images sent to Vision cannot be de-identified.
+   Synthetic data only.
+4. Retention numbers are placeholders.
+5. Not production-hardened (HTTP on localhost, demo passwords). See `docs/operations.md`.
+6. Load test and backup/restore check not re-run on v2.
+
+---
+
+## v1.0-demo (2026-10-02, tag `v1.0-demo`)
 
 First complete demonstration release of the Referral Preparation and Follow-through Platform. It covers SRS FR-01 to FR-72 within the provisional Stage 0 scope (orthodontics, English, synthetic data).
 
-## What is included
+### What is included
 
 - Three independent example systems (Clinic A, Lab B, Specialist C). Each has its own PostgreSQL database, FHIR R4 adapter and its own access decisions (role categories and access grants).
 - Central modular platform covering:
@@ -20,7 +66,7 @@ First complete demonstration release of the Referral Preparation and Follow-thro
 - Keycloak OIDC (code + PKCE). Token introspection at every service gives fast revocation.
 - Operations: Compose stack, health/readiness checks, reset-and-seed, backup and disposable-environment restore check, retention sweep, load test, HL7 validation script, CI workflow.
 
-## Verification summary
+### Verification summary
 
 See `docs/testing.md`. Results of this build:
 
@@ -36,7 +82,7 @@ See `docs/testing.md`. Results of this build:
 
 Measured from the Windows host through Docker Desktop's port proxy with a new connection per request, latency was about 2 s and some connections were reset. That is an artefact of the local proxy, not of the services; browsers use keep-alive and were unaffected in the smoke journeys.
 
-## Known limitations (state these in the demonstration)
+### Known limitations (v1)
 
 1. **Synthetic data and provisional clinical content.** The specialty, checklist, procedures, medication classes and rule references are provisional. The rules are AI-assisted drafts and need a named clinical reviewer to confirm meaning and references before any real use.
 2. **OCR scope.** Tesseract handles typed and printed text. Accuracy was measured only on machine-generated renders, and **no claim is made about handwriting**. A real de-identified evaluation set and agreed thresholds are still needed.

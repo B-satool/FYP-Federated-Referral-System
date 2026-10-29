@@ -1,5 +1,7 @@
 # OCR, extraction and brief evaluation
 
+> **v1 measurements.** These figures are for Tesseract on machine-rendered samples. Handwriting (Google Cloud Vision, `OCR_ENGINE=google_vision`) and the AI packet selection have not been evaluated on real data yet; see [testing.md](testing.md).
+
 ## What was evaluated
 
 | Item | Setup |

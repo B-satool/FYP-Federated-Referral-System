@@ -2,18 +2,18 @@
 ### Referral Preparation and Follow-through Platform (version 2)
 
 A web application for referring a patient from one clinic or hospital in Karachi to a doctor or department at another, or for requesting a test or scan from a laboratory or radiology department elsewhere.
-- **Doctor:** chooses a referral or a test/scan request and fills it in. For a referral, the doctor later reviews the medication flags.
+- **Doctor:** chooses a referral or a test/scan request and fills it in (reason and consultation notes). For a referral, the doctor later **reviews the packet**: checks the papers, confirms the medicines with the patient, decides every flag, reviews the records and the letter. **Only doctors see clinical content**; staff see titles, statuses and counts.
 - **Referring staff:**
   - gather the patient's records from every linked hospital, clinic and laboratory (up to five, most recently visited first)
-  - check the papers the patient brought (OCR)
-  - confirm the current medicines, including over-the-counter ones
-  - mark the referral ready for the doctor, then send it once the doctor has reviewed the flags
+  - upload the papers the patient brought (OCR reads them for the doctor)
+  - mark the referral ready for the doctor, then send it once the doctor has reviewed the packet
   - send test and scan orders
 - **Receiving staff:** take the referral in, confirm the patient (match their record or register them as new) and assign a doctor. Laboratory and radiology staff confirm the patient on orders the same way.
+- **Receiving doctor:** accepts or declines (the requesting doctor is told either way), can keep the shared records longer, and marks the referral complete when finished.
 - **Platform:**
   - checks every current medicine against the planned procedure (reviewer-approved rules), against each other (DDInter interactions) and against the procedure and recorded conditions (rules read from US drug labels), showing the source of every flag
   - sends the referral as a readable letter, and results back with their report and images
-  - tracks each request through the response or results and follow-up until closure
+  - tracks each request through acceptance (or results) and follow-up until closure, then removes the shared records ([`docs/data-lifecycle.md`](docs/data-lifecycle.md))
 
 > **Synthetic (fake) patient data only. Not for clinical use.** The institution names are used only as source-system names; nothing comes from those organisations.
 
@@ -24,7 +24,12 @@ A web application for referring a patient from one clinic or hospital in Karachi
 | Requirements (SRS) | [`docs/requirements/FYP SRS.pdf`](docs/requirements/FYP%20SRS.pdf) |
 | Development roadmap | [`docs/requirements/FYP Development Roadmap.pdf`](docs/requirements/FYP%20Development%20Roadmap.pdf) |
 | Seed patients (5 synthetic Karachi patients) and their expected results | [`seed-data/README.md`](seed-data/README.md) |
-| Design decisions (version 1; see v2-changes for what differs) | [`docs/architecture.md`](docs/architecture.md) |
+| **Software Design Specification** (full, versioned design; regenerated from the code) | [`docs/sds/SDS.md`](docs/sds/SDS.md) |
+| Short architecture overview: boundaries, roles, flows, data lifecycle, AI and privacy | [`docs/architecture.md`](docs/architecture.md) |
+| SRS evaluation report | [`docs/srs-evaluation-report.md`](docs/srs-evaluation-report.md) |
+| Every decision, with its reasons and approval status | [`docs/decisions/`](docs/decisions/) |
+| Supervisor demo script (25 min) | [`docs/demo-script.md`](docs/demo-script.md) |
+| Tests: how to run and what they cover | [`docs/testing.md`](docs/testing.md) |
 | Deployment, backup/restore, security operations | [`docs/operations.md`](docs/operations.md) |
 
 ---
@@ -41,7 +46,7 @@ The system is **11 programs that run together**:
 | `chughtai` | Chughtai Lab: its own records, test orders | 8002 |
 | `ziauddin` | Ziauddin Hospital: records, incoming referrals, lab and radiology orders | 8003 |
 | `akuh` | Aga Khan University Hospital: the same | 8004 |
-| `worker` | Background jobs: OCR on uploads, sending referrals, orders and results | none |
+| `worker` | Background jobs: OCR, the AI recommendation, sending referrals and orders, removing expired records, closing access | none |
 | `keycloak` | Login server (accounts, passwords, roles, departments) | **8080** |
 | `postgres` | PostgreSQL: one database per institution, each with its own login | (5432, optional) |
 | `redis` | Job queue for the worker | none |
@@ -103,11 +108,11 @@ Open **http://localhost:3000**, click **Sign in with your institution account**,
 
 | Username | Person | Institution, department | What they do |
 |---|---|---|---|
-| `dr.ali` | Dr Ali Raza | Dr Ali's Clinic, General practice | **Doctor**: makes referrals and test requests, reviews medication flags, sees results, reviews the response |
-| `staff.ali` | Hina Raza | Dr Ali's Clinic | **Staff**: retrieves records, checks papers and medicines, sends referrals and test orders, follow-up; takes in referrals sent to the clinic |
+| `dr.ali` | Dr Ali Raza | Dr Ali's Clinic, General practice | **Doctor**: makes referrals and test requests, reviews the packet (papers, medicines, flags, records, letter), sees results, closes the referral |
+| `staff.ali` | Hina Raza | Dr Ali's Clinic | **Staff**: retrieves records, uploads papers, sends referrals and test orders, tells the patient, closes; takes in referrals sent to the clinic. Sees titles and statuses, not clinical content |
 | `tech.ali` | Bilal Ahmed | Dr Ali's Clinic, in-clinic tests (ECG) | Test orders done at the clinic |
-| `admin.ali` | Adeel Shah | Dr Ali's Clinic | Administrator: accounts, record sharing, audit (no patient records) |
-| `dr.asma` | Dr Asma Rauf | Ziauddin, Cardiology | Receives cardiology referrals; can also refer |
+| `admin.ali` | Adeel Shah | Dr Ali's Clinic | Administrator: accounts and roles, record sharing, audit (no patient records) |
+| `dr.asma` | Dr Asma Rauf | Ziauddin, Cardiology | Accepts or declines cardiology referrals and marks them complete; can also refer |
 | `dr.irfan` | Dr Irfan Siddiqui | Ziauddin, Gastroenterology and Hepatology | Receives GI and liver referrals |
 | `staff.zia` | Kiran Shah | Ziauddin | Takes in incoming referrals and assigns a doctor; answers records requests; prepares Ziauddin's own referrals |
 | `rad.zia` | Dr Hira Anwar | Ziauddin, Radiology | Imaging orders: accept or reject, schedule, report |
@@ -165,8 +170,15 @@ Passwords are the values in your `.env`. Without a database tool: `docker compos
 ### Shared team database on Neon
 A **copy** of the demo databases can be published to a free cloud PostgreSQL on [Neon](https://neon.tech) so teammates can inspect the data. Credentials live in `shared-db-credentials.md`, which is git-ignored; ask Eesha. Setup and publishing: `scripts/setup_shared_db.py --copy-only` then `scripts/publish-shared-db.ps1` (see the script headers). The current shared copy still holds version 1 data until it is republished.
 
-### Reading papers with a language model (optional)
-Uploaded papers are read with Tesseract OCR and a rule-based reader. If you add `ANTHROPIC_API_KEY=...` to `.env` (and restart `central` and `worker`), Claude is used to read the fields instead. Staff still check every field against the paper. The referral summary itself is always built from the checked records, never written by a model.
+### AI and handwriting (optional)
+Everything works without these. Change `.env`, then `docker compose up -d central worker`.
+
+| Feature | Settings in `.env` | Without it |
+|---|---|---|
+| **AI recommends which records go in the packet**, and reads fields from papers (`EXTRACTION_MODE=auto`) | Gemma 4 through Ollama: `LLM_PROVIDER=ollama`, `LLM_MODEL=gemma4:cloud`, `OLLAMA_HOST=http://host.docker.internal:11434`, `LLM_EXTERNAL_ALLOWED=true`. Install Ollama, run `ollama signin`, and add usage credits at ollama.com/plans. (Or `LLM_PROVIDER=anthropic` with `ANTHROPIC_API_KEY`.) | Rule-based selection; the Records tab says "AI recommendation unavailable" |
+| **Handwritten prescriptions** | `OCR_ENGINE=google_vision`, `GOOGLE_VISION_API_KEY=...` (Google Cloud key restricted to the Vision API) | Tesseract (printed text only) |
+
+**Privacy:** whatever model is used gets de-identified input only: no name, CNIC, record numbers or date of birth; doctors and institutions removed; dates as days before the referral. A model outside this computer is used only when `LLM_EXTERNAL_ALLOWED=true`, over https, and every call is audited. Page images sent to Google Vision cannot be de-identified. **Synthetic data only.** See [`docs/decisions/2026-10-28-cloud-model-privacy.md`](docs/decisions/2026-10-28-cloud-model-privacy.md). Staff still check every field read from a paper, and the referral letter is always built from the checked records, never written by a model.
 
 ---
 
@@ -176,15 +188,18 @@ Each seed patient has a referral scenario in [`seed-data/README.md`](seed-data/R
 
 1. **Dr Ali** (`dr.ali`): **Work queue** → **New request** → **Refer to a doctor or department** → find *Imtiaz* → Aga Khan University Hospital, General Surgery → reason → **A procedure is planned** → type *Laparoscopic cholecystectomy* (the features it involves tick themselves; correct them if needed) → **Submit request**. It now shows **In progress**; Medicines & flags says staff are still gathering.
 2. **Hina** (`staff.ali`) opens it from her **Work queue**:
-   - **Records** → **Retrieve records** (own clinic, Ziauddin, Chughtai Lab). If the patient says he was seen elsewhere, **Ask for records** there.
-   - **Papers** → upload `seed-data/documents/P5_prescription_cardiology_2025-06-18.jpg`. Open it and confirm each medicine against the photo; each one merges with the clinic's record.
-   - **Medicines & flags** → **Add a medicine** (e.g. Panadol, over the counter) → **I asked the patient about all their medicines**.
+   - **Records** → **Retrieve records** (own clinic, Ziauddin, Chughtai Lab). She sees each record's title, source and date only. If the patient says he was seen elsewhere, **Ask for records** there.
+   - **Papers** → upload `seed-data/documents/P5_prescription_cardiology_2025-06-18.jpg`.
    - **Check & send** → **Ready for the doctor's review**.
-3. **Dr Ali**: **Medicines & flags** → **Mark as reviewed** on the 4 flags (aspirin and clopidogrel before surgery, insulin and metformin around fasting).
-4. **Hina**: **Check & send** → read the referral letter → **Send to Aga Khan University Hospital**. It carries his name, date of birth, sex and CNIC; Aga Khan has not been asked anything before this.
-5. **Mariam** (`staff.aku`): **Incoming referrals** → open it → **Acknowledge receipt** → **Confirm the patient** (he is not registered there: write how you checked → **Register as a new patient**) → **Assign to doctor**: Dr Naveed Baig → **Assign**. Dr Ali's Clinic is told he was registered as new.
-6. **Dr Naveed** (`dr.naveed`): **Incoming referrals** (only referrals assigned to him) → **Accept referral** → the response form opens at the top → **Send response to the referring clinic**.
-7. **Dr Ali**: **Response & follow-up** → **I have reviewed the outcome**. **Hina**: **Record that the patient was told** → add any task → **Close referral**. **History** shows every step.
+3. **Dr Ali** reviews the packet:
+   - **Papers**: confirm each medicine read from the photo; each merges with the clinic's record.
+   - **Medicines & flags**: **Add a medicine** (e.g. Panadol, over the counter; or *Glare*, which asks which company's product it is) → **I asked the patient about all their medicines** → decide each flag (aspirin and clopidogrel before surgery, insulin and metformin around fasting, plus DDInter and label flags).
+   - **Records**: the last 6 months are ticked; tick or untick others.
+   - Read the letter → **Mark the packet reviewed**.
+4. **Hina**: **Check & send** → **Send to Aga Khan University Hospital**. It carries his name, date of birth, sex and CNIC; Aga Khan has not been asked anything before this.
+5. **Mariam** (`staff.aku`): **Incoming referrals** → open it (she sees who, from where, the urgency and the record titles) → **Acknowledge receipt** → **Confirm the patient** (he is not registered there: write how you checked → **Register as a new patient**) → **Assign to doctor**: Dr Naveed Baig → **Assign**. Dr Ali's Clinic is told he was registered as new.
+6. **Dr Naveed** (`dr.naveed`): **Incoming referrals** (only referrals assigned to him) → **Accept referral**. The **Shared records** panel shows they are kept 30 days (**Keep for another 30 days** if needed). When finished: **Mark as complete**; the shared records are removed 72 hours later.
+7. **Hina**: **Outcome & follow-up** → **Record that the patient was told** → add any task. **Dr Ali** (or Hina): **Close referral**. **History** shows every step.
 
 **A test or scan request**, e.g. P3 *Abdul Rehman Gondal*:
 1. **Dr Ali**: **New request** → **Request a test or scan** → *Gondal* → Imaging or scan, *MRI knee*, Where: Aga Khan University Hospital → **Submit request**.
@@ -194,7 +209,9 @@ Each seed patient has a referral scenario in [`seed-data/README.md`](seed-data/R
 
 Other scenarios: P2 (Ziauddin cardiology, metformin with contrast; Ziauddin staff match their existing record when it arrives); P1 (Aga Khan dentistry, alendronate with oral surgery); P3 (Aga Khan orthopaedics); P4 (Ziauddin gastroenterology). Any clinic or hospital can refer to another, and receive referrals: try `dr.asma` (Ziauddin) referring to Aga Khan.
 
-**Rules:** sign in as `dr.reviewer` → **Medication rules** to see, edit (a change is a new draft) and approve rules, and **Medicine names** to add a brand name.
+**Rules:** sign in as `dr.reviewer` → **Medication rules** to see, edit (a change is a new draft) and approve rules, and **Medicine names** to add a brand name (DRAP register names are marked "DRAP register").
+
+**Roles:** sign in as `admin.ali` → **Accounts and roles** → pick a role for an account (it applies at that user's next sign-in).
 
 ---
 
@@ -205,11 +222,11 @@ python -m venv .venv
 .\.venv\Scripts\pip install httpx pytest
 
 # API checks: P5 referral, P3 test request with an image, every patient's expected flags, OCR merge,
-# temporary grants, role menus and role assignment, packet selection, the package fingerprint, the clinic's own copy and the purge (resets demo data first). Expect: 22 passed
+# temporary grants, role menus and role assignment, packet selection, the package fingerprint, the clinic's own copy and the purge (resets demo data first). Expect: 25 passed
 .\.venv\Scripts\python -m pytest tests -q
 
 # Medication-rule logic, interactions, label rules, the extraction validator, AI selection checks, grant expiry,
-# working-set timing, manifests, role templates and DRAP brand matching. Expect: 101 passed
+# working-set timing, manifests, role templates, DRAP brand matching, model providers, privacy, Vision OCR and staff views. Expect: 136 passed
 docker compose run --rm --no-deps -v ${PWD}/services/central/tests:/srv/tests central python -m pytest tests -q
 
 # Browser robot: the referral and test-request journeys across 7 accounts, and an administrator changing a role
@@ -228,6 +245,7 @@ cd web; npm ci; npx playwright install chromium; npx playwright test; cd ..
 | **Accounts** → changing a role says "The sign-in service did not accept the role change" | Keycloak was set up before the platform was allowed to assign roles. Run once: `docker compose exec keycloak sh -c '/opt/keycloak/bin/kcadm.sh config credentials --server http://localhost:8080 --realm master --user admin --password "$KC_BOOTSTRAP_ADMIN_PASSWORD" && /opt/keycloak/bin/kcadm.sh add-roles -r referral --uusername service-account-central-api --cclientid realm-management --rolename view-realm'` |
 | Login works but every page errors after switching from version 1 | The old database volume is still there. Run `docker compose down -v`, then the first-time steps. |
 | `docker compose` can't connect, or hangs | Docker Desktop isn't running, or its WSL backend froze. Quit Docker Desktop, run `wsl --shutdown`, start Docker Desktop again. |
+| `ERR_CONNECTION_RESET` / "connection aborted" on localhost:3000 or 8080, while `docker compose ps` shows everything healthy | Docker Desktop's port forwarding is stuck. Run `docker compose up -d --force-recreate web keycloak`. If that doesn't help, `wsl --shutdown`, reopen Docker Desktop and `docker compose up -d`. |
 | Port already in use (3000, 8000-8004, 8080, 5432) | Close the other program, or change the left-hand port in `docker-compose.yml`. |
 | Very slow or out of memory | Give Docker Desktop at least 4 GB (Settings → Resources). |
 | Data looks messy after testing | `.\scripts\reset-and-seed.ps1 -Force` |
@@ -246,7 +264,7 @@ rules/                  Starting medication rules and Pakistani medicine names (
 infra/                  Database setup and Keycloak accounts, roles and departments
 scripts/                Reset/seed, backup/restore, Neon, deployment
 tests/                  End-to-end API checks
-docs/                   Documentation (see the table at the top)
+docs/                   Documentation (see the table at the top); docs/decisions/ holds every decision
 docker-compose.yml      Defines all 11 containers
 .env.example            Settings template; copy to .env (never commit .env)
 ```
@@ -255,8 +273,9 @@ docker-compose.yml      Defines all 11 containers
 
 - **Synthetic data, unreviewed clinical content.** The rules, references, procedure features and brand mappings are plausible but not clinically reviewed. The seed marks the rules as approved by a demo reviewer.
 - **Interactions come from DDInter and US drug labels only** (automatically generated, not clinically reviewed); AI suggestions are labelled "not verified". See [`docs/medication-flagging.md`](docs/medication-flagging.md).
-- **Records are held only temporarily.** They are removed 72 hours after the receiving doctor marks the referral complete (30-day safety limit after acceptance, which they can extend), at once if declined. The platform then keeps only the reference, fingerprint and audit; the receiving hospital keeps its own response, and the sending clinic its own copy. See [`docs/data-lifecycle.md`](docs/data-lifecycle.md).
-- **AI packet selection needs `ANTHROPIC_API_KEY`.** Without it the rule-based default is used and the Records tab says "AI recommendation unavailable".
-- **Most recent place only:** records held only at an older hospital are not retrieved automatically; they are listed as skipped.
-- **OCR:** printed prescriptions read well. The handwriting-style samples read with small errors, which staff correct when checking.
+- **Records are held only temporarily.** They are removed 72 hours after the receiving doctor marks the referral complete (30-day safety limit after acceptance, which they can extend), at once if declined, on the platform and at the receiving hospital. The platform keeps only the reference, fingerprint and audit; the receiving hospital keeps its own decision, and the sending clinic its own copy. See [`docs/data-lifecycle.md`](docs/data-lifecycle.md).
+- **AI has not run live yet.** It is set up for Gemma 4 through Ollama's cloud, which needs usage credits; until then the rule-based selection is used and the screen says so. De-identification uses patterns and can miss unusual text: synthetic data only.
+- **Up to five linked places:** retrieval asks every linked institution, most recently visited first, up to five; any beyond that are listed as not retrieved.
+- **DRAP brand names are loaded unchecked** (by decision); combination products are not loaded. See [`docs/decisions/2026-10-28-drap-brands-loaded.md`](docs/decisions/2026-10-28-drap-brands-loaded.md).
+- **OCR:** printed prescriptions read well with Tesseract. Handwriting needs Google Vision (a key), and staff check every field.
 - **Not production-hardened:** HTTP on localhost with demo passwords. See [`docs/operations.md`](docs/operations.md).

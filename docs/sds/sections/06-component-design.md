@@ -135,7 +135,7 @@ Every action writes an `evidence_revisions` row and an audit event, checks the i
 
    Older items and resolved conditions start unselected.
 2. **AI recommendation (optional):** after retrieval, `recommend_selection` runs in the worker. It sends at most 150 candidates, each cut to 300 characters and de-identified. The model returns, for every record id, `include`, `exclude` or `optional`, a relevance and a reason of at most 25 words, plus up to 5 "missing" phrases.
-3. **Validation** (`validate()`): every id must belong to this referral and appear once, the values must come from the allowed sets, and reasons must contain no treatment or dosing words. Any failure rejects the whole answer, and the default stands.
+3. **Validation** (`validate()`): every id must belong to this referral and appear once, and the values must come from the allowed sets. Any failure there rejects the whole answer, and the default stands. A reason with treatment, dosing or action words is withheld instead: it is never shown, and that record keeps its default (section 9.2).
 4. **Applying the answer:**
    - The model may add records and mark defaults as low relevance.
    - It can never remove a default item, and it never overrides a staff choice.

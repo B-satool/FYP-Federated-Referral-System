@@ -47,15 +47,30 @@ def test_valid_answer():
     {"items": [{**item(1), "extra": 1}], "missing": []},                    # extra field
     {"items": [item(1, rec="must_include")], "missing": []},                # unknown value
     {"items": [item(1, reason=" ".join(["word"] * 26))], "missing": []},    # reason too long
-    {"items": [item(1, reason="Stop metformin before the procedure.")], "missing": []},  # advice
-    {"items": [item(1, reason="Increase the dose to 20 mg.")], "missing": []},           # dosing
-    {"items": [item(1)]},                                                   # missing key
+    {"items": [item(1)]},                                                 # missing key
     {"items": [{**item(1), "evidence_id": True}], "missing": []},          # bool is not an id
     "include everything",
 ])
 def test_rejected_answers(raw):
     with pytest.raises(ProviderOutputInvalid):
         validate(raw, {1, 2})
+
+
+@pytest.mark.parametrize("reason", [
+    "Stop metformin before the procedure.",
+    "Increase the dose to 20 mg.",
+    "Adjust the losartan before surgery.",
+    "Consider dose reduction of metformin.",
+    # seen from gpt-oss-120b on Groq
+    "Aspirin therapy must be managed before surgery.",
+    "Clopidogrel requires cessation prior to operative procedure.",
+    "Statin therapy generally continued; noted for cardiac risk.",
+    "eGFR normal; relevant for peri-operative medication dosing.",
+    "Prior PCI may influence cardiac clearance.",
+])
+def test_advice_is_withheld_and_the_record_keeps_the_default(reason):
+    recs, _ = validate({"items": [item(1, reason=reason), item(2)], "missing": []}, {1, 2})
+    assert 1 not in recs and 2 in recs  # the rest of the answer is still used
 
 
 def test_prompt_injection_in_record_text_cannot_add_ids():
@@ -82,12 +97,6 @@ def test_schema_limits_only_for_providers_that_enforce_them():
 def test_describing_a_record_is_not_advice(reason):
     recs, _ = validate({"items": [item(1, reason=reason)], "missing": []}, {1})
     assert recs[1]["reason"] == reason
-
-
-@pytest.mark.parametrize("reason", ["Adjust the losartan before surgery.", "Consider dose reduction of metformin."])
-def test_dose_change_wording_is_rejected(reason):
-    with pytest.raises(ProviderOutputInvalid):
-        validate({"items": [item(1, reason=reason)], "missing": []}, {1})
 
 
 def test_bad_missing_phrases_are_dropped_not_fatal():

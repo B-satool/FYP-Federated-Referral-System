@@ -235,6 +235,8 @@ class OpenAICompatibleProvider(LLMProvider):
             ],
             "response_format": {"type": "json_schema", "json_schema": {"name": "answer", "strict": True, "schema": schema}},
         }
+        if settings.llm_reasoning_effort:  # gpt-oss otherwise spends the token budget thinking
+            body["reasoning_effort"] = settings.llm_reasoning_effort
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
         try:
             resp = httpx.post(f"{self.base_url}/chat/completions", json=body, headers=headers,

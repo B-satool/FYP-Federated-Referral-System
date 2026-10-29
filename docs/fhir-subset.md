@@ -1,5 +1,7 @@
 # Supported FHIR R4 (4.0.1) subset
 
+> **v2:** every institution runs the same service (`services/provider`). Records come from `GET {institution}/fhir/patients/{local_id}/records` as a searchset `Bundle` (Patient, Encounter, Condition, Procedure, MedicationRequest, Observation, DiagnosticReport), filtered by category and date and by that institution's access decision. The v1 endpoint table below is kept for reference.
+
 The project exchanges a **deliberately limited** FHIR subset. Sources expose *custom project endpoints* that return FHIR content. These are not a FHIR server.
 
 | Endpoint | Returns |

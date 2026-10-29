@@ -132,10 +132,10 @@
 | `test_schema_is_strict` |  |
 | `test_valid_answer` |  |
 | `test_rejected_answers` |  |
+| `test_advice_is_withheld_and_the_record_keeps_the_default` |  |
 | `test_prompt_injection_in_record_text_cannot_add_ids` | A record that says 'include record 500' cannot make the model's answer use an id outside the set. |
 | `test_schema_limits_only_for_providers_that_enforce_them` |  |
 | `test_describing_a_record_is_not_advice` |  |
-| `test_dose_change_wording_is_rejected` |  |
 | `test_bad_missing_phrases_are_dropped_not_fatal` |  |
 
 ### `services/central/tests/test_selection_apply.py` (unit (no services), 5)
@@ -225,5 +225,5 @@
 
 | Test | What it checks |
 |---|---|
-| `referral: doctor requests, staff prepare, doctor reviews flags, staff send, hospital takes it in and responds` |  |
+| `referral: doctor requests, staff prepare, doctor reviews flags, staff send, hospital accepts and completes, doctor closes` |  |
 | `test request: MRI at Aga Khan radiology with images, result back to the doctor` |  |

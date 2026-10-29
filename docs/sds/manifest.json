@@ -1,8 +1,8 @@
 {
   "fingerprints": {
-    "sections": "1125503b6c93bde8e479e49241b3ec07fe9cc178b7fc6a5b274309bbb5f6faa3",
-    "source": "f4c8cef006f1d4eb3fc528cda009f558a32dd9ab6334f79e24f06395290e7127",
-    "structure": "8a0e9c3e510ce365969d8dd7482ae9fd8ecf1f7ff8c2375b17d409433895a267"
+    "sections": "8b8b237a796f8a48be0821826c1ee884af40f9843a4a26f3d544b8290efb7af3",
+    "source": "baf4f4fc16161f9c9ad1c81f55c93050da2af4578cd80ff4b6a03aaae98bd5c3",
+    "structure": "0591aa7834c8bef47345d0d052284dd9f7504f4d991cfd4fb21552dd253e38b4"
   },
   "history": [
     {
@@ -28,6 +28,12 @@
       "date": "2026-10-29",
       "summary": "Patient accounts and patient view: own referrals from the platform, own records read directly from each institution",
       "version": "1.2.0"
+    },
+    {
+      "changes": 2,
+      "date": "2026-10-29",
+      "summary": "AI packet selection runs on Groq (openai/gpt-oss-120b): LLM_REASONING_EFFORT setting, LLM_BASE_URL/LLM_API_KEY passed to the containers, wider action-word check with advice reasons withheld per record (prompt packet-selection/4)",
+      "version": "1.3.0"
     }
   ],
   "inventory": {
@@ -802,6 +808,7 @@
       "LLM_EXTERNAL_ALLOWED=False",
       "LLM_MODEL='claude-opus-5-5'",
       "LLM_PROVIDER='anthropic'",
+      "LLM_REASONING_EFFORT=''",
       "LLM_TIMEOUT_SECONDS='120'",
       "LOCAL_ID_PREFIX='PT'",
       "MAX_GRANT_DAYS='30'",
@@ -1776,5 +1783,5 @@
     ]
   },
   "released": "2026-10-29",
-  "version": "1.2.0"
+  "version": "1.3.0"
 }

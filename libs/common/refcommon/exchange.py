@@ -16,6 +16,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 PACKAGE_ENVELOPE_VERSION = "referral-package/2.0"
+NOTICE_VERSION = "referral-notice/3.0"
 ORDER_ENVELOPE_VERSION = "diagnostic-order/1.0"
 EVENT_ENVELOPE_VERSION = "provider-event/1.0"
 CONTRACT_NOTE = "Project API contract (not a standard FHIR resource)"
@@ -118,6 +119,35 @@ class PackageEnvelope(BaseModel):
     sent_at: datetime
     content_hash: str
     fhir_bundle: dict[str, Any]
+    supersedes_version: int | None = None
+
+
+class ReferralNotice(BaseModel):
+    """Spec v4 (approval A4): what the receiving hospital's system gets when a referral is sent. Administrative
+    data only: who, from where, how urgent, why, the patient's identity details for linking, the record titles and
+    the signed manifest's hash. No record content: the department's doctors fetch the ciphertext from the platform
+    and decrypt it on their own devices with the department group key. The receiving hospital keeps no copy of
+    other hospitals' records (D2)."""
+    envelope_version: str = NOTICE_VERSION
+    contract_note: str = CONTRACT_NOTE
+    delivery_key: str
+    referral_id: str
+    package_version: int
+    sender_institution: str
+    sender_name: str
+    sender_department: str | None = None
+    destination_institution: str
+    destination_department: str
+    destination_doctor: str | None = None
+    urgency: str
+    reason: str
+    patient: dict[str, Any]
+    requesting_doctor: dict[str, Any]
+    titles: list[dict[str, Any]] = Field(default_factory=list)
+    manifest_sha256: str
+    signed_by: dict[str, Any] = Field(default_factory=dict)
+    sent_by: str
+    sent_at: datetime
     supersedes_version: int | None = None
 
 

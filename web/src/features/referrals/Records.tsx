@@ -10,6 +10,8 @@ import { useDeviceKeys } from "../../crypto/session";
 import { DeviceKeyPanel } from "../keys/DeviceKey";
 import { CATEGORY_GROUPS, EncryptedResponse, latestById, openAll, OpenedItem, reportOpened, summary, Title } from "../e2e/records";
 import { floor, isSelected, loadChoices, saveChoices } from "../e2e/selection";
+import type { Suggestion } from "../e2e/ai";
+import { AiChip, AiResult, AiSuggest } from "../e2e/AiSuggest";
 import { OtherPlaces } from "./LinksTab";
 import { useInvalidateReferral } from "./ReferralWorkspace";
 
@@ -214,7 +216,7 @@ export function Detail({ item }: { item: OpenedItem }) {
   );
 }
 
-function ItemRow({ item, selected, onToggle, locked }: { item: OpenedItem; selected: boolean; onToggle: (v: boolean) => void; locked: boolean }) {
+function ItemRow({ item, selected, onToggle, locked, ai }: { item: OpenedItem; selected: boolean; onToggle: (v: boolean) => void; locked: boolean; ai?: Suggestion }) {
   const [open, setOpen] = useState(false);
   const f = floor(item);
   const ok = item.state === "ok" && !!item.content;
@@ -226,7 +228,7 @@ function ItemRow({ item, selected, onToggle, locked }: { item: OpenedItem; selec
             inputProps={{ "aria-label": `Include in the package: ${item.content?.label ?? item.title.label}` }} />
         </TableCell>
         <TableCell>
-          <Typography variant="body2">{ok ? summary(item.content!) : item.title.label}</Typography>
+          <Typography variant="body2">{ok ? summary(item.content!) : item.title.label}<AiChip s={ai} /></Typography>
           <Typography variant="caption" color="text.secondary">
             {item.content?.source_name ?? item.title.source_name ?? item.title.source_institution}
             {item.title.date ? ` · ${fmtDate(item.title.date, false)}` : ""} · {f.reason}
@@ -270,6 +272,12 @@ export function DoctorRecords({ r }: { r: ReferralDetail }) {
     saveChoices(r.id, next);
   };
   const chosen = items.filter((i) => i.state === "ok" && isSelected(i, choices)).length;
+  const [ai, setAi] = useState<AiResult | null>(null);
+  const applyAi = (ticks: Record<string, boolean>) => {
+    const next = { ...choices, ...ticks };
+    setChoices(next);
+    saveChoices(r.id, next);
+  };
   if (r.working_set_purged_at) {
     return <Alert severity="info">This referral's encrypted records were purged. The records stay at the places they came from; the patient keeps their own copy.</Alert>;
   }
@@ -293,13 +301,16 @@ export function DoctorRecords({ r }: { r: ReferralDetail }) {
                   <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{label} ({list.length})</Typography>
                   <Table size="small"><TableBody>
                     {list.map((i) => <ItemRow key={i.title.item_id} item={i} selected={isSelected(i, choices)} locked={locked}
-                      onToggle={(v) => toggle(i.title.item_id, v)} />)}
+                      ai={ai?.byItem.get(i.title.item_id)} onToggle={(v) => toggle(i.title.item_id, v)} />)}
                   </TableBody></Table>
                 </Box>
               ))}
             </Stack>
           )}
       </Section>
+      {dk.status === "unlocked" && items.length > 0 && !locked && (
+        <AiSuggest r={r} items={latestById(items)} onResult={setAi} onApply={applyAi} />
+      )}
     </Stack>
   );
 }

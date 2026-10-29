@@ -135,19 +135,3 @@ def close_reminders() -> dict:
 
     with SessionLocal() as db:
         return reminders_due(db)
-
-
-@celery_app.task(name="recommend_selection", max_retries=0)
-def recommend_selection(referral_id: int, requested_by: str) -> str:
-    """AI packet-selection recommendation, run in the background after retrieval (it can take a minute)."""
-    from .models import Referral
-    from .referrals.state import TERMINAL
-    from .selection.selection import recommend
-
-    with SessionLocal() as db:
-        r = db.get(Referral, referral_id)
-        if r is None or r.status in TERMINAL or r.working_set_purged_at is not None:
-            return "skipped"
-        run = recommend(db, r, requested_by)
-        db.commit()
-        return run.status

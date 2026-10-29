@@ -13,6 +13,11 @@
    (who and when), as are the AI's recommendations, model and prompt version, in the package.
 
 Record text is untrusted data. The model has no tools; it can only return the fixed JSON schema.
+
+Spec v4 (approval A7): the platform no longer holds readable records, so the AI recommendation runs only through the
+relay (app/ai_relay.py) with text the doctor's browser de-identified, on the doctor's request. SYSTEM, the schema and
+validate() here are what the relay uses. recommend() below works on the pre-v4 plaintext evidence table and is not
+reachable from the API any more; it stays only for its unit tests of what the AI may change.
 """
 from __future__ import annotations
 

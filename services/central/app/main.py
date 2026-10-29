@@ -15,7 +15,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-from . import audit_router, evidence_router, notifications, patient_access, workqueue
+from . import ai_relay, audit_router, evidence_router, notifications, patient_access, workqueue
 from .db import engine
 from .delivery import inbound
 from .diagnostics import router as diagnostics
@@ -40,7 +40,7 @@ app = FastAPI(
 )
 
 for module in (referrals, identity, evidence_router, documents, medications, sending, diagnostics, followup, inbound,
-               notifications, workqueue, audit_router, patient_access, keys, consent, records):
+               notifications, workqueue, audit_router, patient_access, keys, consent, records, ai_relay):
     app.include_router(module.router)
 
 

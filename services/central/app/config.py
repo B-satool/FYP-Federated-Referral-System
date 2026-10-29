@@ -46,12 +46,17 @@ class Settings:
     max_upload_bytes = int(os.environ.get("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
     max_pages = int(os.environ.get("MAX_PAGES", "10"))
     document_retention_days = int(os.environ.get("DOCUMENT_RETENTION_DAYS", "365"))
-    # How long a referral's shared records are kept (docs/decisions/2026-10-28-referral-expiry.md):
-    # no limit until the receiving doctor accepts; then a safety limit of ACCEPTED_HOLD_DAYS, which that
-    # doctor can extend by the same again; removed WORKING_SET_GRACE_HOURS after they mark the referral
-    # complete (or it is cancelled), and straight away if they decline it.
-    working_set_grace_hours = int(os.environ.get("WORKING_SET_GRACE_HOURS", "72"))
+    # Referral lifecycle (spec v4 7, 11; lifecycle/working_set.py): a reminder ACCEPTED_HOLD_DAYS after acceptance,
+    # then every REMINDER_INTERVAL_DAYS, escalated to the receiving staff after ESCALATE_AFTER_REMINDERS; the
+    # specialist extends (by ACCEPTED_HOLD_DAYS, with a reason; at most MAX_REFERRAL_DAYS after acceptance) or
+    # closes. Purge (crypto-shredding) CLOSE_GRACE_DAYS after closing, DECLINE_GRACE_DAYS after a decline or cancel.
+    working_set_grace_hours = int(os.environ.get("WORKING_SET_GRACE_HOURS", "72"))  # test requests
     accepted_hold_days = int(os.environ.get("ACCEPTED_HOLD_DAYS", "30"))
+    reminder_interval_days = int(os.environ.get("REMINDER_INTERVAL_DAYS", "7"))
+    escalate_after_reminders = int(os.environ.get("ESCALATE_AFTER_REMINDERS", "3"))
+    max_referral_days = int(os.environ.get("MAX_REFERRAL_DAYS", "180"))
+    close_grace_days = int(os.environ.get("CLOSE_GRACE_DAYS", "7"))
+    decline_grace_days = int(os.environ.get("DECLINE_GRACE_DAYS", "1"))
     # How far back retrieval asks each source (the 6-month window is the default selection, not a fetch limit),
     # for a destination with no entry in SPECIALTY_HISTORY_YEARS
     history_years = int(os.environ.get("REFERRAL_HISTORY_YEARS", "3"))

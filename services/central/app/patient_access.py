@@ -74,8 +74,12 @@ def _referral(r: Referral, events: list[ReferralEvent], orders: list[DiagnosticR
             timeline.append({"at": _when(e.created_at), "text": text})
         elif e.event_type == "patient_informed":
             timeline.append({"at": _when(e.created_at), "text": "Your clinic told you about this referral."})
-        elif e.event_type == "completed_by_receiver":
-            timeline.append({"at": _when(e.created_at), "text": f"{to} marked its part as complete."})
+        elif e.event_type in ("completed_by_receiver", "closed_by_specialist"):
+            timeline.append({"at": _when(e.created_at), "text": f"{to} closed the referral."})
+        elif e.event_type == "patient_notice":
+            d = e.detail or {}
+            timeline.append({"at": _when(e.created_at), "text": f"{d.get('title', '')}. {d.get('body', '')}".strip(),
+                             "notice": d.get("kind")})
     statuses = TEST_STATUS if r.kind == "test" else PATIENT_STATUS
     return {
         "reference": r.reference, "kind": r.kind,

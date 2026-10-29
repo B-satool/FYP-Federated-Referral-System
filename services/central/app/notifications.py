@@ -40,6 +40,15 @@ def notify_staff(db: Session, referral: Referral, kind: str, title: str, body: s
            body=body, link=link)
 
 
+def notify_patient(db: Session, referral: Referral, kind: str, title: str, body: str = "") -> None:
+    """A notice in the patient's app (spec v4 step 9, 11.3): it appears on the referral's timeline there. Patient
+    accounts belong to no institution, so they are addressed through their referral, matched by CNIC."""
+    from .models import ReferralEvent
+
+    db.add(ReferralEvent(referral_id=referral.id, event_type="patient_notice", actor="system",
+                         institution_id=None, detail={"kind": kind, "title": title, "body": body}))
+
+
 def _mine(principal: Principal):
     return and_(Notification.institution_id == principal.institution_id, or_(
         Notification.recipient_id == principal.subject,

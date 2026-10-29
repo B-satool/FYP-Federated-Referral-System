@@ -293,12 +293,12 @@ export function IncomingCase() {
   const [extendOpen, setExtendOpen] = useState(false);
   const complete = useMutation({
     mutationFn: () => api.post(`/cases/${id}/complete`, {}, service),
-    meta: { success: "Marked complete. The referring clinic is told; the shared records are removed in 72 hours." },
+    meta: { success: "Closed. The referring clinic and the patient are told; the encrypted referral is purged in a week." },
     onSuccess: refresh,
   });
   const extend = useMutation({
     mutationFn: (reason: string) => api.post(`/cases/${id}/extend-hold`, { reason }, service),
-    meta: { success: "The shared records are kept for another 30 days." },
+    meta: { success: "Extended by 30 days. The next reminder moves with it." },
     onSuccess: () => {
       setExtendOpen(false);
       refresh();
@@ -395,33 +395,34 @@ export function IncomingCase() {
 
   const isAssignedDoctor = doctor && !!c.assigned_doctor;
   const holdSection = (accepted || removed) && (
-    <Section title="Shared records" description="The referral letter and the records sent with it are kept only while you need them. Your decision, questions and response are your own record and are kept.">
+    <Section title="Close or extend" description="The encrypted referral stays on the platform while you need it. Your decision and questions are this hospital's own record and are kept.">
       {removed ? (
         <Alert severity="info">
-          The shared records were removed{c.shared_removed_at ? ` on ${fmtDate(c.shared_removed_at)}` : ""}. Reference and fingerprint kept. If you need them again, ask the referring clinic to send the referral again.
+          The encrypted referral was purged{c.shared_removed_at ? ` on ${fmtDate(c.shared_removed_at)}` : ""}. Reference and fingerprint kept; the patient keeps their own copy.
         </Alert>
       ) : c.completed_at ? (
         <Alert severity="success">
-          Marked complete by {c.completed_by} on {fmtDate(c.completed_at)}. The shared records are removed on {fmtDate(c.hold_until)}.
+          Closed by {c.completed_by} on {fmtDate(c.completed_at)}. The encrypted referral is purged on {fmtDate(c.hold_until)}.
         </Alert>
       ) : (
         <Stack spacing={1.5}>
           <Typography variant="body2">
-            Kept until <strong>{fmtDate(c.hold_until)}</strong> (30 days after you accepted). Mark the referral complete when you have finished with it; the shared records are then removed 72 hours later.
+            You are reminded on <strong>{fmtDate(c.hold_until)}</strong> to close it or extend it (30 days after you accepted, or after an
+            extension; at most 180 days in all). Close it when you have finished: it is purged a week later.
           </Typography>
           <ErrorAlert error={complete.error || extend.error} />
           {isAssignedDoctor ? (
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               <Button variant="contained" onClick={() => complete.mutate()} disabled={complete.isPending}>
-                Mark as complete
+                Close referral
               </Button>
               <Button variant="outlined" onClick={() => setExtendOpen(true)} disabled={extend.isPending}>
-                Keep for another 30 days
+                Extend by 30 days
               </Button>
             </Stack>
           ) : (
             <Typography variant="body2" color="text.secondary">
-              Only the assigned doctor can mark it complete or keep the records longer.
+              Only the assigned doctor can close or extend it.
             </Typography>
           )}
         </Stack>
@@ -628,9 +629,9 @@ export function IncomingCase() {
       />
       <ReasonDialog
         open={extendOpen}
-        title="Keep the shared records for another 30 days"
+        title="Extend the referral by 30 days"
         label="Why do you need them for longer?"
-        confirm="Keep for 30 more days"
+        confirm="Extend by 30 days"
         onClose={() => setExtendOpen(false)}
         onConfirm={(reason) => extend.mutate(reason)}
         busy={extend.isPending}

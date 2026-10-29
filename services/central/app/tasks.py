@@ -25,6 +25,7 @@ celery_app.conf.update(
         "deliver-outbox": {"task": "deliver_outbox", "schedule": 5.0},
         "retention-sweep": {"task": "retention_sweep", "schedule": 3600.0},
         "purge-working-sets": {"task": "purge_working_sets", "schedule": 600.0},
+        "close-reminders": {"task": "close_reminders", "schedule": 3600.0},
     },
     timezone="UTC",
 )
@@ -120,11 +121,20 @@ def retention_sweep() -> int:
 
 @celery_app.task(name="purge_working_sets")
 def purge_working_sets() -> int:
-    """Remove the clinical content of working sets whose time is up (see lifecycle/working_set.py)."""
+    """Crypto-shred referrals whose time is up (see lifecycle/working_set.py); a failure is retried next run."""
     from .lifecycle.working_set import purge_due
 
     with SessionLocal() as db:
         return purge_due(db)
+
+
+@celery_app.task(name="close_reminders")
+def close_reminders() -> dict:
+    """Close reminders 30 days after acceptance, weekly repeats and escalation (spec v4 7)."""
+    from .lifecycle.working_set import reminders_due
+
+    with SessionLocal() as db:
+        return reminders_due(db)
 
 
 @celery_app.task(name="recommend_selection", max_retries=0)

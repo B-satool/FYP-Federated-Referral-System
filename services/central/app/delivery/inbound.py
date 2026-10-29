@@ -1,6 +1,8 @@
 """Inbound events from the institution services (deduplicated by event key)."""
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends
 from refcommon.auth import Principal
 from refcommon.exchange import ProviderEvent
@@ -13,7 +15,7 @@ from ..db import get_db
 from ..diagnostics.router import apply_order_event
 from ..lifecycle import working_set
 from ..models import Clarification, ConsultationResponse, DiagnosticRequest, InboundMessage, Outbox, Referral
-from ..notifications import notify_doctor, notify_staff
+from ..notifications import notify_doctor, notify_patient, notify_staff
 from ..referrals.state import event as add_event
 from ..referrals.state import transition
 from ..security import audit, error, get_principal, require_service
@@ -63,11 +65,13 @@ def provider_event(body: ProviderEvent, db: Session = Depends(get_db), principal
             notify_doctor(db, referral, "referral_accepted", f"{referral.reference} accepted by {inst_name}",
                           f"{referral.patient_name}. Accepted by {body.actor_name}.", tab="response")
             notify_staff(db, referral, "referral_accepted", f"{referral.reference} accepted by {inst_name}",
-                         f"{referral.patient_name}. Tell the patient, then close the referral.", tab="response")
+                         f"{referral.patient_name}. The patient is told in their app too.", tab="response")
+            notify_patient(db, referral, "referral_accepted", f"Your referral to {inst_name} was accepted",
+                           f"{inst_name} will contact you about the appointment. Save your copy of the referral in your app.")
         elif body.type == "declined":
             referral.decline_reason = body.data.get("reason")
             transition(db, referral, "declined", actor_label, None, detail, institution=body.institution_id)
-            purge_now = True  # a declined referral's shared records are removed straight away
+            # purged after a short grace period (spec v4 7): lifecycle.on_status scheduled it
             notify_doctor(db, referral, "referral_declined", f"{referral.reference} declined by {inst_name}",
                           f"Reason: {referral.decline_reason}", tab="response")
             notify_staff(db, referral, "referral_declined", f"{referral.reference} declined by {inst_name}",
@@ -106,22 +110,31 @@ def provider_event(body: ProviderEvent, db: Session = Depends(get_db), principal
             notify_doctor(db, referral, "response_returned", f"Specialist response: {referral.reference}",
                           f"{referral.patient_name}, from {inst_name}.", tab="response")
         elif body.type == "completed":
+            # the specialist closed the referral (spec v4 step 11): purged after the grace period
             if referral.status not in ("accepted", "response_returned", "followup_pending", "closed"):
-                raise error(409, "not_accepted", "Only an accepted referral can be marked complete")
+                raise error(409, "not_accepted", "Only an accepted referral can be closed")
             if referral.receiver_completed_at is None:
                 referral.receiver_completed_at, referral.receiver_completed_by = body.occurred_at, actor_label
-                working_set.complete(referral, body.occurred_at)
-                add_event(db, referral, "completed_by_receiver", actor_label, body.institution_id,
-                          {**detail, "records_removed_at": referral.working_set_expires_at.isoformat()})
-                when = referral.working_set_expires_at.strftime("%d %b %Y, %H:%M")
+                purge_at = working_set.close(referral, body.occurred_at)
+                if referral.status != "closed":
+                    referral.closed_at, referral.closed_by = body.occurred_at, actor_label
+                    transition(db, referral, "closed", actor_label, None, detail, institution=body.institution_id)
+                add_event(db, referral, "closed_by_specialist", actor_label, body.institution_id,
+                          {**detail, "purge_at": purge_at.isoformat()})
+                when = purge_at.strftime("%d %b %Y, %H:%M")
                 for notify in (notify_doctor, notify_staff):
-                    notify(db, referral, "referral_completed", f"{referral.reference} marked complete by {inst_name}",
-                           f"{body.actor_name} has finished with this referral. The shared records are removed on {when} (UTC).",
-                           tab="response")
+                    notify(db, referral, "referral_completed", f"{referral.reference} closed by {inst_name}",
+                           f"{body.actor_name} closed this referral. Its encrypted records are purged on {when} (UTC); "
+                           "the patient keeps their own copy.", tab="response")
+                notify_patient(db, referral, "referral_closed", f"{referral.reference} was closed",
+                               f"Save your copy of this referral in your app before {when} (UTC).")
         elif body.type == "hold_extended":
-            until = working_set.extend(referral, body.occurred_at)
-            add_event(db, referral, "hold_extended_by_receiver", actor_label, body.institution_id,
-                      {**detail, "records_kept_until": until.isoformat() if until else None})
+            asked = body.data.get("until")
+            until = working_set.extend(referral, body.occurred_at, datetime.fromisoformat(asked) if asked else None)
+            if until is None:
+                raise error(409, "not_extendable", "Only an accepted referral that is not closed can be extended")
+            add_event(db, referral, "extended_by_specialist", actor_label, body.institution_id,
+                      {**detail, "next_reminder": until.isoformat()})
     audit(db, None, f"inbound.{body.type}", "referral", referral.reference, "success", referral.id, detail, actor=actor)
     try:
         db.commit()

@@ -38,7 +38,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from . import adapter, key_routes, m2m, record_routes
-from .config import (ACCEPTED_HOLD_DAYS, AUDIENCE, CENTRAL_URL, DEFAULT_WINDOW_DAYS, GRACE_HOURS, INSTITUTION, INSTITUTION_NAME,
+from .config import (ACCEPTED_HOLD_DAYS, AUDIENCE, CENTRAL_URL, CLOSE_GRACE_DAYS, DEFAULT_WINDOW_DAYS, INSTITUTION, INSTITUTION_NAME,
+                     MAX_REFERRAL_DAYS,
                      LOCAL_ID_PREFIX)
 from .models import (
     AuditEvent,
@@ -916,16 +917,17 @@ class ExtendHoldIn(BaseModel):
 
 @app.post("/cases/{case_id}/complete", tags=["receiving doctor"])
 def complete_case(case_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    """The referred doctor has finished with the referral. The shared records are removed 72 hours later."""
+    """The specialist closes the referral (spec v4 step 11). The encrypted referral is purged a week later; the
+    patient keeps their own copy."""
     _require_doctor(principal)
     case = _get_case(db, case_id, principal)
     if case.completed_at:
         return _case_out(case, db)
     if case.decision != "accepted":
-        raise _conflict("not_accepted", "Only an accepted referral can be marked complete")
+        raise _conflict("not_accepted", "Only an accepted referral can be closed")
     now = utcnow()
     case.completed_by, case.completed_at, case.status = principal.display_name, now, "completed"
-    case.hold_until = now + timedelta(hours=GRACE_HOURS)
+    case.hold_until = now + timedelta(days=CLOSE_GRACE_DAYS)
     _emit(db, f"{INSTITUTION}:{case.central_referral_id}:completed", "completed", case.central_referral_id, principal,
           {"records_removed_at": case.hold_until.isoformat()}, case=case)
     record_audit(db, AuditEvent, principal, "case.complete", "referral", case.central_referral_id, "success",
@@ -936,13 +938,17 @@ def complete_case(case_id: int, db: Session = Depends(get_db), principal: Princi
 
 @app.post("/cases/{case_id}/extend-hold", tags=["receiving doctor"])
 def extend_hold(case_id: int, body: ExtendHoldIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    """The referred doctor needs the shared records for longer: kept for another 30 days from now."""
+    """The specialist keeps the referral open longer: another 30 days, with a reason, at most MAX_REFERRAL_DAYS after
+    accepting (spec v4 7). The close reminder moves to the new date."""
     _require_doctor(principal)
     case = _get_case(db, case_id, principal)
     if case.decision != "accepted" or case.completed_at or case.shared_removed_at:
-        raise _conflict("not_extendable", "Only an accepted referral that is not complete can be extended")
+        raise _conflict("not_extendable", "Only an accepted referral that is not closed can be extended")
     now = utcnow()
-    case.hold_until = max(case.hold_until or now, now + timedelta(days=ACCEPTED_HOLD_DAYS))
+    cap = case.decision_at + timedelta(days=MAX_REFERRAL_DAYS)
+    if (case.hold_until or now) >= cap:
+        raise _conflict("max_reached", f"Already at the {MAX_REFERRAL_DAYS}-day limit: close the referral")
+    case.hold_until = min(max(case.hold_until or now, now) + timedelta(days=ACCEPTED_HOLD_DAYS), cap)
     _emit(db, f"{INSTITUTION}:{case.central_referral_id}:extend:{int(now.timestamp())}", "hold_extended",
           case.central_referral_id, principal, {"until": case.hold_until.isoformat(), "reason": body.reason.strip()}, case=case)
     record_audit(db, AuditEvent, principal, "case.extend_hold", "referral", case.central_referral_id, "success",

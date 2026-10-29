@@ -1,60 +1,66 @@
-"""Data lifecycle (spec v3 A, C): working-set timing, package manifest and role menus. (Sharing grants were
-replaced by consent and each institution's policy in spec v4: see services/provider/tests/test_policy.py.)"""
+"""Referral lifecycle (spec v4 7, 11): close reminders, extension limits, purge timing; and role templates (spec v4
+4.1). Purge itself (crypto-shredding with a receipt) is checked against the running stack in tests/test_e2e_lifecycle.py."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
-from refcommon.exchange import package_hash
-
 from app.config import INSTITUTIONS, settings
 from app.identity import role_templates
 from app.lifecycle import working_set
-from app.lifecycle.manifest import build_manifest, is_purged, purged_envelope, verify_copy
 
 NOW = datetime(2026, 10, 27, 12, tzinfo=timezone.utc)
+HOLD = timedelta(days=settings.accepted_hold_days)
+GRACE = timedelta(hours=settings.working_set_grace_hours)
+CLOSE = timedelta(days=settings.close_grace_days)
+DECLINE = timedelta(days=settings.decline_grace_days)
+MAX = timedelta(days=settings.max_referral_days)
 
 
-# ---------------------------------------------------------------- working set timing
 def referral(kind="referral", **kw):
     base = dict(kind=kind, status="submitted", working_set_expires_at=None, working_set_purged_at=None,
-                receiver_completed_at=None, accepted_at=None)
+                receiver_completed_at=None, accepted_at=None, close_reminder_due_at=None, reminders_sent=0,
+                last_reminder_at=None, escalated_at=None)
     return SimpleNamespace(**{**base, **kw})
 
 
-HOLD = timedelta(days=settings.accepted_hold_days)
-GRACE = timedelta(hours=settings.working_set_grace_hours)
-
-
-def test_no_limit_until_accepted_then_safety_limit():
+def test_no_limit_until_accepted_then_a_reminder_not_a_purge():
     r = referral()
-    working_set.start(r, NOW)
-    assert r.working_set_expires_at is None  # sent but not accepted: no time limit
     for status in ("acknowledged", "response_returned", "closed"):
         working_set.on_status(r, status, NOW)
-        assert r.working_set_expires_at is None  # answering or closing alone does not start the clock
+        assert r.working_set_expires_at is None and r.close_reminder_due_at is None
     working_set.on_status(r, "accepted", NOW)
-    assert r.working_set_expires_at == NOW + HOLD
+    assert r.close_reminder_due_at == NOW + HOLD
+    assert r.working_set_expires_at is None  # never purged just because time passed (O4)
 
 
-def test_receiver_extends_and_completes():
-    r = referral(status="accepted", working_set_expires_at=NOW + HOLD)
-    later = NOW + timedelta(days=20)
-    assert working_set.extend(r, later) == later + HOLD  # 30 days from when they extend
-    assert working_set.extend(r, NOW) == later + HOLD  # never shortens
-    working_set.complete(r, later)
+def test_extension_moves_the_reminder_and_stops_at_the_maximum():
+    r = referral(status="accepted", accepted_at=NOW, close_reminder_due_at=NOW + HOLD, reminders_sent=2,
+                 escalated_at=NOW + HOLD)
+    day31 = NOW + timedelta(days=31)
+    assert working_set.extend(r, day31) == day31 + HOLD  # from the later of now and the due date
+    assert r.reminders_sent == 0 and r.escalated_at is None
+    for _ in range(10):
+        working_set.extend(r, NOW + timedelta(days=40))
+    assert r.close_reminder_due_at == NOW + MAX  # never past the maximum lifetime
+
+
+def test_close_purges_after_the_grace_period():
+    r = referral(status="accepted", accepted_at=NOW, close_reminder_due_at=NOW + HOLD)
+    later = NOW + timedelta(days=12)
+    assert working_set.close(r, later) == later + CLOSE
+    assert r.close_reminder_due_at is None
     r.receiver_completed_at = later
-    assert r.working_set_expires_at == later + GRACE
-    assert working_set.extend(r, later) is None  # nothing to extend once complete
+    assert working_set.extend(r, later) is None  # nothing to extend once closed
 
 
-def test_decline_removes_now_and_cancel_after_grace():
+def test_decline_and_cancel_purge_after_a_short_grace():
     r = referral(status="acknowledged")
     working_set.on_status(r, "declined", NOW)
-    assert r.working_set_expires_at == NOW
-    r = referral(status="accepted", working_set_expires_at=NOW + HOLD)
+    assert r.working_set_expires_at == NOW + DECLINE
+    r = referral(status="accepted", accepted_at=NOW, close_reminder_due_at=NOW + HOLD)
     working_set.on_status(r, "cancelled", NOW)
-    assert r.working_set_expires_at == NOW + GRACE
+    assert r.working_set_expires_at == NOW + DECLINE and r.close_reminder_due_at is None
 
 
 def test_test_requests_end_after_results():
@@ -63,51 +69,6 @@ def test_test_requests_end_after_results():
     assert r.working_set_expires_at == NOW + GRACE
     working_set.on_status(r, "closed", NOW + timedelta(hours=10))  # never later than before
     assert r.working_set_expires_at == NOW + GRACE
-
-
-def test_working_set_restarts_after_purge():
-    r = referral(status="accepted", accepted_at=NOW, working_set_expires_at=NOW, working_set_purged_at=NOW)
-    working_set.start(r, NOW + timedelta(days=1))
-    assert r.working_set_purged_at is None and r.working_set_expires_at == NOW + timedelta(days=1) + HOLD
-    r = referral(working_set_expires_at=NOW, working_set_purged_at=NOW)  # not accepted yet
-    working_set.start(r, NOW + timedelta(days=1))
-    assert r.working_set_purged_at is None and r.working_set_expires_at is None
-
-# ---------------------------------------------------------------- manifest and copy check
-ENVELOPE = {
-    "referral_id": "REF-1", "package_version": 1, "sender_institution": "drali", "destination_institution": "akuh",
-    "sent_by_id": "u1", "sent_at": "2026-10-27T10:00:00Z", "content_hash": "abc", "delivery_key": "k1",
-    "evidence": [{"evidence_id": 5, "category": "lab", "origin": "source", "source_institution": "chughtai",
-                  "source_record_type": "Observation", "source_record_id": "L1", "source_record_version": "2",
-                  "display": "Creatinine 1.4 mg/dL"}],
-    "medication_flags": [{"flag_id": 9, "version": 1, "kind": "interaction", "rule_id": "r1", "rule_version": 3,
-                          "message": "secret clinical text", "acknowledged": {"decision": "research"}}],
-    "medication_evaluation": {"ruleset_hash": "rs1"},
-    "ai_suggestions": [{"pair_key": "a|b", "text": "x"}],
-    "selection": {"counts": {"selected": 1}},
-}
-
-
-def test_manifest_holds_references_not_values():
-    m = build_manifest(ENVELOPE)
-    assert m["evidence"][0]["source_record_version"] == "2" and m["ruleset_hash"] == "rs1"
-    assert m["medication_flags"][0]["decision"] == "research" and m["ai_suggestions"] == ["a|b"]
-    text = str(m)
-    assert "Creatinine" not in text and "secret clinical text" not in text
-
-
-def test_purged_envelope_keeps_identity_only():
-    p = purged_envelope(ENVELOPE)
-    assert is_purged(p) and p["content_hash"] == "abc" and "evidence" not in p and "medication_flags" not in p
-
-
-def test_verify_copy():
-    stored = package_hash(ENVELOPE)
-    assert verify_copy(stored, dict(ENVELOPE))["result"] == "match"
-    assert verify_copy(stored, {**ENVELOPE, "delivery_key": "other"})["result"] == "match"  # not a hashed field
-    assert verify_copy(stored, {**ENVELOPE, "package_version": 2})["result"] == "mismatch"
-    assert verify_copy(stored, None)["result"] == "unusable_copy"
-
 
 # ---------------------------------------------------------------- role templates
 def test_every_template_is_valid():

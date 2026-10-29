@@ -16,6 +16,9 @@ DEFAULT_WINDOW_DAYS = int(os.environ.get("REFERRAL_WINDOW_DAYS", "183"))
 # doctor), and removed GRACE_HOURS after they mark it complete (the platform applies the same rules)
 ACCEPTED_HOLD_DAYS = int(os.environ.get("ACCEPTED_HOLD_DAYS", "30"))
 GRACE_HOURS = int(os.environ.get("WORKING_SET_GRACE_HOURS", "72"))
+# spec v4 7: the specialist closes (purged CLOSE_GRACE_DAYS later) or extends, at most MAX_REFERRAL_DAYS after accepting
+CLOSE_GRACE_DAYS = int(os.environ.get("CLOSE_GRACE_DAYS", "7"))
+MAX_REFERRAL_DAYS = int(os.environ.get("MAX_REFERRAL_DAYS", "180"))
 
 # End-to-end encryption (spec v4): this service's key store is sealed with KEYSTORE_SECRET; the platform ("hub")
 # is called with signed request assertions. The participant registry (pinned keys) is a read-only file.

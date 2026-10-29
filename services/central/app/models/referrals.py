@@ -77,9 +77,15 @@ class Referral(Base):
     # manifest and fingerprint stay). See lifecycle/working_set.py.
     working_set_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     working_set_purged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # the receiving doctor marked the referral complete (its shared records are removed after the grace period)
+    # the specialist closed the referral (spec v4 step 11): purged after the grace period
     receiver_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     receiver_completed_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # spec v4 7: the close reminder (30 days after acceptance, or the end of an extension), weekly repeats,
+    # escalation to the receiving department's staff; never a silent auto-close
+    close_reminder_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    reminders_sent: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    last_reminder_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    escalated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

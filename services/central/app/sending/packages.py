@@ -31,7 +31,7 @@ from ..referrals.state import IN_FLIGHT, event
 from ..security import audit, bump, error
 from .readiness import blocking, readiness
 
-MANIFEST_TYPE = "refx.package.manifest/v1"
+MANIFEST_TYPE = e2e.MANIFEST_TYPE
 
 
 def manifest_hash(manifest: dict) -> str:

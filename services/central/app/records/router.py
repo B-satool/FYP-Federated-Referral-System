@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
+from refcommon import e2e
 from refcommon.auth import Principal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -125,6 +126,72 @@ def encrypted_items(referral_id: int, db: Session = Depends(get_db), principal: 
             "batches": [{"batch_id": b.batch_id, "origin": b.origin, "source_institution": b.source_institution,
                          "source_name": institution_name(b.source_institution), "created_at": b.created_at}
                         for b in batches]}
+
+
+def package_bundle(db: Session, r: Referral, recipient_type: str, recipient_subjects: set[str] | None = None) -> dict:
+    """The latest sent (or approved) signed package: its manifest, the signer's directory entry, the items it lists
+    (titles and ciphertext) and the data keys wrapped to the given recipient type. The holder verifies the
+    signature and the plaintext hashes on its own device."""
+    from ..keys.router import entry_out
+    from ..models import DirectoryEntry, PackageManifest
+
+    stmt = select(PackageManifest).where(PackageManifest.referral_id == r.id)
+    if recipient_type == "department" and r.submitted_package_version is not None:
+        stmt = stmt.where(PackageManifest.version <= r.submitted_package_version)  # what was actually sent
+    pm = db.scalars(stmt.order_by(PackageManifest.version.desc())).first()
+    if pm is None:
+        raise error(404, "no_package", "No signed package for this referral yet")
+    wanted = {(x["batch_id"], x["item_id"]) for x in pm.manifest.get("items", [])}
+    items = [it for it in db.scalars(select(EncryptedItem).where(EncryptedItem.referral_id == r.id)
+                                     .order_by(EncryptedItem.id)) if (it.batch_id, it.item_id) in wanted]
+    batches = {b for b, _ in wanted}
+    wq = select(WrappedKey).where(WrappedKey.referral_id == r.id, WrappedKey.recipient_type == recipient_type,
+                                  WrappedKey.batch_id.in_(batches))
+    if recipient_subjects is not None:
+        wq = wq.where(WrappedKey.recipient_subject.in_(recipient_subjects))
+    wraps = db.scalars(wq).all()
+    signer = next((e for e in db.scalars(select(DirectoryEntry).where(DirectoryEntry.subject_id == pm.signer_subject))
+                   if e.entry.get("sig_public_key") and e2e.key_id(e.entry["sig_public_key"]) == pm.signer_key_id), None)
+    return {"reference": r.reference, "version": pm.version, "manifest": pm.manifest,
+            "manifest_sha256": pm.manifest_sha256, "signer": entry_out(signer) if signer else None,
+            "items": [title_out(it) | {"sealed": it.sealed, "ciphertext_sha256": it.ciphertext_sha256} for it in items],
+            "wraps": [{"batch_id": w.batch_id, "recipient_type": w.recipient_type, "recipient_key_id": w.recipient_key_id,
+                       "key_version": w.key_version, "wrapped": w.wrapped} for w in wraps],
+            "batches": [{"batch_id": b.batch_id, "origin": b.origin, "source_institution": b.source_institution,
+                         "source_name": institution_name(b.source_institution), "created_at": b.created_at}
+                        for b in db.scalars(select(EncryptedBatch).where(EncryptedBatch.batch_id.in_(batches)))]}
+
+
+def department_member(db: Session, principal: Principal, hospital: str, department: str) -> bool:
+    """A doctor of the receiving hospital who holds the department's group key (spec v4 D4, 5.5)."""
+    from ..models import GroupKeyWrap
+
+    if principal.institution_id != hospital or "clinician" not in principal.roles:
+        return False
+    return db.scalars(select(GroupKeyWrap).where(GroupKeyWrap.hospital_id == hospital,
+                                                 GroupKeyWrap.department == department,
+                                                 GroupKeyWrap.member_subject_id == principal.subject)).first() is not None
+
+
+@router.get("/e2e/received/{reference}/package")
+def received_package(reference: str, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """The receiving department's doctors fetch the sent package (ciphertext and the data keys wrapped to the
+    department group key) and open it on their device. The receiving hospital's system keeps no copy (D2)."""
+    require_scope(principal, "records:content", "records.received")
+    r = db.scalars(select(Referral).where(Referral.reference == reference)).first()
+    if r is None or r.submitted_package_version is None:
+        raise error(404, "not_found", "No sent referral with this reference")
+    if not department_member(db, principal, r.destination_institution, r.destination_department):
+        audit(db, principal, "records.received_fetch", "referral", r.reference, "denied", r.id)
+        db.commit()
+        raise error(403, "not_a_member", "Only doctors of the receiving department, holding its key, open this referral")
+    if r.working_set_purged_at is not None:
+        raise error(410, "purged", "This referral's encrypted content was purged")
+    out = package_bundle(db, r, "department")
+    audit(db, principal, "records.received_fetch", "referral", r.reference, "success", r.id,
+          {"version": out["version"], "items": len(out["items"])})
+    db.commit()
+    return out
 
 
 class BatchIn(BaseModel):

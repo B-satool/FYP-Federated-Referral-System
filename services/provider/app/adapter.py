@@ -10,7 +10,7 @@ from datetime import datetime, time, timezone
 from typing import Any
 
 from refcommon import fhir
-from refcommon.exchange import PackageEnvelope, package_hash
+from refcommon.exchange import ReferralNotice
 
 from .models import Condition, ImagingReport, LabResult, Medication, Patient, Surgery, Visit
 
@@ -177,35 +177,29 @@ def imaging_report(inst: str, i: ImagingReport) -> dict:
     return res
 
 
-def translate_package(inst: str, raw: dict[str, Any]) -> tuple[PackageEnvelope, dict[str, Any]]:
-    """Validate an incoming referral version and extract the local case fields.
-    The receiving side re-checks it itself: addressee, sender record, hash and the
-    ServiceRequest inside the FHIR Bundle."""
-    env = PackageEnvelope.model_validate(raw)
-    dumped = env.model_dump(mode="json")
+TITLE_KEYS = ("item_id", "kind", "category", "label", "date", "source_institution", "sensitive")
+
+
+def translate_notice(inst: str, raw: dict[str, Any]) -> tuple[ReferralNotice, dict[str, Any]]:
+    """Validate an incoming referral notice (spec v4, approval A4) and extract the local case fields.
+
+    A notice carries administrative data and record titles only. The receiving side checks the addressee, that the
+    sender and the signer are named, and that the titles hold nothing but title fields: content never reaches this
+    system (the department's doctors open the ciphertext from the platform on their own devices; D2)."""
+    env = ReferralNotice.model_validate(raw)
     if env.destination_institution != inst:
-        raise PackageRejected("package is addressed to a different institution")
-    if not env.sent_by or not env.requesting_doctor.get("name"):
-        raise PackageRejected("package does not record the requesting doctor and the sender")
-    if package_hash(dumped) != env.content_hash:
-        raise PackageRejected("hash mismatch: content differs from the version that was sent")
-    entries = [e.get("resource", {}) for e in env.fhir_bundle.get("entry", [])]
-    service_requests = [r for r in entries if r.get("resourceType") == "ServiceRequest"]
-    if len(service_requests) != 1:
-        raise PackageRejected("bundle must contain exactly one ServiceRequest")
-    problems = fhir.validate_resource(service_requests[0])
-    if problems:
-        raise PackageRejected("invalid ServiceRequest: " + "; ".join(problems))
-    if service_requests[0].get("status") != "active":
-        raise PackageRejected("ServiceRequest is not active")
+        raise PackageRejected("notice is addressed to a different institution")
+    if not env.sent_by or not env.requesting_doctor.get("name") or not env.signed_by.get("subject_id"):
+        raise PackageRejected("notice does not record the requesting doctor, the signer and the sender")
+    if len(env.manifest_sha256) != 64:
+        raise PackageRejected("notice has no signed manifest hash")
+    if any(set(t) - set(TITLE_KEYS) for t in env.titles):
+        raise PackageRejected("a record title carries more than title fields")
     local_id = env.patient.get("local_patient_id")
-    for ident in env.patient.get("verified_links", []):
-        if ident.get("institution_id") == inst:
-            local_id = local_id or ident.get("local_patient_id")
     fields = {
         "central_referral_id": env.referral_id,
         "sender_institution": env.sender_institution,
-        "sender_name": env.requesting_doctor.get("institution", env.sender_institution),
+        "sender_name": env.sender_name or env.requesting_doctor.get("institution", env.sender_institution),
         "department": env.destination_department,
         "requested_doctor": env.destination_doctor,
         "patient_name": env.patient.get("name", "Unknown"),

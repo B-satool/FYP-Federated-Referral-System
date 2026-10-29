@@ -459,14 +459,15 @@ def patient_history(db: Session = Depends(get_db), principal: Principal = Depend
 # --------------------------------------------------------------------------- inbound from central
 @app.post("/inbound/referrals", tags=["inbound (central platform)"])
 def receive_package(raw: dict, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    """Idempotent receipt of a sent referral version (keyed by delivery key)."""
+    """Idempotent receipt of a sent referral version (keyed by delivery key): a notice with record titles and the
+    signed manifest's hash, never record content (spec v4, D2)."""
     _require_central(principal)
     delivery_key = raw.get("delivery_key")
     existing = db.scalars(select(IncomingPackage).where(IncomingPackage.delivery_key == delivery_key)).first()
     if existing:
         return {"status": "already_received", "case_id": existing.case_id, "version": existing.version}
     try:
-        env, fields = adapter.translate_package(INSTITUTION, raw)
+        env, fields = adapter.translate_notice(INSTITUTION, raw)
     except adapter.PackageRejected as exc:
         record_audit(db, AuditEvent, principal, "package.receive", "referral", str(raw.get("referral_id")), "rejected",
                      detail={"reason": str(exc)})
@@ -484,9 +485,10 @@ def receive_package(raw: dict, db: Session = Depends(get_db), principal: Princip
         case.urgency = fields["urgency"]
         case.local_patient_id = fields["local_patient_id"] or case.local_patient_id
     db.add(IncomingPackage(case_id=case.id, version=env.package_version, delivery_key=env.delivery_key,
-                           envelope=env.model_dump(mode="json"), content_hash=env.content_hash))
+                           envelope=env.model_dump(mode="json"), content_hash=env.manifest_sha256))
     record_audit(db, AuditEvent, principal, "package.receive", "referral", env.referral_id, "success",
-                 detail={"version": env.package_version, "hash": env.content_hash})
+                 detail={"version": env.package_version, "manifest_sha256": env.manifest_sha256,
+                         "titles": len(env.titles)})
     try:
         db.commit()
     except IntegrityError:
@@ -734,10 +736,11 @@ def assign(case_id: int, body: AssignIn, db: Session = Depends(get_db), principa
 
 
 def _record_titles(envelope: dict | None) -> list[dict]:
-    """The records in a received package by title only (test or scan name, visit setting), never their content."""
-    return [{"title": record_title(e.get("category", ""), e.get("original")), "category": e.get("category"),
-             "source_institution": e.get("source_institution"), "date": e.get("clinical_time")}
-            for e in (envelope or {}).get("evidence", [])]
+    """The records in a received notice by title only (spec v4 4.2). A sensitive item shows a generic label to staff;
+    its real label is only inside the ciphertext the department's doctors open."""
+    return [{"title": "Restricted record" if t.get("sensitive") else t.get("label"), "kind": t.get("kind"),
+             "category": t.get("category"), "source_institution": t.get("source_institution"), "date": t.get("date")}
+            for t in (envelope or {}).get("titles", [])]
 
 
 @app.get("/cases/{case_id}", tags=["incoming referrals"])
@@ -764,6 +767,8 @@ def get_case(case_id: int, db: Session = Depends(get_db), principal: Principal =
                                "answered_by": i.answered_by, "answered_at": i.answered_at} for i in infos],
             "responses": [], "results": [],
         }
+    # Doctors: the same notice (no content is ever stored here); their browser fetches the ciphertext from the
+    # platform and opens it with the department group key.
     return {
         "case": _case_out(case, db), "redacted": False,
         "packages": [{"version": p.version, "received_at": p.received_at, "content_hash": p.content_hash,

@@ -313,6 +313,42 @@ def check_revocation(rev: dict, issuer_public: str) -> bool:
         and verify_object(issuer_public, rev)
 
 
+# --------------------------------------------------------------------------- signed package manifests (spec v4 5.8)
+MANIFEST_TYPE = "refx.package.manifest/v1"
+MANIFEST_ITEM_KEYS = ("batch_id", "item_id", "kind", "title", "content_hash", "ciphertext_hash")
+
+
+def package_manifest(*, referral: str, version: int, signer_subject: str, signer_sig_public: str,
+                     signer_hospital: str | None, recipient_hospital: str, recipient_department: str,
+                     group_enc_public: str, group_key_version: int, items: list[dict],
+                     patient_enc_public: str | None = None) -> dict:
+    """The unsigned manifest a doctor's device signs on approval: the ordered items (each with the SHA-256 of its
+    plaintext and of its stored ciphertext), the receiving department's group key, and the referral. The signature
+    covers the plaintext hashes, so anyone holding a decrypted copy can check it is what was approved."""
+    return {"type": MANIFEST_TYPE, "suite": SUITE, "referral": referral, "version": version, "created_at": now_iso(),
+            "signer": {"subject_id": signer_subject, "sig_key_id": key_id(signer_sig_public),
+                       "hospital_id": signer_hospital},
+            "recipient": {"hospital_id": recipient_hospital, "department": recipient_department,
+                          "group_key_id": key_id(group_enc_public), "key_version": group_key_version},
+            "patient_key_id": key_id(patient_enc_public) if patient_enc_public else None,
+            "items": [{k: it.get(k) for k in MANIFEST_ITEM_KEYS} for it in items]}
+
+
+def check_copy(manifest: dict, signer_sig_public: str, plaintexts: dict[str, bytes]) -> list[str]:
+    """What is wrong with a decrypted copy against its signed manifest (empty if it verifies): the signature, then
+    each listed item's plaintext hash. `plaintexts` maps item ids to their decrypted bytes."""
+    if manifest.get("type") != MANIFEST_TYPE or not verify_object(signer_sig_public, manifest):
+        return ["the manifest signature does not verify"]
+    problems = []
+    for it in manifest.get("items", []):
+        data = plaintexts.get(it["item_id"])
+        if data is None:
+            problems.append(f"{it['item_id']}: missing from the copy")
+        elif sha256_hex(data) != it["content_hash"]:
+            problems.append(f"{it['item_id']}: content differs from what was approved")
+    return problems
+
+
 # --------------------------------------------------------------------------- machine-to-machine assertions (ES256)
 def make_assertion(key: ec.EllipticCurvePrivateKey, *, issuer: str, audience: str, claims: dict | None = None,
                    ttl: int = ASSERTION_TTL_SECONDS) -> str:

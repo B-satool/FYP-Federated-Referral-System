@@ -261,8 +261,10 @@ def get_referral(referral_id: int, db: Session = Depends(get_db), principal: Pri
     if r.status == "draft" and r.requesting_doctor_id != principal.subject and "clinician" not in principal.roles:
         raise error(404, "not_found", "Referral not found")
     audit(db, principal, "referral.view", "referral", r.reference, "success", r.id)
-    packages = db.scalars(select(ReferralPackage).where(ReferralPackage.referral_id == r.id)
-                          .order_by(ReferralPackage.version.desc())).all()
+    from ..models import PackageManifest
+
+    packages = db.scalars(select(PackageManifest).where(PackageManifest.referral_id == r.id)
+                          .order_by(PackageManifest.version.desc())).all()
     dxs = db.scalars(select(DiagnosticRequest).where(DiagnosticRequest.referral_id == r.id).order_by(DiagnosticRequest.id))
     clars = db.scalars(select(Clarification).where(Clarification.referral_id == r.id).order_by(Clarification.id))
     clinical = sees_clinical(principal)
@@ -270,8 +272,12 @@ def get_referral(referral_id: int, db: Session = Depends(get_db), principal: Pri
         **referral_out(r, sees_clinical(principal)),
         "sources": source_overview(db, r),
         "readiness": readiness(db, r, clinical) if r.status in PRE_SUBMISSION or r.amendment_open else None,
-        "packages": [{"version": p.version, "sent_by": p.sent_by, "sent_at": p.sent_at, "content_hash": p.content_hash,
-                      "superseded": p.superseded, "delivery_key": p.delivery_key} for p in packages],
+        # signed versions (spec v4 5.8): who signed, when, the manifest hash; whether staff have sent it
+        "packages": [{"version": p.version, "signed_by": r.packet_reviewed_by if p.signer_subject == r.requesting_doctor_id
+                      else p.signer_subject, "signed_at": p.created_at, "manifest_sha256": p.manifest_sha256,
+                      "signer_key_id": p.signer_key_id, "item_count": p.item_count, "superseded": p.superseded,
+                      "sent": r.submitted_package_version is not None and p.version <= r.submitted_package_version}
+                     for p in packages],
         "links": [link_summary(x) for x in links_for(db, r.patient_institution, r.patient_local_id)],
         "diagnostics": [diagnostic_out(d, sees_clinical(principal)) for d in dxs],
         "clarifications": [{"id": c.id, "question": c.question if clinical else HIDDEN, "asked_by": c.asked_by,
@@ -287,15 +293,21 @@ def e2e_summary(db: Session, r: Referral) -> dict:
     """Consent, records requests and encrypted-content counts: metadata every role at the referring institution
     may see (spec v4 4)."""
     from ..consent.router import consent_out
+    from ..keys.router import current_department_entry, entry_out, patient_entry_for_cnic
     from ..models import Consent, EncryptedItem
     from ..records.requests import latest_requests, request_out
 
     latest = db.scalars(select(Consent).where(Consent.referral_id == r.id, Consent.status != "withdrawn")
                         .order_by(Consent.id.desc())).first()
     items = db.scalars(select(EncryptedItem.item_id).where(EncryptedItem.referral_id == r.id)).all()
+    dept = current_department_entry(db, r.destination_institution, r.destination_department) if r.kind == "referral" else None
+    patient = patient_entry_for_cnic(db, r.patient_cnic or "")
     return {"consent": consent_out(latest, r) if latest else None,
             "record_requests": [request_out(x) for x in latest_requests(db, r)],
-            "encrypted_item_count": len(set(items))}
+            "encrypted_item_count": len(set(items)),
+            # the keys an approval re-wraps to; the doctor's device verifies each signature against pinned keys
+            "recipient_keys": {"department": entry_out(dept) if dept else None,
+                               "patient": entry_out(patient) if patient else None}}
 
 
 class ReferralUpdate(ReferralForm):

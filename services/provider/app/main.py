@@ -1,10 +1,10 @@
-"""Institution service: one instance per clinic, laboratory or hospital.
+"""Institution service (the institution's adapter): one instance per clinic, laboratory or hospital.
 
-It owns this institution's patient records and makes every access decision
-itself (own staff and role, or an access grant created by its own staff when
-they approved a patient-link request). Clinics and hospitals receive referrals
-here (staff take them in, confirm the patient and assign a doctor), and
-laboratory/imaging departments receive diagnostic orders here.
+It owns this institution's patient records and makes every access decision itself: its own staff by role, and
+another institution's referral request under the patient's signed consent and this institution's own policy,
+answered with encrypted records (record_routes.py, release.py). Clinics and hospitals receive referrals here
+(staff take them in, confirm the patient and assign a doctor), and laboratory/imaging departments receive
+diagnostic orders here.
 """
 from __future__ import annotations
 
@@ -26,12 +26,8 @@ from refcommon.db import make_session_factory, session_dependency, utcnow
 from refcommon.exchange import ClarificationAnswer, DiagnosticOrder, ProviderEvent, ResultForward, record_title
 from refcommon.sourcekit import (
     ALL_CATEGORIES,
-    DEFAULT_GRANT_DAYS,
     build_admin_router,
-    build_grant_service_router,
     decide_access,
-    grant_expiry,
-    grant_is_live,
     health_router,
     normalize_cnic,
     record_audit,
@@ -45,7 +41,6 @@ from . import adapter, key_routes, m2m, record_routes
 from .config import (ACCEPTED_HOLD_DAYS, AUDIENCE, CENTRAL_URL, DEFAULT_WINDOW_DAYS, GRACE_HOURS, INSTITUTION, INSTITUTION_NAME,
                      LOCAL_ID_PREFIX)
 from .models import (
-    AccessGrant,
     AuditEvent,
     Case,
     Condition,
@@ -145,9 +140,7 @@ def _check_db() -> None:
 
 
 app.include_router(health_router(_check_db))
-app.include_router(build_admin_router(INSTITUTION, AccessGrant, AuditEvent,
-                                      lambda db, pid: db.get(Patient, pid) is not None, get_db, get_principal))
-app.include_router(build_grant_service_router(INSTITUTION, AccessGrant, AuditEvent, get_db, get_principal))
+app.include_router(build_admin_router(INSTITUTION, AuditEvent, get_db, get_principal))
 app.include_router(key_routes.build_router(get_db, get_principal))
 app.include_router(record_routes.build_router(get_db, get_principal))
 
@@ -292,44 +285,6 @@ def register_patient(body: RegisterIn, db: Session = Depends(get_db), principal:
     return _demographics(p)
 
 
-class ShareIn(BaseModel):
-    grantee_institution: str
-    local_patient_id: str
-    basis: str = Field(min_length=5)
-    duration_days: int = DEFAULT_GRANT_DAYS
-    referral_ref: str | None = None
-
-
-@app.post("/sharing/grants", status_code=201, tags=["sharing"])
-def share_records(body: ShareIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    """Created when this institution's own staff approve a patient-link request:
-    the requesting institution may then read this patient's referral-relevant records."""
-    require_own(principal, "clinic_staff", "institution_admin", what="share patient records")
-    if db.get(Patient, body.local_patient_id) is None:
-        raise _not_found("No such patient")
-    if body.grantee_institution == INSTITUTION:
-        raise HTTPException(422, {"code": "self_grant", "message": "An institution does not need a grant for itself"})
-    expires = grant_expiry(body.duration_days)
-    existing = [g for g in db.scalars(select(AccessGrant).where(AccessGrant.grantee_institution == body.grantee_institution,
-                                                                AccessGrant.local_patient_id == body.local_patient_id,
-                                                                AccessGrant.status == "active"))
-                if grant_is_live(g)]
-    if existing:
-        g = existing[0]
-        return {"id": g.id, "status": g.status, "categories": g.categories, "expires_at": g.expires_at}
-    g = AccessGrant(grantee_institution=body.grantee_institution, local_patient_id=body.local_patient_id,
-                    categories=list(ALL_CATEGORIES), basis=body.basis, granted_by=principal.display_name,
-                    expires_at=expires, referral_ref=body.referral_ref)
-    db.add(g)
-    db.flush()
-    record_audit(db, AuditEvent, principal, "grant.create", "access_grant", str(g.id), "success",
-                 referral_context=body.referral_ref,
-                 detail={"grantee": g.grantee_institution, "patient": g.local_patient_id, "basis": body.basis,
-                         "expires_at": g.expires_at.isoformat()})
-    db.commit()
-    return {"id": g.id, "status": g.status, "categories": g.categories, "expires_at": g.expires_at}
-
-
 # --------------------------------------------------------------------------- referral-relevant records
 def _since(raw: str | None) -> date:
     if raw:
@@ -355,7 +310,7 @@ def patient_activity(local_id: str, request: Request, db: Session = Depends(get_
     patient = db.get(Patient, local_id)
     if patient is None:
         raise _not_found(f"No such patient at {INSTITUTION_NAME}")
-    decision = decide_access(db, AccessGrant, principal, INSTITUTION, local_id, {"demographics"})
+    decision = decide_access(principal, INSTITUTION, {"demographics"})
     if not decision.allowed:
         record_audit(db, AuditEvent, principal, "records.activity", "patient", local_id, "denied",
                      request.headers.get("x-referral-id"), {"reason": decision.reason})
@@ -378,7 +333,7 @@ def patient_records(local_id: str, request: Request, categories: str | None = No
         record_audit(db, AuditEvent, principal, "records.read", "patient", local_id, "not_found", referral_ctx)
         db.commit()
         raise _not_found(f"No such patient at {INSTITUTION_NAME}")
-    decision = decide_access(db, AccessGrant, principal, INSTITUTION, local_id, requested)
+    decision = decide_access(principal, INSTITUTION, requested)
     if not decision.allowed:
         record_audit(db, AuditEvent, principal, "records.read", "patient", local_id, "denied", referral_ctx,
                      {"reason": decision.reason})

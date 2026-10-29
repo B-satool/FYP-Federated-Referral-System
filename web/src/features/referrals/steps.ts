@@ -99,11 +99,18 @@ export function computeSteps(r: ReferralDetail, role: Role): Record<StepKey, Ste
   if (r.kind === "test") {
     testSteps(r, role, out);
   } else {
-    const retrieved = r.sources.filter((s) => s.latest);
-    const problems = retrieved.filter((s) => ["unavailable", "denied", "invalid", "partial"].includes(s.latest!.status));
-    out.records = retrieved.length === 0 ? { state: sent ? "done" : "todo", note: "Retrieve records" }
-      : problems.length ? { state: "attention", note: `${plural(problems.length, "source", "sources")} incomplete` }
-      : { state: "done", note: `${retrieved.filter((s) => s.latest!.status === "successful").length} used` };
+    const consent = r.consent?.status;
+    const reqs = r.record_requests;
+    const problems = reqs.filter((x) => ["refused", "partial", "unavailable", "failed", "not_linked"].includes(x.status));
+    const waiting = reqs.filter((x) => x.status === "pending_manual_review");
+    out.records = sent ? { state: "done", note: `${r.encrypted_item_count} received` }
+      : !consent || ["declined", "revoked", "expired"].includes(consent)
+        ? { state: role === "staff" ? "todo" : "waiting", note: consent ? `Consent ${consent}` : "Ask the patient for consent" }
+      : consent === "requested" ? { state: "waiting", note: "Waiting for the patient" }
+      : !reqs.length ? { state: "todo", note: "Request the records" }
+      : problems.length ? { state: "attention", note: `${plural(problems.length, "institution", "institutions")} did not send everything` }
+      : waiting.length ? { state: "waiting", note: `${waiting.length} waiting for review there` }
+      : { state: role === "doctor" ? "attention" : "done", note: `${r.encrypted_item_count} received${role === "doctor" ? ": review them" : ""}` };
 
     const docs = item(r, role === "doctor" ? "documents" : "documents_read");
     out.papers = docs && !docs.ok && (role !== "doctor" || r.prepared_at)

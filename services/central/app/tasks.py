@@ -24,7 +24,6 @@ celery_app.conf.update(
     beat_schedule={
         "deliver-outbox": {"task": "deliver_outbox", "schedule": 5.0},
         "retention-sweep": {"task": "retention_sweep", "schedule": 3600.0},
-        "close-referral-grants": {"task": "close_referral_grants", "schedule": 60.0},
         "purge-working-sets": {"task": "purge_working_sets", "schedule": 600.0},
     },
     timezone="UTC",
@@ -117,33 +116,6 @@ def retention_sweep() -> int:
                   actor=("system", "retention sweep", "central-platform"))
         db.commit()
     return removed
-
-
-@celery_app.task(name="close_referral_grants")
-def close_referral_grants() -> int:
-    """For finished referrals, ask each institution to revoke the access grants opened for them."""
-    from .integration.grant_closeout import GRANTS_CLOSED_EVENT, close_grants, http_post
-    from .models import Referral, ReferralEvent
-    from .referrals.state import TERMINAL, event
-    from .security import audit
-
-    done = 0
-    with SessionLocal() as db:
-        finished = db.scalars(select(Referral).where(Referral.status.in_(TERMINAL))).all()
-        marked = set(db.scalars(select(ReferralEvent.referral_id).where(ReferralEvent.event_type == GRANTS_CLOSED_EVENT)))
-        for r in finished:
-            if r.id in marked:
-                continue
-            results = close_grants(r.reference, http_post)
-            if all(v == "ok" for v in results.values()):
-                event(db, r, GRANTS_CLOSED_EVENT, "system", "central-platform", {"institutions": sorted(results)})
-                audit(db, None, "grants.closed", "referral", r.reference, "success", r.id, {"institutions": sorted(results)},
-                      actor=("system", "grant close-out", "central-platform"))
-                done += 1
-            else:
-                log.warning("grant close-out incomplete for %s: %s", r.reference, results)
-        db.commit()
-    return done
 
 
 @celery_app.task(name="purge_working_sets")

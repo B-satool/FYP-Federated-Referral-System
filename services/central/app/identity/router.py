@@ -3,8 +3,8 @@
 Flow: staff at the requesting institution send a link request (name, date of birth,
 sex and CNIC from their own record). Staff at the target institution look the
 patient up in their own index, then approve with the matching record (or register
-the patient as new) or reject it. Approval also creates the target institution's
-access grant, so records open only after that institution's staff have checked.
+the patient as new) or reject it. A link identifies the person; it never grants access by itself: records are
+requested under the patient's consent and each institution's own policy (spec v4 6.5).
 """
 from __future__ import annotations
 
@@ -159,8 +159,8 @@ class ApproveIn(BaseModel):
 
 @router.post("/patient-links/{link_id}/approve")
 def approve_link(link_id: int, body: ApproveIn, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    """Only staff at the target institution approve. Approval records the basis and shares
-    the patient's referral-relevant records with the requesting institution."""
+    """Only staff at the target institution approve, after comparing the identity details. A link says who the
+    patient is there; it does not release any record (that needs the patient's consent)."""
     link = _load_link(db, link_id, principal)
     if principal.institution_id != link.target_institution:
         raise error(403, "forbidden", "Only the institution asked to confirm the link can approve it")
@@ -189,13 +189,7 @@ def approve_link(link_id: int, body: ApproveIn, db: Session = Depends(get_db), p
         raise error(409, "record_linked_elsewhere",
                     "That record is already linked to a different patient at the requesting institution")
     referral = db.get(Referral, link.referral_id) if link.referral_id else None
-    if link.kind == "records":
-        # temporary access, tied to the referral it was asked for (closed when that referral finishes)
-        sources.call(link.target_institution, "POST", "/sharing/grants", principal, json={
-            "grantee_institution": link.requester_institution, "local_patient_id": local_id,
-            "basis": f"Patient link #{link.id} approved by {principal.display_name}: {body.note.strip()}",
-            "referral_ref": referral.reference if referral else None})
-    elif referral is not None:
+    if link.kind != "records" and referral is not None:
         # the incoming referral and test orders for this patient now point at the confirmed record
         sources.call(link.target_institution, "POST", "/intake/patient", principal, json={
             "referral_id": referral.reference, "local_patient_id": local_id})
@@ -211,7 +205,8 @@ def approve_link(link_id: int, body: ApproveIn, db: Session = Depends(get_db), p
           {"target_local_id": local_id, "registered_new": link.registered_new})
     target = institution_name(link.target_institution)
     if link.kind == "records":
-        title, text = f"{target} confirmed {link.patient_name}", "Records from there can now be retrieved."
+        title, text = (f"{target} confirmed {link.patient_name}",
+                       "With the patient's consent, records can now be requested from there.")
     elif link.registered_new:
         title, text = (f"{target} registered {link.patient_name} as a new patient",
                        f"They had no earlier record of this patient. New record: {local_id}.")

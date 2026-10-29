@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from refcommon.db import utcnow
-from refcommon.sourcekit import AccessGrantMixin, AuditMixin
+from refcommon.sourcekit import AuditMixin
 from sqlalchemy import JSON, Date, DateTime, Float, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -124,10 +124,6 @@ class ImagingReport(Versioned, Base):
     # the category this institution marks sensitive (psychiatric | hiv_sexual_health | ...), released only with the
     # patient's specific consent (spec v4 4.2, 6.2)
     sensitive_category: Mapped[str | None] = mapped_column(String(40), nullable=True)
-
-
-class AccessGrant(AccessGrantMixin, Base):
-    __tablename__ = "access_grants"
 
 
 class AuditEvent(AuditMixin, Base):

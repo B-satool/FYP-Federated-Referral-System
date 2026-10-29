@@ -74,7 +74,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       items: [
         { to: "/admin/users", label: "Accounts", show: hasRole(me, "institution_admin") },
         { to: "/admin/keys", label: "Doctors' keys", show: hasRole(me, "institution_admin") && kind !== "platform" },
-        { to: "/admin/access", label: "Source access", show: hasRole(me, "institution_admin") && kind !== "platform" },
+        { to: "/release-requests", label: "Records requests from others", show: hasRole(me, "institution_admin", "clinic_staff", "diagnostics_staff") && kind !== "platform" },
         { to: "/admin/audit", label: "Audit log", show: hasRole(me, "institution_admin") },
       ],
     },

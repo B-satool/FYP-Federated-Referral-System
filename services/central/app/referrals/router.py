@@ -1,8 +1,9 @@
-"""The doctor's request, search, retrieval and lifecycle.
+"""The doctor's request, search and lifecycle.
 
 Two kinds of request:
-* referral: to a doctor or department at another clinic or hospital. Staff gather records,
-  papers and medicines, mark it ready, the doctor reviews the medication flags, staff send.
+* referral: to a department (or doctor) at another clinic or hospital. Staff ask the patient for consent and
+  request the records; the records arrive encrypted for the doctor, who reviews and approves a signed package;
+  staff send it (spec v4 section 2).
 * test: one or more tests or scans at a laboratory, radiology or cardiac department. Staff
   check and send the orders; results come back to the doctor.
 """
@@ -17,17 +18,16 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..config import (CATEGORY_DEPARTMENT_KIND, DEPARTMENTS, INSTITUTIONS, PROCEDURE_STATUSES, PROCEDURE_TAGS, SOURCES,
-                      URGENCIES, department_name, institution_name, settings)
+                      URGENCIES, department_name, institution_name)
 from ..db import get_db
 from ..identity.links import links_for
 from ..identity.router import create_request
-from ..integration import retrieval, sources
-from ..models import Clarification, DiagnosticRequest, Referral, ReferralEvent, ReferralPackage, SourceRetrieval
+from ..integration import sources
+from ..integration.retrieval import linked_sources
+from ..models import Clarification, DiagnosticRequest, Referral, ReferralEvent, ReferralPackage
 from ..notifications import notify_staff
-from ..selection import selection
-from ..tasks import enqueue
 from ..security import CLINIC_ROLES, DOCTOR, audit, bump, check_version, error, get_principal, load_referral, require_roles, sees_clinical
-from ..serializers import HIDDEN, diagnostic_out, link_summary, referral_out, retrieval_out
+from ..serializers import HIDDEN, diagnostic_out, link_summary, referral_out
 from ..workflow import after_change
 from .state import CLINICAL_LOCKED, IN_FLIGHT, PRE_SUBMISSION, TERMINAL, mark_clinical_change, transition
 
@@ -224,19 +224,21 @@ def test_destinations(db: Session, referral_ids: list[int]) -> dict[int, list[di
 
 
 def source_overview(db: Session, referral: Referral) -> list[dict]:
-    """Every institution and where this patient stands with it: own record, linked
-    (and whether it was used or skipped), link requested, or not linked."""
-    latest = retrieval.latest_by_source(db, referral)
-    linked = {t[0]: t for t in retrieval.linked_sources(db, referral)}
+    """Every institution and where this patient stands with it: own record, linked, link requested or not linked,
+    and the latest records request there (its outcome, never read as "no records" when refused or unreachable)."""
+    from ..records.requests import latest_requests, request_out
+
+    latest = {x.custodian: x for x in latest_requests(db, referral)}
+    linked = {t[0]: t for t in linked_sources(db, referral)}
     links = links_for(db, referral.patient_institution, referral.patient_local_id)
     out = []
     for inst, cfg in INSTITUTIONS.items():
         if inst == "central-platform":
             continue
-        sr = latest.get(inst)
+        rr = latest.get(inst)
         item = {"institution_id": inst, "name": cfg["name"], "kind": cfg["kind"],
                 "own": inst == referral.patient_institution, "destination": inst == referral.destination_institution,
-                "latest": retrieval_out(sr) if sr else None}
+                "latest": request_out(rr) if rr else None}
         if inst in linked:
             _, local_id, link_id = linked[inst]
             item.update({"linked": True, "local_patient_id": local_id, "link_id": link_id})
@@ -273,9 +275,25 @@ def get_referral(referral_id: int, db: Session = Depends(get_db), principal: Pri
         "clarifications": [{"id": c.id, "question": c.question if clinical else HIDDEN, "asked_by": c.asked_by,
                             "asked_at": c.asked_at, "status": c.status, "answer": c.answer if clinical else None,
                             "answered_by": c.answered_by, "answered_at": c.answered_at} for c in clars],
+        **e2e_summary(db, r),
     }
     db.commit()
     return out
+
+
+def e2e_summary(db: Session, r: Referral) -> dict:
+    """Consent, records requests and encrypted-content counts: metadata every role at the referring institution
+    may see (spec v4 4)."""
+    from ..consent.router import consent_out
+    from ..models import Consent, EncryptedItem
+    from ..records.requests import latest_requests, request_out
+
+    latest = db.scalars(select(Consent).where(Consent.referral_id == r.id, Consent.status != "withdrawn")
+                        .order_by(Consent.id.desc())).first()
+    items = db.scalars(select(EncryptedItem.item_id).where(EncryptedItem.referral_id == r.id)).all()
+    return {"consent": consent_out(latest, r) if latest else None,
+            "record_requests": [request_out(x) for x in latest_requests(db, r)],
+            "encrypted_item_count": len(set(items))}
 
 
 class ReferralUpdate(ReferralForm):
@@ -359,64 +377,6 @@ def request_referral_link(referral_id: int, body: LinkRequestIn, db: Session = D
                           purpose=f"Records for referral {r.reference}")
     db.commit()
     return link_summary(link)
-
-
-@router.post("/referrals/{referral_id}/retrieve")
-def retrieve_records(referral_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    r = load_referral(db, referral_id, principal, "retrieve")
-    if r.status in TERMINAL or r.status == "draft":
-        raise error(409, "not_available", "Records are retrieved while the referral is being prepared")
-    results = retrieval.retrieve(db, r, principal)
-    if r.current_package_version and r.status in IN_FLIGHT:
-        mark_clinical_change(db, r, principal.display_name, "records retrieved again", principal)
-    after_change(db, r, "records_retrieved", principal)
-    queued = _start_recommendation(db, r, principal)
-    db.commit()
-    if queued:
-        enqueue("recommend_selection", r.id, principal.display_name)
-    return {"results": [retrieval_out(s) for s in results], "sources": source_overview(db, r),
-            "selection": {"queued": queued, "run": selection.run_out(selection.latest_run(db, r))}}
-
-
-def _start_recommendation(db: Session, r: Referral, principal: Principal) -> bool:
-    """With a model configured the recommendation runs in the background; without one the run is
-    recorded straight away as unavailable, so the page can say so (the default selection stands)."""
-    if settings.llm_configured:
-        return True
-    selection.recommend(db, r, principal.display_name, principal)
-    return False
-
-
-@router.get("/referrals/{referral_id}/selection")
-def selection_status(referral_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    r = load_referral(db, referral_id, principal, "view")
-    snap = selection.snapshot(db, r)
-    run = selection.run_out(selection.latest_run(db, r))
-    if run and not sees_clinical(principal):
-        run["missing"] = []  # what the AI thought was missing is clinical
-    return {"run": run, "counts": snap["counts"],
-            "llm_configured": settings.llm_configured, "prompt_version": selection.PROMPT_VERSION}
-
-
-@router.post("/referrals/{referral_id}/recommend")
-def recommend_selection(referral_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    """Staff ask for the AI recommendation again (for example after adding papers)."""
-    r = load_referral(db, referral_id, principal, "prepare", roles=("clinic_staff",))
-    if r.status in TERMINAL or r.working_set_purged_at is not None:
-        raise error(409, "not_available", "This referral's records are no longer held")
-    queued = _start_recommendation(db, r, principal)
-    audit(db, principal, "selection.requested", "referral", r.reference, "queued" if queued else "unavailable", r.id)
-    db.commit()
-    if queued:
-        enqueue("recommend_selection", r.id, principal.display_name)
-    return {"queued": queued, "run": selection.run_out(selection.latest_run(db, r))}
-
-
-@router.get("/referrals/{referral_id}/retrievals")
-def retrieval_history(referral_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    r = load_referral(db, referral_id, principal, "view")
-    rows = db.scalars(select(SourceRetrieval).where(SourceRetrieval.referral_id == r.id).order_by(SourceRetrieval.id.desc()))
-    return [retrieval_out(s) for s in rows]
 
 
 class CancelIn(BaseModel):

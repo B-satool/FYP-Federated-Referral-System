@@ -1,13 +1,11 @@
-"""Data lifecycle (spec v3 A, C): grant expiry, working-set timing, package manifest and role menus."""
+"""Data lifecycle (spec v3 A, C): working-set timing, package manifest and role menus. (Sharing grants were
+replaced by consent and each institution's policy in spec v4: see services/provider/tests/test_policy.py.)"""
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
-import pytest
-from fastapi import HTTPException
 from refcommon.exchange import package_hash
-from refcommon.sourcekit import MAX_GRANT_DAYS, grant_expiry, grant_is_live, grant_state
 
 from app.config import INSTITUTIONS, settings
 from app.identity import role_templates
@@ -15,32 +13,6 @@ from app.lifecycle import working_set
 from app.lifecycle.manifest import build_manifest, is_purged, purged_envelope, verify_copy
 
 NOW = datetime(2026, 10, 27, 12, tzinfo=timezone.utc)
-
-
-# ---------------------------------------------------------------- access grants
-def grant(status="active", expires_at=None):
-    return SimpleNamespace(status=status, expires_at=expires_at)
-
-
-def test_grant_states():
-    assert grant_state(grant(expires_at=NOW + timedelta(days=1)), NOW) == "active"
-    assert grant_state(grant(expires_at=NOW), NOW) == "expired"  # the end time itself is already expired
-    assert grant_state(grant(expires_at=(NOW - timedelta(seconds=1)).replace(tzinfo=None)), NOW) == "expired"  # naive = UTC
-    assert grant_state(grant(status="revoked", expires_at=NOW + timedelta(days=1)), NOW) == "revoked"
-    assert grant_state(grant(), NOW) == "legacy_no_expiry"
-    assert grant_is_live(grant(), NOW) and not grant_is_live(grant(expires_at=NOW), NOW)
-
-
-@pytest.mark.parametrize("days", [0, -1, MAX_GRANT_DAYS + 1])
-def test_grant_duration_bounds(days):
-    with pytest.raises(HTTPException) as exc:
-        grant_expiry(days)
-    assert exc.value.status_code == 422
-
-
-def test_grant_expiry_default_and_max():
-    assert grant_expiry() > datetime.now(timezone.utc)
-    assert grant_expiry(MAX_GRANT_DAYS) - datetime.now(timezone.utc) <= timedelta(days=MAX_GRANT_DAYS)
 
 
 # ---------------------------------------------------------------- working set timing

@@ -11,7 +11,7 @@ import { DocumentsTab } from "../documents/DocumentsTab";
 import { AuditTab } from "./AuditTab";
 import { JourneyNav, NextStepBanner, StepPager } from "./Journey";
 import { MedicinesTab } from "./MedicinesTab";
-import { RecordsTab } from "./RecordsTab";
+import { DoctorRecords, StaffRecords } from "./Records";
 import { RequestTab } from "./RequestTab";
 import { ResponseTab } from "./ResponseTab";
 import { SendTab, SummaryTab } from "./SendTab";
@@ -108,7 +108,7 @@ export function ReferralWorkspace() {
       <JourneyNav r={r} role={role} active={tab} onSelect={go} />
       <Box role="tabpanel" id="journey-panel" aria-labelledby={`tab-${tab}`}>
         {tab === "request" && <RequestTab r={r} role={role} />}
-        {tab === "records" && <RecordsTab r={r} />}
+        {tab === "records" && (role === "doctor" ? <DoctorRecords r={r} /> : <StaffRecords r={r} />)}
         {tab === "papers" && <DocumentsTab r={r} />}
         {tab === "medicines" && <MedicinesTab r={r} role={role} />}
         {tab === "tests" && <TestsTab r={r} role={role} />}

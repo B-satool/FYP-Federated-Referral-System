@@ -159,7 +159,41 @@ export type SourceOverview = {
   link_id?: number | null;
   link_states?: string[];
   pending_link_id?: number | null;
-  latest: Retrieval | null;
+  /** the latest records request to this institution (spec v4: under consent, answered encrypted) */
+  latest: RecordRequestOut | null;
+};
+
+/** One institution's answer to a records request. A refusal or "could not be reached" is never "no records". */
+export type RecordRequestOut = {
+  id: number;
+  custodian: string;
+  custodian_name: string;
+  status: "sent" | "answered" | "partial" | "refused" | "pending_manual_review" | "no_records" | "unavailable" | "not_linked" | "failed";
+  status_text: string;
+  refusals: { reason: string; categories: string[]; message: string }[];
+  item_count: number;
+  message: string;
+  requested_by: string;
+  requested_at: string;
+  answered_at: string | null;
+  policy_version: string | null;
+};
+
+export type ConsentSummary = {
+  id: number;
+  reference: string;
+  status: "requested" | "granted" | "declined" | "revoked" | "expired" | "withdrawn";
+  custodians_requested: { institution_id: string; name: string }[];
+  custodians_granted: { institution_id: string; name: string }[];
+  sensitive_specific: string[];
+  requested_by: string;
+  requested_at: string;
+  period_start: string | null;
+  period_end: string | null;
+  decided_at: string | null;
+  decline_reason: string | null;
+  revoked_at: string | null;
+  signed: boolean;
 };
 
 export type ReadinessItem = { key: string; label: string; ok: boolean; detail: string; who: "staff" | "doctor" | "system"; tab: string | null; blocking: boolean };
@@ -249,6 +283,9 @@ export type ReferralDetail = Referral & {
   links: PatientLink[];
   diagnostics: Diagnostic[];
   clarifications: Clarification[];
+  consent: ConsentSummary | null;
+  record_requests: RecordRequestOut[];
+  encrypted_item_count: number;
 };
 
 export type Evidence = {

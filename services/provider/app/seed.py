@@ -16,10 +16,10 @@ from datetime import date
 from pathlib import Path
 
 from refcommon.db import make_session_factory
-from refcommon.sourcekit import ALL_CATEGORIES, MAX_GRANT_DAYS, grant_expiry, normalize_cnic
+from refcommon.sourcekit import normalize_cnic
 
 from .config import INSTITUTION, INSTITUTION_NAME
-from .models import AccessGrant, Base, Condition, ImagingReport, KeyStore, LabResult, Medication, Patient, Surgery, Visit
+from .models import Base, Condition, ImagingReport, KeyStore, LabResult, Medication, Patient, Surgery, Visit
 
 SEED_DIR = Path(os.environ.get("SEED_DATA_DIR", "/srv/seed-data/patients"))
 
@@ -31,7 +31,6 @@ SEED_KEYS = {
     "ziauddin": ["zia", "rad-zia"],
     "akuh": ["aku", "rad-aku"],
 }
-DEST_KEYS = {"aku": "akuh", "zia": "ziauddin"}
 
 
 def _date(value: str | None) -> date | None:
@@ -104,14 +103,6 @@ def seed(db) -> int:
                 db.add(ImagingReport(id=rid("IMG"), patient_id=local_id, study_date=_date(i["date"]), study=i["study"],
                                      body_part=i.get("body_part"), findings=i.get("findings") or "",
                                      impression=i.get("impression") or "", reporter=i.get("radiologist")))
-        # The patient's existing link with the referring clinic (confirmed at an earlier visit) is
-        # backed by this institution's own grant, as if its staff had approved it. The link to the
-        # hospital the patient is being referred to is not seeded: approving it is part of the demo.
-        destination = DEST_KEYS.get(p["referral"]["to_institution"])
-        if INSTITUTION != "drali" and INSTITUTION != destination:
-            db.add(AccessGrant(grantee_institution="drali", local_patient_id=local_id, categories=list(ALL_CATEGORIES),
-                               basis="Seed: patient link confirmed by our staff at an earlier visit (synthetic)",
-                               granted_by="Seed script (synthetic data)", expires_at=grant_expiry(MAX_GRANT_DAYS)))
     return count
 
 

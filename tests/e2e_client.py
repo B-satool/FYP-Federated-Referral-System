@@ -86,3 +86,29 @@ class Device:
         key = e2e.load_private(pkcs8)
         assert e2e.public_spki(key) == entry["enc_public_key"], "group key does not match the signed entry"
         return key, w["group_version"]
+
+
+def open_referral(dev: "Device", referral_id: int, group: tuple | None = None) -> tuple[dict, dict, dict]:
+    """What the browser does on the Records step: fetch ciphertext and wraps, unwrap each batch's data key with this
+    device's key (or a department group key: (private key, key id)), decrypt. Returns (response, {item_id: content
+    or bytes}, {batch_id: data key})."""
+    resp = ok(central(dev.username).get(f"/referrals/{referral_id}/encrypted"))
+    ref = resp["reference"]
+    deks: dict[str, bytes] = {}
+    for w in resp["wraps"]:
+        if w["batch_id"] in deks:
+            continue
+        if w["recipient_key_id"] == dev.enc_key_id:
+            deks[w["batch_id"]] = e2e.unwrap(dev.enc, w["wrapped"], e2e.wrap_context(ref, w["batch_id"], dev.enc_key_id))
+        elif group and w["recipient_key_id"] == group[1]:
+            deks[w["batch_id"]] = e2e.unwrap(group[0], w["wrapped"], e2e.wrap_context(ref, w["batch_id"], group[1]))
+    opened: dict[str, object] = {}
+    for it in resp["items"]:
+        dek = deks.get(it["batch_id"])
+        if dek is None:
+            continue
+        if "chunks" in it["sealed"]:
+            opened[it["item_id"]] = e2e.decrypt_chunks(dek, it["sealed"]["chunks"], ref, it["item_id"], it["batch_id"])
+        else:
+            opened[it["item_id"]] = json.loads(e2e.decrypt(dek, it["sealed"], e2e.item_aad(ref, it["item_id"], it["batch_id"])))
+    return resp, opened, deks

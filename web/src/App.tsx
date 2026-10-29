@@ -20,7 +20,7 @@ import { MedicineNames } from "./features/rules/MedicineNames";
 import { IncomingCase, IncomingList } from "./features/incoming/Incoming";
 import { OrderList, OrderView } from "./features/orders/Orders";
 import { AdminUsers } from "./features/admin/AdminUsers";
-import { SourceAccess } from "./features/admin/SourceAccess";
+import { ReleaseRequests } from "./features/release/ReleaseRequests";
 import { AuditLog } from "./features/admin/AuditLog";
 import { PatientApp } from "./features/patient/PatientApp";
 import { KeysPage } from "./features/keys/DeviceKey";
@@ -103,7 +103,7 @@ function SignedIn() {
         <Route path="/rules" element={<ReviewerOnly><RulesPage /></ReviewerOnly>} />
         <Route path="/medicine-names" element={<ReviewerOnly><MedicineNames /></ReviewerOnly>} />
         <Route path="/admin/users" element={<AdminUsers />} />
-        <Route path="/admin/access" element={<SourceAccess />} />
+        <Route path="/release-requests" element={<ReleaseRequests />} />
         <Route path="/admin/audit" element={<AuditLog />} />
         <Route path="/admin/keys" element={<DoctorKeys />} />
         <Route path="/keys" element={<KeysPage />} />

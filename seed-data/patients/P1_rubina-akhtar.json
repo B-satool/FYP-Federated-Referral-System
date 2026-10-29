@@ -127,6 +127,13 @@
           "reason": "Low mood and poor sleep for six weeks",
           "summary": "Synthetic sensitive record for the consent tests. Supportive counselling arranged; review in four weeks.",
           "sensitive": "psychiatric"
+        },
+        {
+          "date": "2026-08-20",
+          "setting": "Clinic visit",
+          "doctor": "Dr Ali",
+          "reason": "Synthetic test record (canary)",
+          "summary": "CANARY-9F3A-NOT-A-REAL-PATIENT: this visit exists only so tests can prove record text never reaches the platform in plain text."
         }
       ],
       "medications": [
@@ -197,7 +204,7 @@
         {
           "date": "2026-10-12",
           "panel": "HbA1c and renal function",
-          "note": null,
+          "note": "CANARY-9F3A-NOT-A-REAL-PATIENT lab note",
           "results": [
             {
               "test": "HbA1c",

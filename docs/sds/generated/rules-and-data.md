@@ -13,9 +13,8 @@ Data files loaded at seed time or read by the services. Large data sets are summ
 | `rules/interactions/ddinter-import-report.json` | 1 KB | imported, files: 8, files_sha256, ddinter_rows, ddinter_drugs, ddinter_drugs_not_mapped_to_our_ingredients |
 | `rules/interactions/ddinter-subset.csv` | 28 KB | 342 rows |
 | `rules/labels/interaction-quotes.json` | 20 KB | version, extractor_version, content_sha256, status, stats: 4, quotes: 37 |
-| `rules/labels/label-rules.json` | 88 KB | version, extractor_version, vocabulary, content_sha256, status, stats: 7 |
-| `rules/medication/seed-rules.json` | 6 KB | version, note, rules: 11 |
-| `rules/roles/templates.v1.json` | 4 KB | template_set_id, version, note, screens: 10, templates: 5 |
+| `rules/labels/label-rules.json` | 66 KB | version, extractor_version, vocabulary, content_sha256, status, stats: 8 |
+| `rules/roles/templates.v2.json` | 7 KB | template_set_id, version, approved, note, screens: 12, scopes: 16 |
 | `rules/sources.json` | 3 KB | note, ddinter: 13, openfda_labels: 6, rxnav: 5, brand_names: 4 |
 | `rules/terminology/brand-import-template.csv` | 0 KB | 2 rows |
 | `rules/terminology/brand-sources.csv` | 965 KB | 5433 rows |

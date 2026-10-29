@@ -1,13 +1,17 @@
 import path from "node:path";
-import { expect, Page, test } from "@playwright/test";
-import { asUser, closeContexts, shot } from "./helpers";
+import { APIRequestContext, expect, Page, request, test } from "@playwright/test";
+import { asUser, closeContexts, PASSWORD, shot } from "./helpers";
 
-// v2 journeys. Run on a fresh seed: scripts/reset-and-seed.ps1 -Force
-// 1. Referral for P5 (Imtiaz Ali Soomro): Dr Ali's Clinic -> Aga Khan University Hospital, General Surgery.
-// 2. Test request for P3 (Abdul Rehman Gondal): MRI knee at Aga Khan radiology, with a report image.
+// Journeys through the real UI. Run on a fresh seed (scripts/reset-and-seed.ps1 -Force) after onboarding
+// (python scripts/onboard_participants.py).
+// 1. Spec v4 referral for P1 (Rubina Akhtar): Dr Ali's Clinic -> Aga Khan University Hospital, Dentistry. Device keys,
+//    consent in the patient portal, records decrypted on the doctor's device, medicines and flags, approve and sign,
+//    staff send, intake, the receiving dentist opens and verifies it, accepts and closes; the patient keeps a copy.
+// 2. Test request for P3 (Abdul Rehman Gondal): MRI knee at Aga Khan radiology, with a report image (unchanged by v4).
 
 // tests run from web/
 const SCAN = path.resolve("../seed-data/documents/imaging/synthetic_mri-knee-coronal.png");
+const PASSPHRASE = "correct horse battery staple";
 
 test.afterEach(async () => {
   await closeContexts();
@@ -26,11 +30,6 @@ async function choose(page: Page, label: string, option: string | RegExp, nth = 
   await expect(page.getByRole("listbox")).toHaveCount(0);
 }
 
-async function openTab(page: Page, name: string) {
-  await page.getByRole("tab", { name: new RegExp(name) }).click();
-  await page.waitForLoadState("networkidle");
-}
-
 async function pickPatient(page: Page, name: string) {
   await page.getByLabel("Find the patient").fill(name);
   await page.getByRole("button", { name: new RegExp(name) }).first().click();
@@ -44,84 +43,98 @@ async function registerNew(page: Page, note: string) {
   await expect(page.getByText(/Patient confirmed/).first()).toBeVisible({ timeout: 30_000 });
 }
 
-test("referral: doctor requests, staff prepare, doctor reviews flags, staff send, hospital accepts and completes, doctor closes", async ({ browser }) => {
-  // 1. The doctor chooses what they need, then fills in the referral.
-  const dr = await asUser(browser, "dr.ali");
-  await go(dr, "/referrals/new");
-  await dr.getByRole("button", { name: /Refer to a doctor or department/ }).click();
-  await pickPatient(dr, "Imtiaz");
-  await choose(dr, "Clinic or hospital", "Aga Khan University Hospital");
-  await choose(dr, "Department", "General Surgery");
-  await dr.getByLabel("Reason for referral").fill("Repeated right upper abdominal pain after fatty meals; gallstones on ultrasound. Please assess for gallbladder removal.");
-  await dr.getByLabel("A procedure is planned").check();
-  await dr.getByRole("textbox", { name: /^Procedure/ }).fill("Laparoscopic cholecystectomy");
-  await expect(dr.getByLabel(/Major or elective surgery/)).toBeChecked();
-  await shot(dr, "v2-new-referral");
-  await dr.getByRole("button", { name: "Submit request" }).click();
-  await dr.waitForURL(/\/referrals\/\d+/);
-  const url = new URL(dr.url()).pathname;
-  const reference = (await dr.locator("h1").innerText()).split(" · ")[0];
-  await expect(dr.getByText("In progress").first()).toBeVisible();
-  await openTab(dr, "Medicines & flags");
-  await expect(dr.getByText(/Staff are still retrieving/)).toBeVisible();
+/** Set up the device key (first time) or unlock it (after a page load), wherever the key panel is shown. */
+async function deviceKey(page: Page) {
+  const setup = page.getByRole("button", { name: "Set up device key" });
+  const unlock = page.getByRole("button", { name: "Unlock" });
+  await expect(setup.or(unlock).first()).toBeVisible({ timeout: 30_000 });
+  if (await setup.isVisible()) {
+    await setup.click();
+    await page.getByLabel("Passphrase", { exact: true }).fill(PASSPHRASE);
+    await page.getByLabel("Passphrase again").fill(PASSPHRASE);
+  } else {
+    await unlock.first().click();
+    await page.getByLabel("Passphrase", { exact: true }).fill(PASSPHRASE);
+  }
+  await page.getByRole("button", { name: "Continue" }).click();
+  // the dialog closes once the keys are unlocked (the compact panel then disappears where records are shown)
+  await expect(page.getByLabel("Passphrase", { exact: true })).toHaveCount(0, { timeout: 60_000 });
+  await expect(page.getByRole("button", { name: "Set up device key" }).or(page.getByRole("button", { name: "Unlock" }))).toHaveCount(0);
+}
 
-  // 2. Clinic staff retrieve the records and mark it ready for the doctor. They see titles, not content.
+async function api(user: string): Promise<APIRequestContext> {
+  const kc = await request.newContext();
+  const tok = await kc.post("http://localhost:8080/realms/referral/protocol/openid-connect/token", {
+    form: { grant_type: "password", client_id: "dev-cli", username: user, password: PASSWORD, scope: "openid" },
+  });
+  const { access_token } = await tok.json();
+  return request.newContext({ baseURL: "http://localhost:3000/api/central/", extraHTTPHeaders: { Authorization: `Bearer ${access_token}` } });
+}
+
+test("v4 referral: keys, consent in the portal, decrypt, sign, send, the receiver verifies, the patient keeps a copy", async ({ browser }) => {
+  test.setTimeout(900_000);
+  // The referring doctor's request (the form itself is checked by the test-request journey's screens).
+  const drApi = await api("dr.ali");
+  const found = await (await drApi.get("patients/search?q=Rubina")).json();
+  const created = await (await drApi.post("referrals", { data: {
+    kind: "referral", patient_local_id: found[0].local_patient_id, destination_institution: "akuh", destination_department: "dentistry",
+    reason: "Recurrent pericoronitis of the lower left third molar; please assess for surgical removal.", urgency: "routine",
+    procedure_status: "planned", planned_procedure: "Surgical removal of impacted lower wisdom tooth", procedure_tags: ["oral_surgery", "bleeding_risk"],
+    submit: true } })).json();
+  const url = `/referrals/${created.id}`;
+  const reference: string = created.reference;
+
+  // Device keys: the referring doctor, a dentist at the receiving department (its group key), the patient.
+  const dr = await asUser(browser, "dr.ali");
+  await go(dr, "/keys");
+  await deviceKey(dr);
+  const dentist = await asUser(browser, "dr.faisal");
+  await go(dentist, "/keys");
+  await deviceKey(dentist);
+  const patient = await asUser(browser, "rubina.akhtar");
+  await patient.getByRole("button", { name: "Profile" }).click();
+  await deviceKey(patient);
+
+  // Staff ask for consent; the patient agrees in the portal (signed on the phone); staff request the records.
   const staff = await asUser(browser, "staff.ali");
   await go(staff, `${url}?tab=records`);
-  await staff.getByRole("button", { name: /Retrieve records/ }).click();
-  await expect(staff.getByRole("cell", { name: "Ziauddin Hospital" })).toBeVisible({ timeout: 30_000 });
-  await expect(staff.getByText("retrieved", { exact: true }).first()).toBeVisible();
-  await expect(staff.getByText(/You see each record's title only/)).toBeVisible();
-  await shot(staff, "v2-records");
-  await openTab(staff, "Medicines & flags");
-  await expect(staff.getByText(/You see the progress only/)).toBeVisible();
-  await expect(staff.getByRole("button", { name: "Add a medicine" })).toHaveCount(0);
-  await openTab(staff, "Check & send");
-  await staff.getByRole("button", { name: "Ready for the doctor's review" }).click();
-  await expect(staff.getByText(/Marked ready by/)).toBeVisible({ timeout: 30_000 });
+  await staff.getByRole("button", { name: "Ask the patient for consent" }).click();
+  await expect(staff.getByText("Waiting for the patient").first()).toBeVisible({ timeout: 30_000 });
+  await patient.getByRole("button", { name: "Permissions" }).click();
+  await patient.getByRole("button", { name: new RegExp(reference) }).first().click();
+  await patient.getByRole("button", { name: "Agree and sign" }).click();
+  await expect(patient.getByText(/agreed|Agreed|granted/).first()).toBeVisible({ timeout: 30_000 });
+  await go(staff, `${url}?tab=records`);
+  await staff.getByRole("button", { name: "Request records" }).click();
+  await expect(staff.getByTestId("outcome-drali")).toContainText(/Records received/, { timeout: 60_000 });
+  await expect(staff.getByText("Type 2 diabetes mellitus")).toHaveCount(0); // staff: titles only (T-STAFF-1)
+  await shot(staff, "v4-staff-titles-only");
 
-  // 3. The doctor adds what the patient reports, confirms the medicines, decides on each flag, then marks the packet reviewed.
-  await go(dr, `${url}?tab=medicines`);
-  await expect(dr.getByText("Medication requires review: antiplatelet agent before surgery").first()).toBeVisible();
+  // The doctor decrypts the records on the device, enters the medicines, signs.
+  await go(dr, `${url}?tab=records`);
+  await deviceKey(dr);
+  await expect(dr.getByText(/Type 2 diabetes mellitus/).first()).toBeVisible({ timeout: 60_000 });
+  await shot(dr, "v4-doctor-records-decrypted");
+  await dr.getByRole("tab", { name: /Medicines/ }).click();
+  await dr.getByLabel("Medicine 1").fill("Disprin 75mg");
   await dr.getByRole("button", { name: "Add a medicine" }).click();
-  await dr.getByLabel("Medicine (as the patient says it)").fill("Panadol");
-  await dr.getByLabel("Strength").fill("500 mg");
-  await dr.getByLabel("How often").fill("as needed");
-  await dr.getByRole("button", { name: "Add medicine" }).click();
-  await expect(dr.getByRole("cell", { name: /Panadol/ })).toBeVisible();
-  await dr.getByRole("button", { name: "I asked the patient about all their medicines" }).click();
-  await expect(dr.getByText(/Patient asked about all medicines: /)).toBeVisible();
-  await expect(dr.getByText(/Automatically generated, not clinically reviewed/).first()).toBeVisible();
-  const needed = dr.getByRole("region", { name: "Needs your decision" });
-  await needed.getByRole("button", { name: "Ignore" }).first().click();
-  await dr.getByRole("dialog").getByLabel("Note (optional)").fill("Cardiology aware");
-  await dr.getByRole("dialog").getByRole("button", { name: "Ignore" }).click();
-  await expect(dr.getByText(/Ignored \(not relevant for this patient\) by Dr Ali Raza/)).toBeVisible({ timeout: 20_000 });
-  for (let i = 0; i < 15; i++) {
-    const btn = needed.getByRole("button", { name: "Mark as reviewed" });
-    const n = await btn.count();
-    if (n === 0) break;
-    await btn.first().click();
-    await expect(btn).toHaveCount(n - 1, { timeout: 20_000 });
-  }
-  await shot(dr, "v2-flags-doctor");
-  await openTab(dr, "Referral letter");
-  await expect(dr.getByRole("article", { name: /Referral letter/ })).toBeVisible();
-  await dr.getByRole("button", { name: "Mark the packet reviewed" }).click();
-  await expect(dr.getByText(/Packet reviewed by Dr Ali Raza/)).toBeVisible({ timeout: 20_000 });
+  await dr.getByLabel("Medicine 2").fill("Plavix 75 mg");
+  await expect(dr.getByTestId("flag").filter({ hasText: /aspirin with clopidogrel|clopidogrel with aspirin/ })).toBeVisible({ timeout: 30_000 });
+  await dr.getByTestId("flag").first().getByRole("button", { name: "Ignore" }).click();
+  await dr.getByRole("button", { name: "Save the list" }).click();
+  await expect(dr.getByText(/Saved, encrypted on this device/)).toBeVisible({ timeout: 30_000 });
+  await shot(dr, "v4-doctor-medicines-flags");
+  await dr.getByRole("tab", { name: /Approve & sign/ }).click();
+  await expect(dr.getByTestId("recipient-key")).toContainText(/department key/, { timeout: 30_000 });
+  await dr.getByLabel("Notes for the specialist (optional)").fill("Three episodes since July; on aspirin and clopidogrel.");
+  await dr.getByRole("button", { name: /^Approve and sign/ }).click();
+  await expect(dr.getByTestId("version-1")).toBeVisible({ timeout: 60_000 });
+  await shot(dr, "v4-doctor-signed");
 
-  // 4. Staff send it without seeing the letter (staff cannot withdraw a request).
+  // Staff send; the receiving staff take it in (titles only) and assign the dentist.
   await go(staff, `${url}?tab=send`);
-  await expect(staff.getByRole("button", { name: "Send to Aga Khan University Hospital" })).toBeEnabled({ timeout: 30_000 });
-  await expect(staff.getByText(/visible to doctors only/).first()).toBeVisible();
-  await staff.waitForLoadState("networkidle");
-  await shot(staff, "v2-check-and-send");
   await staff.getByRole("button", { name: "Send to Aga Khan University Hospital" }).click();
   await expect(staff.getByText("Sent", { exact: true }).first()).toBeVisible({ timeout: 60_000 });
-  await openTab(staff, "Request");
-  await expect(staff.getByRole("button", { name: "Withdraw request" })).toHaveCount(0);
-
-  // 5. Aga Khan staff take it in: acknowledge, confirm the patient (new to them), assign the surgeon.
   const aku = await asUser(browser, "staff.aku");
   await go(aku, "/incoming");
   await expect(async () => {
@@ -129,39 +142,36 @@ test("referral: doctor requests, staff prepare, doctor reviews flags, staff send
     await aku.getByRole("link", { name: reference }).click({ timeout: 3_000 });
   }).toPass({ timeout: 60_000 });
   await aku.getByRole("button", { name: "Acknowledge receipt" }).click();
-  await registerNew(aku, "New patient; CNIC and date of birth checked");
-  await choose(aku, "Assign to doctor", "Dr Naveed Baig");
+  // on a fresh seed Rubina is new at Aga Khan; on a re-run she is already linked there
+  await expect(aku.getByRole("button", { name: "Confirm the patient" }).or(aku.getByRole("combobox", { name: /^Assign to doctor/ })).first())
+    .toBeVisible({ timeout: 30_000 });
+  if (await aku.getByRole("button", { name: "Confirm the patient" }).isVisible()) {
+    await registerNew(aku, "New patient; CNIC and date of birth checked");
+  }
+  await choose(aku, "Assign to doctor", /Faisal/);
   await aku.getByRole("button", { name: "Assign", exact: true }).click();
-  await expect(aku.getByText(/Dr Naveed Baig/).first()).toBeVisible();
-  await shot(aku, "v2-incoming-intake");
+  await expect(aku.getByText("Type 2 diabetes mellitus")).toHaveCount(0);
 
-  // 6. The surgeon accepts (no response to write) and later marks it complete.
-  const surgeon = await asUser(browser, "dr.naveed");
-  await go(surgeon, "/incoming");
-  await surgeon.getByRole("link", { name: reference }).click();
-  await surgeon.getByRole("button", { name: "Accept referral" }).click();
-  await expect(surgeon.getByText(/Kept until/)).toBeVisible({ timeout: 15_000 });
-  await expect(surgeon.getByLabel("Assessment")).toHaveCount(0);
-  await shot(surgeon, "v2-incoming-case");
-  await surgeon.getByRole("button", { name: "Mark as complete" }).click();
-  await expect(surgeon.getByText(/Marked complete by Dr Naveed Baig/)).toBeVisible({ timeout: 30_000 });
-  await shot(surgeon, "v3-receiver-marked-complete");
+  // The dentist opens it on the device with the department key, checks the signature, accepts and closes.
+  await go(dentist, "/incoming");
+  await dentist.getByRole("link", { name: reference }).click();
+  await deviceKey(dentist);
+  await expect(dentist.getByTestId("package-verification")).toContainText(/every item matches the signature/, { timeout: 60_000 });
+  await expect(dentist.getByText(/Type 2 diabetes mellitus/).first()).toBeVisible();
+  await shot(dentist, "v4-receiver-verified");
+  await dentist.getByRole("button", { name: "Accept referral" }).click();
+  await dentist.getByRole("button", { name: "Close referral" }).click();
+  await expect(dentist.getByText(/Closed by/)).toBeVisible({ timeout: 30_000 });
 
-  // 7. The clinic is told it was accepted; staff tell the patient; the doctor closes it.
-  await go(staff, `${url}?tab=response`);
-  await expect(async () => {
-    await staff.reload();
-    await staff.getByRole("button", { name: "Record that the patient was told" }).click({ timeout: 3_000 });
-  }).toPass({ timeout: 60_000 });
-  await staff.getByLabel("How and what (e.g. phoned, clinic date given)").fill("Phoned the patient; surgical clinic date given");
-  await staff.getByRole("button", { name: "Record", exact: true }).click();
-  await expect(staff.getByText(/Patient informed by/)).toBeVisible();
-  await go(dr, `${url}?tab=response`);
-  await expect(dr.getByText(/Accepted by Aga Khan University Hospital/)).toBeVisible();
-  await expect(dr.getByText(/Marked complete by Dr Naveed Baig/).first()).toBeVisible();
-  await dr.getByRole("button", { name: "Close referral" }).click();
-  await expect(dr.getByText(/Closed by Dr Ali Raza/)).toBeVisible();
-  await shot(dr, "v2-closed");
+  // The patient saves a copy on the phone and opens it: it verifies against the doctor's signature.
+  await go(patient, "/");
+  await patient.getByRole("button", { name: "Referrals", exact: true }).last().click();
+  await patient.getByRole("button", { name: /Dentistry.*Aga Khan University Hospital/ }).first().click();
+  await deviceKey(patient);
+  await patient.getByRole("button", { name: /Save (a|the latest) copy/ }).click();
+  await patient.getByRole("button", { name: "Open my copy" }).click();
+  await expect(patient.getByTestId("my-copy")).toContainText(/every item matches the signature/, { timeout: 60_000 });
+  await shot(patient, "v4-patient-copy");
 });
 
 test("test request: MRI at Aga Khan radiology with images, result back to the doctor", async ({ browser }) => {

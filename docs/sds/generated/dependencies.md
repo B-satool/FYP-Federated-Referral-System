@@ -11,6 +11,7 @@
 | `alembic==1.14.0` |
 | `httpx==0.28.1` |
 | `pyjwt[crypto]==2.10.1` |
+| `cryptography==50.0.2` |
 | `pydantic==2.10.3` |
 | `python-multipart==0.0.19` |
 | `celery[redis]==5.4.0` |
@@ -32,6 +33,7 @@
 | `alembic==1.14.0` |
 | `httpx==0.28.1` |
 | `pyjwt[crypto]==2.10.1` |
+| `cryptography==50.0.2` |
 | `pydantic==2.10.3` |
 
 ### `libs/common/pyproject.toml`
@@ -50,11 +52,13 @@
 | `@mui/icons-material` | `^6.1.9` |
 | `@mui/material` | `^6.1.9` |
 | `@tanstack/react-query` | `^5.62.0` |
+| `@tesseract.js-data/eng` | `1.0.0` |
 | `oidc-client-ts` | `^3.1.0` |
 | `react` | `^18.3.1` |
 | `react-dom` | `^18.3.1` |
 | `react-hook-form` | `^7.53.2` |
 | `react-router-dom` | `^6.28.0` |
+| `tesseract.js` | `5.1.1` |
 | `@playwright/test` | `^1.49.0` |
 | `@types/react` | `^18.3.12` |
 | `@types/react-dom` | `^18.3.1` |

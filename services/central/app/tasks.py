@@ -26,6 +26,7 @@ celery_app.conf.update(
         "retention-sweep": {"task": "retention_sweep", "schedule": 3600.0},
         "purge-working-sets": {"task": "purge_working_sets", "schedule": 600.0},
         "close-reminders": {"task": "close_reminders", "schedule": 3600.0},
+        "seal-audit": {"task": "seal_audit", "schedule": 60.0},
     },
     timezone="UTC",
 )
@@ -126,6 +127,15 @@ def purge_working_sets() -> int:
 
     with SessionLocal() as db:
         return purge_due(db)
+
+
+@celery_app.task(name="seal_audit")
+def seal_audit() -> int:
+    """Add the audit events written since the last run to the hash chain (spec v4 11.5)."""
+    from .lifecycle.audit_chain import seal
+
+    with SessionLocal() as db:
+        return seal(db)
 
 
 @celery_app.task(name="close_reminders")

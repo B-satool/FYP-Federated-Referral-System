@@ -1,25 +1,24 @@
 # FYP Federated Referral System
-### Referral Preparation and Follow-through Platform (version 2)
+### Referral Preparation and Follow-through Platform (end-to-end encrypted, architecture spec v4)
 
-A web application for referring a patient from one clinic or hospital in Karachi to a doctor or department at another, or for requesting a test or scan from a laboratory or radiology department elsewhere.
-- **Doctor:** chooses a referral or a test/scan request and fills it in (reason and consultation notes). For a referral, the doctor later **reviews the packet**: checks the papers, confirms the medicines with the patient, decides every flag, reviews the records and the letter. **Only doctors see clinical content**; staff see titles, statuses and counts.
-- **Referring staff:**
-  - gather the patient's records from every linked hospital, clinic and laboratory (up to five, most recently visited first)
-  - upload the papers the patient brought (OCR reads them for the doctor)
-  - mark the referral ready for the doctor, then send it once the doctor has reviewed the packet
-  - send test and scan orders
-- **Receiving staff:** take the referral in, confirm the patient (match their record or register them as new) and assign a doctor. Laboratory and radiology staff confirm the patient on orders the same way.
-- **Receiving doctor:** accepts or declines (the requesting doctor is told either way), can keep the shared records longer, and marks the referral complete when finished.
-- **Platform:**
-  - checks every current medicine against the planned procedure (reviewer-approved rules), against each other (DDInter interactions) and against the procedure and recorded conditions (rules read from US drug labels), showing the source of every flag
-  - sends the referral as a readable letter, and results back with their report and images
-  - tracks each request through acceptance (or results) and follow-up until closure, then removes the shared records ([`docs/data-lifecycle.md`](docs/data-lifecycle.md))
+A web application for referring a patient from one clinic or hospital in Karachi to a doctor or department at another, or for requesting a test or scan from a laboratory or radiology department elsewhere. **Records are stored encrypted and decrypted only on the clinician's device**; the platform never holds readable records ([`docs/security-model.md`](docs/security-model.md)).
+- **Referring doctor:** fills in the request; reads the records on their own device (decrypted there); chooses what goes in (with optional AI suggestions, sent de-identified only when asked); enters the medicines asked from the patient (flags are checked on the device); adds papers (read on the device); and **signs the package**.
+- **Patient:** gives consent in the patient app (signed on the phone), can add papers, is told when the referral is accepted, and **keeps a verified copy on the phone** after the referral is purged.
+- **Referring staff:** ask the patient for consent, request the records, and send the signed package. **Staff see titles only, never content.** They also send test and scan orders.
+- **Each institution:** answers records requests under the patient's consent and its own policy, with records encrypted for the doctor, or a refusal with its reason.
+- **Receiving staff:** take the referral in (titles only), confirm the patient, assign a doctor, and can add their own hospital's records (encrypted for the department).
+- **Receiving doctor:** opens the referral with the department's key, checks the referring doctor's signature, accepts or declines, may ask for more information, and closes it (or extends it, at most 180 days).
+- **Platform:** relays encrypted content and AI requests, reminds the specialist 30 days after acceptance, and **purges by deleting the ciphertext and the keys** a week after closing ([`docs/data-lifecycle.md`](docs/data-lifecycle.md)).
 
 > **Synthetic (fake) patient data only. Not for clinical use.** The institution names are used only as source-system names; nothing comes from those organisations.
 
 | Document | Where |
 |---|---|
-| **What changed in version 2, and differences from the SRS** | [`docs/v2-changes.md`](docs/v2-changes.md) |
+| **Architecture spec v4 (end-to-end encryption)**, how it maps onto the code, and its status | [`docs/e2e-architecture-spec-v4.md`](docs/e2e-architecture-spec-v4.md), [`docs/e2e-mapping.md`](docs/e2e-mapping.md) |
+| **Security model:** what is protected, the limits, and the acceptance tests | [`docs/security-model.md`](docs/security-model.md) |
+| Cryptography and machine-to-machine authentication | [`docs/crypto.md`](docs/crypto.md), [`docs/auth.md`](docs/auth.md) |
+| Approvals, and decisions awaiting the owner's confirmation | [`docs/approvals.md`](docs/approvals.md) |
+| What changed in version 2, and differences from the SRS | [`docs/v2-changes.md`](docs/v2-changes.md) |
 | Medication flags: DDInter interactions, drug-label rules, sources and coverage | [`docs/medication-flagging.md`](docs/medication-flagging.md) |
 | Requirements (SRS) | [`docs/requirements/FYP SRS.pdf`](docs/requirements/FYP%20SRS.pdf) |
 | Development roadmap | [`docs/requirements/FYP Development Roadmap.pdf`](docs/requirements/FYP%20Development%20Roadmap.pdf) |
@@ -80,13 +79,18 @@ docker compose up -d --build
 # 3. Wait until everything says "healthy" (Keycloak takes about 1 minute)
 docker compose ps
 
-# 4. Load the five synthetic patients into every institution's database
+# 4. Pin every institution's signing key (once per installation; writes infra/participants/participants.json)
+python scripts/onboard_participants.py
+
+# 5. Load the five synthetic patients into every institution's database
 .\scripts\reset-and-seed.ps1 -Force   # macOS/Linux: sh scripts/reset-and-seed.sh --force
 ```
 
+**Device keys:** the first time a doctor or patient opens records, they set up a device key with a passphrase (at least 10 characters). The keys stay in that browser; another browser or a cleared one needs **Restore from backup** or a replacement key (records from institutions are fetched again; items only on the platform are then lost unless the patient has a copy).
+
 Open **http://localhost:3000**, click **Sign in with your institution account**, and use an account from section 3.
 
-**Coming from version 1?** Version 2 uses different databases and accounts. Run `docker compose down -v` once (this deletes the old demo data), add the new `DRALI_*`, `CHUGHTAI_*`, `ZIAUDDIN_*` and `AKUH_*` lines from `.env.example` to your `.env`, then follow the steps above.
+**Coming from version 2?** Add the five `*_KEYSTORE_SECRET` lines from `.env.example` to your `.env` (each service seals its own private keys with one), run `docker compose up -d --build`, `python scripts/onboard_participants.py` and `python scripts/sync_keycloak_realm.py` (adds the patient accounts), then reset the demo data.
 
 ### Every day after that
 
@@ -175,31 +179,30 @@ Everything works without these. Change `.env`, then `docker compose up -d centra
 
 | Feature | Settings in `.env` | Without it |
 |---|---|---|
-| **AI recommends which records go in the packet**, and reads fields from papers (`EXTRACTION_MODE=auto`) | Gemma 4 through Ollama: `LLM_PROVIDER=ollama`, `LLM_MODEL=gemma4:cloud`, `OLLAMA_HOST=http://host.docker.internal:11434`, `LLM_EXTERNAL_ALLOWED=true`. Install Ollama, run `ollama signin`, and add usage credits at ollama.com/plans. (Or `LLM_PROVIDER=anthropic` with `ANTHROPIC_API_KEY`.) | Rule-based selection; the Records tab says "AI recommendation unavailable" |
-| **Handwritten prescriptions** | `OCR_ENGINE=google_vision`, `GOOGLE_VISION_API_KEY=...` (Google Cloud key restricted to the Vision API) | Tesseract (printed text only) |
+| **AI record suggestions and AI flag suggestions** (only when the doctor clicks, after a preview of the de-identified text) | Groq's free tier: `LLM_PROVIDER=openai_compatible`, `LLM_BASE_URL=https://api.groq.com/openai/v1`, `LLM_MODEL=openai/gpt-oss-120b`, `LLM_REASONING_EFFORT=low`, `LLM_API_KEY=<key from console.groq.com>`, `LLM_EXTERNAL_ALLOWED=true` (or Ollama or Anthropic, see `.env.example`) | The deterministic floor and Layer 1 flags work; the screen says "AI check not available" |
 
-**Privacy:** whatever model is used gets de-identified input only: no name, CNIC, record numbers or date of birth; doctors and institutions removed; dates as days before the referral. A model outside this computer is used only when `LLM_EXTERNAL_ALLOWED=true`, over https, and every call is audited. Page images sent to Google Vision cannot be de-identified. **Synthetic data only.** See [`docs/decisions/2026-10-28-cloud-model-privacy.md`](docs/decisions/2026-10-28-cloud-model-privacy.md). Staff still check every field read from a paper, and the referral letter is always built from the checked records, never written by a model.
+**Privacy:** the browser removes the patient's name, ID numbers, record numbers, places, doctors' names and dates, and shows the doctor exactly what will be sent; the relay refuses anything that still identifies the patient, and stores and logs no text. A model outside this computer is used only with `LLM_EXTERNAL_ALLOWED=true`, over https. **Papers are read on the device** (Tesseract.js, served by this application): no image or text leaves it. **Synthetic data only.**
 
 ---
 
 ## 4. Try the full workflow
 
-Each seed patient has a referral scenario in [`seed-data/README.md`](seed-data/README.md). Example, **P5 Imtiaz Ali Soomro → Aga Khan, General Surgery, laparoscopic cholecystectomy**:
+**P1 Rubina Akhtar → Aga Khan, Dentistry, surgical removal of a wisdom tooth.** Use a separate private window per person.
 
-1. **Dr Ali** (`dr.ali`): **Work queue** → **New request** → **Refer to a doctor or department** → find *Imtiaz* → Aga Khan University Hospital, General Surgery → reason → **A procedure is planned** → type *Laparoscopic cholecystectomy* (the features it involves tick themselves; correct them if needed) → **Submit request**. It now shows **In progress**; Medicines & flags says staff are still gathering.
-2. **Hina** (`staff.ali`) opens it from her **Work queue**:
-   - **Records** → **Retrieve records** (own clinic, Ziauddin, Chughtai Lab). She sees each record's title, source and date only. If the patient says he was seen elsewhere, **Ask for records** there.
-   - **Papers** → upload `seed-data/documents/P5_prescription_cardiology_2025-06-18.jpg`.
-   - **Check & send** → **Ready for the doctor's review**.
-3. **Dr Ali** reviews the packet:
-   - **Papers**: confirm each medicine read from the photo; each merges with the clinic's record.
-   - **Medicines & flags**: **Add a medicine** (e.g. Panadol, over the counter; or *Glare*, which asks which company's product it is) → **I asked the patient about all their medicines** → decide each flag (aspirin and clopidogrel before surgery, insulin and metformin around fasting, plus DDInter and label flags).
-   - **Records**: the last 6 months are ticked; tick or untick others.
-   - Read the letter → **Mark the packet reviewed**.
-4. **Hina**: **Check & send** → **Send to Aga Khan University Hospital**. It carries his name, date of birth, sex and CNIC; Aga Khan has not been asked anything before this.
-5. **Mariam** (`staff.aku`): **Incoming referrals** → open it (she sees who, from where, the urgency and the record titles) → **Acknowledge receipt** → **Confirm the patient** (he is not registered there: write how you checked → **Register as a new patient**) → **Assign to doctor**: Dr Naveed Baig → **Assign**. Dr Ali's Clinic is told he was registered as new.
-6. **Dr Naveed** (`dr.naveed`): **Incoming referrals** (only referrals assigned to him) → **Accept referral**. The **Shared records** panel shows they are kept 30 days (**Keep for another 30 days** if needed). When finished: **Mark as complete**; the shared records are removed 72 hours later.
-7. **Hina**: **Outcome & follow-up** → **Record that the patient was told** → add any task. **Dr Ali** (or Hina): **Close referral**. **History** shows every step.
+1. **Device keys** (once per browser): `dr.ali` and `dr.faisal` (Aga Khan dentistry) → **Device key** → **Set up device key**; the patient `rubina.akhtar` → **Profile** → **Set up device key**. Passphrases of at least 10 characters.
+2. **Dr Ali**: **New request** → **Refer to a doctor or department** → *Rubina* → Aga Khan University Hospital, Dentistry → reason → **A procedure is planned** → *Surgical removal of impacted lower wisdom tooth* → **Submit request**.
+3. **Hina** (`staff.ali`): **Consent & records** → **Ask the patient for consent**.
+4. **Rubina** (patient app): **Permissions** → open the request → **Agree and sign** (signed on her phone).
+5. **Hina**: **Request records**. Each institution answers under its own policy: records (encrypted), or a refusal with its reason (her psychiatric record is held back without specific consent). Hina sees titles only.
+6. **Dr Ali**:
+   - **Consent & records**: unlock the device key; the records are decrypted on his device, and the ticks start from the default selection. **Suggest with AI** (optional) shows exactly what is sent first.
+   - **Medicines & flags**: enter what the patient takes (e.g. *Disprin 75mg*, *Plavix 75 mg*; *Glare* asks which company's product it is). Flags from DDInter appear, checked on the device; choose **Ignore** or **Research**, then **Save the list**.
+   - **Papers**: add a photo, **Read it on this device**, and correct the medicines.
+   - **Approve & sign**: write notes for the specialist (share them with the patient or not), then **Approve and sign**.
+7. **Hina**: **Check & send** → **Send to Aga Khan University Hospital**. A notice with titles goes; the content stays encrypted.
+8. **Mariam** (`staff.aku`): **Incoming referrals** → **Acknowledge receipt** → **Confirm the patient** → **Assign to doctor**: Dr Faisal. Optionally **Add our records** (encrypted for the department).
+9. **Dr Faisal**: **Incoming referrals** → open it → unlock. It is decrypted with the department's key and checked against Dr Ali's signature. **Accept referral**, and later **Close referral** (or **Extend by 30 days**). It is purged a week after closing.
+10. **Rubina**: **Referrals** → the referral → **Save a copy on this phone** → **Open my copy**. It is verified against Dr Ali's signature, and it still opens after the purge.
 
 **A test or scan request**, e.g. P3 *Abdul Rehman Gondal*:
 1. **Dr Ali**: **New request** → **Request a test or scan** → *Gondal* → Imaging or scan, *MRI knee*, Where: Aga Khan University Hospital → **Submit request**.
@@ -207,9 +210,7 @@ Each seed patient has a referral scenario in [`seed-data/README.md`](seed-data/R
 3. **Dr Sana** (`rad.aku`): **Test and scan orders** → open it → **Confirm the patient** (register as new) → **Accept order** → findings, impression, and **Choose files**: `seed-data/documents/imaging/synthetic_mri-knee-coronal.png` → **Send report**. A report needs findings, an impression and the images; a laboratory report needs each result with its value.
 4. **Dr Ali**: **Tests & results** shows the report with the image → **I have seen the result**. **Hina**: **Record that the patient was told** → **Close request**.
 
-Other scenarios: P2 (Ziauddin cardiology, metformin with contrast; Ziauddin staff match their existing record when it arrives); P1 (Aga Khan dentistry, alendronate with oral surgery); P3 (Aga Khan orthopaedics); P4 (Ziauddin gastroenterology). Any clinic or hospital can refer to another, and receive referrals: try `dr.asma` (Ziauddin) referring to Aga Khan.
-
-**Rules:** sign in as `dr.reviewer` → **Medication rules** to see, edit (a change is a new draft) and approve rules, and **Medicine names** to add a brand name (DRAP register names are marked "DRAP register").
+**Medicine names:** sign in as `dr.reviewer` → **Medicine names** to add a brand name (DRAP register names are marked "DRAP register").
 
 **Roles:** sign in as `admin.ali` → **Accounts and roles** → pick a role for an account (it applies at that user's next sign-in).
 
@@ -217,21 +218,16 @@ Other scenarios: P2 (Ziauddin cardiology, metformin with contrast; Ziauddin staf
 
 ## 5. Automated tests
 
+See [`docs/testing.md`](docs/testing.md) for every suite and what it covers (the spec's acceptance tests T-DB-1 to T-PERF-1).
+
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\pip install httpx pytest
+.\.venv\Scripts\pip install httpx pytest "pyjwt[crypto]" cryptography
 
-# API checks: P5 referral, P3 test request with an image, every patient's expected flags, OCR merge,
-# temporary grants, role menus and role assignment, packet selection, the package fingerprint, the clinic's own copy and the purge (resets demo data first). Expect: 25 passed
-.\.venv\Scripts\python -m pytest tests -q
-
-# Medication-rule logic, interactions, label rules, the extraction validator, AI selection checks, grant expiry,
-# working-set timing, manifests, role templates, DRAP brand matching, model providers, privacy, Vision OCR and staff views. Expect: 136 passed
+.\.venv\Scripts\python -m pytest tests -q              # integration checks against the stack (reseeds first)
+.\.venv\Scripts\python -m pytest libs/common/tests -q  # crypto suite, Python and browser interop, Layer 1 flags (needs Node.js)
 docker compose run --rm --no-deps -v ${PWD}/services/central/tests:/srv/tests central python -m pytest tests -q
-
-# Browser robot: the referral and test-request journeys across 7 accounts, and an administrator changing a role
-# (reset the demo data first). Expect: 3 passed
-cd web; npm ci; npx playwright install chromium; npx playwright test; cd ..
+cd web; npm ci; npx playwright install chromium; npx playwright test; cd ..   # browser journeys (reseed first)
 ```
 
 ---
@@ -271,11 +267,15 @@ docker-compose.yml      Defines all 11 containers
 
 ## 8. Known limitations (be upfront in demos)
 
-- **Synthetic data, unreviewed clinical content.** The rules, references, procedure features and brand mappings are plausible but not clinically reviewed. The seed marks the rules as approved by a demo reviewer.
-- **Interactions come from DDInter and US drug labels only** (automatically generated, not clinically reviewed); AI suggestions are labelled "not verified". See [`docs/medication-flagging.md`](docs/medication-flagging.md).
-- **Records are held only temporarily.** They are removed 72 hours after the receiving doctor marks the referral complete (30-day safety limit after acceptance, which they can extend), at once if declined, on the platform and at the receiving hospital. The platform keeps only the reference, fingerprint and audit; the receiving hospital keeps its own decision, and the sending clinic its own copy. See [`docs/data-lifecycle.md`](docs/data-lifecycle.md).
-- **AI has not run live yet.** It is set up for Gemma 4 through Ollama's cloud, which needs usage credits; until then the rule-based selection is used and the screen says so. De-identification uses patterns and can miss unusual text: synthetic data only.
-- **Up to five linked places:** retrieval asks every linked institution, most recently visited first, up to five; any beyond that are listed as not retrieved.
-- **DRAP brand names are loaded unchecked** (by decision); combination products are not loaded. See [`docs/decisions/2026-10-28-drap-brands-loaded.md`](docs/decisions/2026-10-28-drap-brands-loaded.md).
-- **OCR:** printed prescriptions read well with Tesseract. Handwriting needs Google Vision (a key), and staff check every field.
+- **Synthetic data, unreviewed clinical content.** Brand mappings and interaction data are not clinically reviewed; flags are "automatically generated, not clinically reviewed".
+- **What end-to-end encryption does not cover** ([`docs/security-model.md`](docs/security-model.md)):
+  - a compromised doctor's device;
+  - the platform serves the browser code;
+  - metadata and the patient's demographics are visible to the platform;
+  - the AI relay sees de-identified text in memory;
+  - decrypt events are reported by the client.
+- **Keys live in the browser.** Losing a key (or clearing the browser's data) without a backup means the records are fetched again from the institutions; items that existed only on the platform are lost unless the patient has a copy.
+- **Not done yet:** the RQ1, RQ2 and RQ4 evaluations, a handwriting benchmark, and T-PERF-1 on a phone ([`docs/evaluation.md`](docs/evaluation.md)).
+- **Handwriting:** Tesseract on the device reads printed text well and handwriting poorly; the doctor checks every field against the image.
+- **Test and scan orders** keep the v2 flow (not encrypted end to end); they are out of scope for v4.
 - **Not production-hardened:** HTTP on localhost with demo passwords. See [`docs/operations.md`](docs/operations.md).

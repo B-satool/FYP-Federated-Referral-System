@@ -291,6 +291,12 @@ export function IncomingCase() {
     },
   });
   const [extendOpen, setExtendOpen] = useState(false);
+  const [ownAdded, setOwnAdded] = useState(0);
+  const addOwn = useMutation({
+    mutationFn: () => api.post<{ items: number; held_back: number }>(`/cases/${id}/own-records`, {}, service),
+    meta: { success: "Added, encrypted for the department's doctors." },
+    onSuccess: (x) => setOwnAdded(x.items),
+  });
   const complete = useMutation({
     mutationFn: () => api.post(`/cases/${id}/complete`, {}, service),
     meta: { success: "Closed. The referring clinic and the patient are told; the encrypted referral is purged in a week." },
@@ -515,6 +521,17 @@ export function IncomingCase() {
                     {c.decline_reason ? `. Reason: ${c.decline_reason}` : ""}
                   </Typography>
                 )}
+              </Step>
+              <Step n={4} title="Add our own records for the doctor (optional)" state={ownAdded ? "done" : confirmed ? "next" : "waiting"}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  This hospital's records for the patient are encrypted for the department's doctors. You will not see them.
+                </Typography>
+                <ErrorAlert error={addOwn.error} />
+                <Button variant="outlined" disabled={!confirmed || addOwn.isPending || c.decision === "declined" || !!c.completed_at}
+                  onClick={() => addOwn.mutate()}>
+                  Add our records
+                </Button>
+                {ownAdded && <Typography variant="body2" sx={{ mt: 1 }}>{ownAdded} record(s) added, encrypted for the department.</Typography>}
               </Step>
             </Stack>
           </Section>

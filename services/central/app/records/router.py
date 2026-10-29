@@ -33,7 +33,9 @@ def title_out(it: EncryptedItem) -> dict:
 
 
 def titles_for(db: Session, r: Referral) -> list[dict]:
-    rows = db.scalars(select(EncryptedItem).where(EncryptedItem.referral_id == r.id)
+    """Titles for the referring side; the receiving hospital's own added records are its own and not listed here."""
+    theirs = select(EncryptedBatch.batch_id).where(EncryptedBatch.referral_id == r.id, EncryptedBatch.origin == "receiving")
+    rows = db.scalars(select(EncryptedItem).where(EncryptedItem.referral_id == r.id, EncryptedItem.batch_id.notin_(theirs))
                       .order_by(EncryptedItem.source_institution, EncryptedItem.item_date.desc().nullslast(),
                                 EncryptedItem.id)).all()
     seen: dict[str, dict] = {}
@@ -112,10 +114,13 @@ def encrypted_items(referral_id: int, db: Session = Depends(get_db), principal: 
     r = require_referring_doctor(db, referral_id, principal, "records_fetch")
     if r.working_set_purged_at is not None:
         raise error(410, "purged", "This referral's encrypted content was purged")
-    items = db.scalars(select(EncryptedItem).where(EncryptedItem.referral_id == r.id).order_by(EncryptedItem.id)).all()
+    batches = db.scalars(select(EncryptedBatch).where(EncryptedBatch.referral_id == r.id,
+                                                      EncryptedBatch.origin != "receiving")).all()
+    mine = {b.batch_id for b in batches}
+    items = [it for it in db.scalars(select(EncryptedItem).where(EncryptedItem.referral_id == r.id).order_by(EncryptedItem.id))
+             if it.batch_id in mine]
     wraps = db.scalars(select(WrappedKey).where(WrappedKey.referral_id == r.id,
                                                 WrappedKey.recipient_subject == principal.subject)).all()
-    batches = db.scalars(select(EncryptedBatch).where(EncryptedBatch.referral_id == r.id)).all()
     audit(db, principal, "records.ciphertext_fetch", "referral", r.reference, "success", r.id,
           {"items": len(items), "wraps": len(wraps)})
     db.commit()
@@ -173,6 +178,45 @@ def department_member(db: Session, principal: Principal, hospital: str, departme
                                                  GroupKeyWrap.member_subject_id == principal.subject)).first() is not None
 
 
+class ReceivingBatchIn(BaseModel):
+    referral: str
+    batch: dict
+
+
+@router.post("/e2e/adapter/receiving-batches", status_code=201)
+def receiving_batch(body: ReceivingBatchIn, request: Request, db: Session = Depends(get_db)):
+    """The receiving hospital adds its own records for its doctors (spec v4 step 8, 5.6 step 6): a batch from its
+    adapter (signed request), encrypted to its own department's group key, so only that department's doctors open it.
+    The referring side never gets a wrap for it."""
+    from ..keys.router import current_department_entry
+
+    claims = platform.verify_adapter(request, db)
+    issuer = claims["iss"]
+    r = db.scalars(select(Referral).where(Referral.reference == body.referral)).first()
+    if r is None or r.destination_institution != issuer or r.submitted_package_version is None:
+        raise error(404, "not_found", "No referral sent to your institution with this reference")
+    if r.status in TERMINAL or r.working_set_purged_at is not None:
+        raise error(409, "not_open", "This referral is closed or purged")
+    dept = current_department_entry(db, issuer, r.destination_department)
+    batch = body.batch
+    if dept is None or not str(batch.get("batch_id", "")).startswith(f"{issuer}-") or not batch.get("items") \
+            or len(batch["items"]) > 200:
+        raise error(422, "invalid_batch", "A batch of 1 to 200 items, from your institution, for a department with a key")
+    for w in batch.get("wraps", []):
+        if w.get("recipient_type") != "department" or w.get("recipient_key_id") != dept.enc_key_id:
+            raise error(422, "invalid_recipient", "Your own records are wrapped only to the receiving department's key")
+        w["recipient_subject"], w["key_version"] = dept.subject_id, dept.key_version
+    for it in batch["items"]:
+        if not str((it.get("title") or {}).get("item_id", "")).startswith(f"{issuer}:") or "sealed" not in it:
+            raise error(422, "invalid_item", "Each item needs an id from your institution, a title and ciphertext")
+    b = rq.store_batch(db, r, batch, origin="receiving", source=issuer, created_by=f"adapter {issuer}")
+    rq.event(db, r, "receiving_records_added", f"adapter {issuer}", issuer, {"batch": b.batch_id, "items": len(batch["items"])})
+    audit(db, None, "records.receiving_added", "referral", r.reference, "success", r.id,
+          {"batch": b.batch_id, "items": len(batch["items"])}, actor=(issuer, f"adapter {issuer}", issuer))
+    db.commit()
+    return {"batch_id": b.batch_id, "items": len(batch["items"])}
+
+
 @router.get("/e2e/received/{reference}/package")
 def received_package(reference: str, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     """The receiving department's doctors fetch the sent package (ciphertext and the data keys wrapped to the
@@ -188,6 +232,18 @@ def received_package(reference: str, db: Session = Depends(get_db), principal: P
     if r.working_set_purged_at is not None:
         raise error(410, "purged", "This referral's encrypted content was purged")
     out = package_bundle(db, r, "department")
+    # the receiving hospital's own records, added for its doctors (not part of the signed package)
+    own = db.scalars(select(EncryptedBatch).where(EncryptedBatch.referral_id == r.id, EncryptedBatch.origin == "receiving")).all()
+    if own:
+        ids = [b.batch_id for b in own]
+        out["items"] += [title_out(it) | {"sealed": it.sealed, "ciphertext_sha256": it.ciphertext_sha256} for it in
+                         db.scalars(select(EncryptedItem).where(EncryptedItem.batch_id.in_(ids)).order_by(EncryptedItem.id))]
+        out["wraps"] += [{"batch_id": w.batch_id, "recipient_type": w.recipient_type, "recipient_key_id": w.recipient_key_id,
+                          "key_version": w.key_version, "wrapped": w.wrapped}
+                         for w in db.scalars(select(WrappedKey).where(WrappedKey.batch_id.in_(ids),
+                                                                      WrappedKey.recipient_type == "department"))]
+        out["batches"] += [{"batch_id": b.batch_id, "origin": b.origin, "source_institution": b.source_institution,
+                            "source_name": institution_name(b.source_institution), "created_at": b.created_at} for b in own]
     audit(db, principal, "records.received_fetch", "referral", r.reference, "success", r.id,
           {"version": out["version"], "items": len(out["items"])})
     db.commit()

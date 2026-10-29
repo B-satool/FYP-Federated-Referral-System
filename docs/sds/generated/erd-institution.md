@@ -2,13 +2,10 @@
 
 Generated from the SQLAlchemy models. Solid lines are database foreign keys; dotted lines are logical references held as plain columns (no constraint). PK primary key, FK foreign key, UK unique.
 
-### Overview: all 18 tables and their relationships
+### Overview: all 22 tables and their relationships
 
 ```mermaid
 erDiagram
-    access_grants {
-        int id PK "not null"
-    }
     audit_events {
         int id PK "not null"
     }
@@ -21,7 +18,13 @@ erDiagram
     consultation_responses {
         int id PK "not null"
     }
+    doctor_keys {
+        int id PK "not null"
+    }
     forwarded_results {
+        int id PK "not null"
+    }
+    group_key_wraps {
         int id PK "not null"
     }
     imaging_reports {
@@ -31,6 +34,9 @@ erDiagram
         int id PK "not null"
     }
     info_requests {
+        int id PK "not null"
+    }
+    key_store {
         int id PK "not null"
     }
     lab_results {
@@ -51,6 +57,12 @@ erDiagram
     patients {
         string local_id PK "not null, String(30)"
     }
+    record_requests {
+        int id PK "not null"
+    }
+    seen_assertions {
+        string jti PK "not null, String(80)"
+    }
     sent_copies {
         int id PK "not null"
     }
@@ -67,7 +79,6 @@ erDiagram
     cases ||--o{ info_requests : "case_id"
     orders |o--o{ outbox : "order_id"
     orders ||--o{ order_attachments : "order_id"
-    patients |o..o{ access_grants : "local_patient_id (logical)"
     patients |o..o{ cases : "local_patient_id (logical)"
     patients |o..o{ orders : "local_patient_id (logical)"
     patients ||--o{ conditions : "patient_id"
@@ -82,20 +93,6 @@ erDiagram
 
 ```mermaid
 erDiagram
-    access_grants {
-        int id PK "not null"
-        string grantee_institution "not null, String(50)"
-        string local_patient_id "not null, String(50)"
-        json categories "not null"
-        string status "not null, String(20)"
-        text basis "not null"
-        string granted_by "not null, String(200)"
-        datetime created_at "not null, DateTime(timezone=True)"
-        string revoked_by "nullable, String(200)"
-        datetime revoked_at "nullable, DateTime(timezone=True)"
-        datetime expires_at "nullable, DateTime(timezone=True)"
-        string referral_ref "nullable, String(60)"
-    }
     audit_events {
         int id PK "not null"
         string actor_id "not null, String(100)"
@@ -149,6 +146,7 @@ erDiagram
         string snomed "nullable, String(30)"
         string clinical_status "not null, String(20)"
         string onset "nullable, String(10)"
+        string sensitive_category "nullable, String(40)"
         int version "not null"
         datetime updated_at "not null, DateTime(timezone=True)"
     }
@@ -166,12 +164,41 @@ erDiagram
         datetime returned_at "nullable, DateTime(timezone=True)"
         string return_key UK "nullable, String(200)"
     }
+    doctor_keys {
+        int id PK "not null"
+        string subject_id "not null, String(64)"
+        string username "not null, String(100)"
+        string display_name "not null, String(200)"
+        string department "nullable, String(60)"
+        string enc_key_id "not null, String(16)"
+        int key_version "not null"
+        json request "not null"
+        json entry "nullable"
+        string status "not null, String(20)"
+        bool recovery "not null"
+        string approved_by "nullable, String(200)"
+        json revocation "nullable"
+        string revoked_by "nullable, String(200)"
+        datetime revoked_at "nullable, DateTime(timezone=True)"
+        datetime published_at "nullable, DateTime(timezone=True)"
+        datetime created_at "not null, DateTime(timezone=True)"
+    }
     forwarded_results {
         int id PK "not null"
         string forward_key UK "not null, String(200)"
         int case_id FK "not null"
         json content "not null"
         datetime received_at "not null, DateTime(timezone=True)"
+    }
+    group_key_wraps {
+        int id PK "not null"
+        string department "not null, String(60)"
+        int group_version "not null"
+        string member_subject_id "not null, String(64)"
+        string member_key_id "not null, String(16)"
+        json wrapped "not null"
+        datetime published_at "nullable, DateTime(timezone=True)"
+        datetime created_at "not null, DateTime(timezone=True)"
     }
     imaging_reports {
         string id PK "not null, String(40)"
@@ -182,6 +209,7 @@ erDiagram
         text findings "not null"
         text impression "not null"
         string reporter "nullable, String(200)"
+        string sensitive_category "nullable, String(40)"
         int version "not null"
         datetime updated_at "not null, DateTime(timezone=True)"
     }
@@ -207,6 +235,17 @@ erDiagram
         datetime answered_at "nullable, DateTime(timezone=True)"
         string answer_key UK "nullable, String(200)"
     }
+    key_store {
+        int id PK "not null"
+        string purpose "not null, String(80)"
+        int version "not null"
+        text public_spki "not null"
+        json private_sealed "not null"
+        json entry "nullable"
+        datetime published_at "nullable, DateTime(timezone=True)"
+        datetime created_at "not null, DateTime(timezone=True)"
+        datetime retired_at "nullable, DateTime(timezone=True)"
+    }
     lab_results {
         string id PK "not null, String(40)"
         string patient_id FK "not null"
@@ -219,6 +258,7 @@ erDiagram
         string unit "nullable, String(40)"
         string reference_range "nullable, String(60)"
         string abnormal_flag "nullable, String(20)"
+        string sensitive_category "nullable, String(40)"
         string status "not null, String(20)"
         text note "nullable"
         int version "not null"
@@ -236,6 +276,7 @@ erDiagram
         string status "not null, String(20)"
         string prescriber "nullable, String(200)"
         text note "nullable"
+        string sensitive_category "nullable, String(40)"
         int version "not null"
         datetime updated_at "not null, DateTime(timezone=True)"
     }
@@ -309,6 +350,37 @@ erDiagram
         int version "not null"
         datetime updated_at "not null, DateTime(timezone=True)"
     }
+    record_requests {
+        int id PK "not null"
+        string request_key UK "not null, String(200)"
+        string referral_ref "not null, String(40)"
+        string requesting_org "not null, String(50)"
+        string practitioner_id "not null, String(64)"
+        string practitioner_name "nullable, String(200)"
+        string purpose "not null, String(20)"
+        string consent_ref "not null, String(60)"
+        string local_patient_id "nullable, String(50)"
+        json categories "not null"
+        string since "nullable, String(20)"
+        text reason_text "nullable"
+        json sensitive "not null"
+        json practitioner_entry "nullable"
+        json patient_entry "nullable"
+        string status "not null, String(30)"
+        json refusals "not null"
+        string policy_version "not null, String(40)"
+        int item_count "not null"
+        string decided_by "nullable, String(200)"
+        datetime decided_at "nullable, DateTime(timezone=True)"
+        datetime delivered_at "nullable, DateTime(timezone=True)"
+        text delivery_error "nullable"
+        datetime created_at "not null, DateTime(timezone=True)"
+    }
+    seen_assertions {
+        string jti PK "not null, String(80)"
+        string issuer "not null, String(50)"
+        datetime expires_at "not null, DateTime(timezone=True)"
+    }
     sent_copies {
         int id PK "not null"
         string copy_key UK "not null, String(220)"
@@ -335,6 +407,7 @@ erDiagram
         string clinician "nullable, String(200)"
         text reason "not null"
         text summary "not null"
+        string sensitive_category "nullable, String(40)"
         int version "not null"
         datetime updated_at "not null, DateTime(timezone=True)"
     }
@@ -345,7 +418,6 @@ erDiagram
     cases ||--o{ info_requests : "case_id"
     orders |o--o{ outbox : "order_id"
     orders ||--o{ order_attachments : "order_id"
-    patients |o..o{ access_grants : "local_patient_id (logical)"
     patients |o..o{ cases : "local_patient_id (logical)"
     patients |o..o{ orders : "local_patient_id (logical)"
     patients ||--o{ conditions : "patient_id"

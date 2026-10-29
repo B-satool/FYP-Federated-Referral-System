@@ -1,5 +1,7 @@
 # 8. Security architecture
 
+> **Superseded in part by section 18 (spec v4, 2026-10-30).** Access to referral records is now consent plus each institution's policy plus signed request assertions (spec v4 6), and content is end-to-end encrypted (sections 18.1, 18.3; docs/security-model.md). Sharing grants were removed.
+
 ## 8.1 Authentication
 
 | Party | Mechanism |

@@ -1,5 +1,7 @@
 # 16. Known limitations, risks and open decisions
 
+> **Superseded in part by section 18 (spec v4, 2026-10-30).** The spec v4 limits (a compromised device, the platform serving the client code, visible metadata, the AI relay, client-reported decrypt events) are in docs/security-model.md.
+
 ## 16.1 Built differently from the SRS or not built
 
 | Item | Status | Reference |

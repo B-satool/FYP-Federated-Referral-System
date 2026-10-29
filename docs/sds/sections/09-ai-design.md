@@ -1,5 +1,7 @@
 # 9. AI and machine-learning design
 
+> **Superseded in part by section 18 (spec v4, 2026-10-30).** The AI no longer runs on the server automatically: it runs through the relay, on the doctor's request, with text de-identified and previewed on the device (section 18.5).
+
 The system uses AI in three places, each optional and each kept outside the safety-critical path:
 
 | Use | Technique | Runs | Can it change flags or remove records? |

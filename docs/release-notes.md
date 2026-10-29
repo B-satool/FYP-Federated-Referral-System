@@ -1,5 +1,45 @@
 # Release notes
 
+## v4: end-to-end encrypted referrals (branch `e2e-v4/wp5-approval`, 2026-10-30)
+
+Built from `docs/e2e-architecture-spec-v4.md`. Sumaiya B. built WP0 to WP4 (2026-10-29); WP5 to WP11 were finished on
+2026-10-30. Status per package: `docs/e2e-mapping.md`. Security claims and their limits: `docs/security-model.md`.
+
+**What is included:**
+- **Keys and consent:**
+  - device keys for doctors and patients;
+  - a hospital-signed key directory with pinned keys;
+  - department group keys;
+  - patient consent signed in the patient app;
+  - each institution's own release policy, with refusal reason codes;
+  - signed request assertions between the platform and the institutions.
+- **Encryption:**
+  - records arrive encrypted for the doctor, who decrypts them on the device;
+  - staff see titles only;
+  - the doctor signs the package, and the data keys are re-wrapped to the receiving department and the patient;
+  - the receiving department's doctor verifies every item against the signature;
+  - the receiving hospital can add its own records for its doctors.
+- **AI only on a doctor's request:** de-identified on the device, previewed, and relayed without storage or logging.
+  Record suggestions, and Layer 2 flag suggestions labelled "not verified".
+- **Medication flags on the device** from a hash-checked bundle (DRAP brands, DDInter pairs). Ignore and Research are
+  logged. No drug-procedure table.
+- **Papers read on the device** (self-hosted Tesseract.js) and encrypted with the reading; the patient can add papers
+  from the app.
+- **Lifecycle:**
+  - a reminder 30 days after acceptance, weekly repeats, escalation;
+  - extensions with a reason, up to 180 days;
+  - the specialist closes, and the referral is purged a week later by deleting the ciphertext and keys, with a receipt.
+- **The patient keeps a verified copy** on the phone after the purge.
+- **The audit trail is append-only and hash-chained.**
+
+**Removed:**
+- plaintext retrieval at the platform;
+- per-patient sharing grants;
+- the sender's copy;
+- the receiver's stored package;
+- server-side AI and OCR on the referral path;
+- the hand-written drug-class rules and the drug-procedure label rules.
+
 ## v2 (branch `main`, 2026-10-28)
 
 Version 2 rebuilds the prototype around the team's feedback. What changed and why is in `docs/v2-changes.md`, and

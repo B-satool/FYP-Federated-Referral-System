@@ -5,6 +5,7 @@ Project API contracts between the central platform and the institution services.
 | Constant | Value |
 |---|---|
 | `PACKAGE_ENVELOPE_VERSION` | `referral-package/2.0` |
+| `NOTICE_VERSION` | `referral-notice/3.0` |
 | `ORDER_ENVELOPE_VERSION` | `diagnostic-order/1.0` |
 | `EVENT_ENVELOPE_VERSION` | `provider-event/1.0` |
 | `CONTRACT_NOTE` | `Project API contract (not a standard FHIR resource)` |
@@ -139,6 +140,34 @@ One sent version of a referral. The requesting doctor authorised the request; st
 | `fhir_bundle` | dict[str, Any] | (required) |  |
 | `supersedes_version` | int \| None | None |  |
 
+### `ReferralNotice`
+
+Spec v4 (approval A4): what the receiving hospital's system gets when a referral is sent. Administrative data only: who, from where, how urgent, why, the patient's identity details for linking, the record titles and the signed manifest's hash. No record content: the department's doctors fetch the ciphertext from the platform and decrypt it on their own devices with the department group key. The receiving hospital keeps no copy of other hospitals' records (D2).
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `envelope_version` | str | NOTICE_VERSION |  |
+| `contract_note` | str | CONTRACT_NOTE |  |
+| `delivery_key` | str | (required) |  |
+| `referral_id` | str | (required) |  |
+| `package_version` | int | (required) |  |
+| `sender_institution` | str | (required) |  |
+| `sender_name` | str | (required) |  |
+| `sender_department` | str \| None | None |  |
+| `destination_institution` | str | (required) |  |
+| `destination_department` | str | (required) |  |
+| `destination_doctor` | str \| None | None |  |
+| `urgency` | str | (required) |  |
+| `reason` | str | (required) |  |
+| `patient` | dict[str, Any] | (required) |  |
+| `requesting_doctor` | dict[str, Any] | (required) |  |
+| `titles` | list[dict[str, Any]] | Field(default_factory=list) |  |
+| `manifest_sha256` | str | (required) |  |
+| `signed_by` | dict[str, Any] | Field(default_factory=dict) |  |
+| `sent_by` | str | (required) |  |
+| `sent_at` | datetime | (required) |  |
+| `supersedes_version` | int \| None | None |  |
+
 ### `DiagnosticOrder`
 
 A test or scan request sent to a laboratory or imaging department. It is a separate order: it does not depend on the specialist's decision about the referral.
@@ -211,6 +240,85 @@ A returned diagnostic report forwarded to the referral's receiving hospital, so 
 | `answered_at` | datetime | (required) |  |
 
 ## Request bodies (API input models)
+
+### `SelectionRecord` (services/central/app/ai_relay.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `id` | int | (required) |  |
+| `category` | str | Field(max_length=40) |  |
+| `when` | str \| None | Field(None, max_length=60) |  |
+| `default` | bool | False |  |
+| `text` | str | Field(max_length=MAX_TEXT) |  |
+
+### `SelectionPayload` (services/central/app/ai_relay.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `patient` | dict[str, Any] | {} |  |
+| `referral` | dict[str, Any] | {} |  |
+| `records` | list[SelectionRecord] | Field(max_length=MAX_RECORDS) |  |
+
+### `SelectionIn` (services/central/app/ai_relay.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `referral_id` | int | (required) |  |
+| `payload` | SelectionPayload | (required) |  |
+
+### `FlagsPayload` (services/central/app/ai_relay.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `medicines` | list[str] | Field(max_length=40) |  |
+| `procedure` | str \| None | Field(None, max_length=200) |  |
+| `age_band` | str \| None | Field(None, max_length=20) |  |
+| `already_flagged` | list[list[str]] | Field(default_factory=list, max_length=200) |  |
+| `not_in_dataset` | list[str] | Field(default_factory=list, max_length=40) |  |
+
+### `FlagsIn` (services/central/app/ai_relay.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `referral_id` | int | (required) |  |
+| `payload` | FlagsPayload | (required) |  |
+
+### `ConsentRequestIn` (services/central/app/consent/router.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `custodians` | list[str] \| None | None | default: the referring institution and every verified linked source |
+
+### `PrepareIn` (services/central/app/consent/router.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `custodians` | list[str] | Field(min_length=1) |  |
+| `sensitive` | list[str] | [] |  |
+| `duration_days` | int | (required) |  |
+
+### `DecisionIn` (services/central/app/consent/router.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `decision` | str | Field(pattern='^(grant\|decline)$') |  |
+| `document` | dict \| None | None |  |
+| `reason` | str \| None | None |  |
+
+### `RevokeIn` (services/central/app/consent/router.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `revocation` | dict | (required) |  |
 
 ### `CancelIn` (services/central/app/diagnostics/router.py)
 
@@ -346,6 +454,34 @@ A returned diagnostic report forwarded to the referral's receiving hospital, so 
 | `template_id` | str | (required) |  |
 | `reason` | str | Field(min_length=3) |  |
 
+### `DirectoryBatch` (services/central/app/keys/router.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `entries` | list[dict] | [] |  |
+| `revocations` | list[dict] | [] |  |
+| `group_wraps` | list[dict] | [] |  |
+| `notices` | list[dict] | [] |  |
+
+### `PatientKeyIn` (services/central/app/keys/router.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `registration` | dict | (required) |  |
+
+### `ClientEventIn` (services/central/app/keys/router.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `action` | str | (required) |  |
+| `target_type` | str | (required) |  |
+| `target_id` | str | (required) |  |
+| `referral_id` | int \| None | None |  |
+| `detail` | dict | {} |  |
+
 ### `SuggestionReviewIn` (services/central/app/medications/router.py)
 
 
@@ -431,6 +567,44 @@ A returned diagnostic report forwarded to the referral's receiving hospital, so 
 | `reference_checked` | str | Field(min_length=5) |  |
 | `note` | str | '' |  |
 
+### `PatientBatchIn` (services/central/app/patient_access.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `batch_id` | str | (required) |  |
+| `items` | list[dict] | (required) |  |
+| `wraps` | list[dict] | (required) |  |
+
+### `AdapterAnswer` (services/central/app/records/router.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `request_key` | str | (required) |  |
+| `status` | str | (required) |  |
+| `refusals` | list[dict] | [] |  |
+| `policy_version` | str \| None | None |  |
+| `notes` | list[str] | [] |  |
+| `batch` | dict \| None | None |  |
+
+### `ReceivingBatchIn` (services/central/app/records/router.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `referral` | str | (required) |  |
+| `batch` | dict | (required) |  |
+
+### `BatchIn` (services/central/app/records/router.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `batch_id` | str | (required) |  |
+| `items` | list[dict] | (required) |  |
+| `wraps` | list[dict] | (required) |  |
+
 ### `DiagnosticIn` (services/central/app/referrals/router.py)
 
 
@@ -486,6 +660,14 @@ A returned diagnostic report forwarded to the referral's receiving hospital, so 
 | `expected_version` | int | (required) |  |
 | `reason` | str | Field(min_length=3) |  |
 
+### `ApproveIn` (services/central/app/sending/router.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `manifest` | dict | (required) |  |
+| `wraps` | list[dict] | (required) |  |
+
 ### `SendIn` (services/central/app/sending/router.py)
 
 
@@ -493,12 +675,13 @@ A returned diagnostic report forwarded to the referral's receiving hospital, so 
 |---|---|---|---|
 | `expected_version` | int | (required) |  |
 
-### `VerifyCopyIn` (services/central/app/sending/router.py)
+### `VerifyIn` (services/central/app/sending/router.py)
 
 
 | Field | Type | Default | Note |
 |---|---|---|---|
-| `package` | dict | (required) |  |
+| `reference` | str | (required) |  |
+| `manifest` | dict | (required) |  |
 
 ### `LookupIn` (services/provider/app/main.py)
 
@@ -522,17 +705,6 @@ A returned diagnostic report forwarded to the referral's receiving hospital, so 
 | `sex` | str | (required) |  |
 | `phone` | str \| None | None |  |
 | `city` | str \| None | None |  |
-
-### `ShareIn` (services/provider/app/main.py)
-
-
-| Field | Type | Default | Note |
-|---|---|---|---|
-| `grantee_institution` | str | (required) |  |
-| `local_patient_id` | str | (required) |  |
-| `basis` | str | Field(min_length=5) |  |
-| `duration_days` | int | DEFAULT_GRANT_DAYS |  |
-| `referral_ref` | str \| None | None |  |
 
 ### `ExpiredIn` (services/provider/app/main.py)
 
@@ -662,32 +834,3 @@ A returned diagnostic report forwarded to the referral's receiving hospital, so 
 | `allowed` | set[str] | (required) |  |
 | `denied` | set[str] | (required) |  |
 | `reason` | str | (required) |  |
-| `expired` | bool | False |  |
-
-### `GrantIn` (libs/common/refcommon/sourcekit.py)
-
-
-| Field | Type | Default | Note |
-|---|---|---|---|
-| `grantee_institution` | str | (required) |  |
-| `local_patient_id` | str | (required) |  |
-| `categories` | list[str] | (required) |  |
-| `basis` | str | '' |  |
-| `duration_days` | int | DEFAULT_GRANT_DAYS |  |
-| `referral_ref` | str \| None | None |  |
-
-### `ExtendIn` (libs/common/refcommon/sourcekit.py)
-
-
-| Field | Type | Default | Note |
-|---|---|---|---|
-| `days` | int | (required) |  |
-| `reason` | str | (required) |  |
-
-### `RevokeByReferralIn` (libs/common/refcommon/sourcekit.py)
-
-
-| Field | Type | Default | Note |
-|---|---|---|---|
-| `referral_ref` | str | (required) |  |
-| `reason` | str | 'referral finished' |  |

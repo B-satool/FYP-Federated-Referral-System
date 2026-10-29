@@ -70,6 +70,15 @@ def institution_audit(action: str | None = None, outcome: str | None = None, lim
     return out
 
 
+@router.get("/admin/audit/chain")
+def audit_chain(db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Recompute the audit trail's hash chain (spec v4 11.5): sealed and unsealed counts and the first break, if any."""
+    from .lifecycle.audit_chain import verify
+
+    require_roles(principal, "institution_admin", action="admin.audit_chain")
+    return verify(db)
+
+
 @router.get("/me")
 def me(db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     u = db.get(User, principal.subject)

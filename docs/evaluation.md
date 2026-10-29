@@ -1,4 +1,49 @@
-# OCR, extraction and brief evaluation
+# Evaluation
+
+## Spec v4 research questions (section 15), status on 2026-10-30
+
+| RQ | Question | Status |
+|---|---|---|
+| RQ1 | Does patient matching find one person across institutions despite spelling variants? | **Planned, not run.** Matching is by CNIC and name, confirmed by staff. A benchmark of synthetic name-variant pairs against `POST /identity/lookup` is still to be built. |
+| RQ2 | Can the AI pick what a clinician would include, compared with the fixed floor? | **Planned, not run.** The relay and the floor are built. The gold lists are the seed patients' `expected_retrieval_view`. Running it needs model calls (Groq free tier, about 2 referrals a minute). |
+| RQ3 (brand mapping) | How well are Pakistani brand names mapped as people write them? | **Run** (below) |
+| RQ3 (handwriting) | How reliably are medicine, dose and frequency read from handwriting? | **Planned, not run.** Tesseract.js runs on the device; no synthetic handwritten set exists yet. The v1 Tesseract figures below are for machine-rendered text only. |
+| RQ4 | Does the AI layer rediscover held-out known interactions, and with how many false alarms? | **Planned, not run.** The Layer 2 relay is built. A held-out DDInter set and a curated drug-procedure set (a benchmark only, never loaded at runtime) are still to be built. |
+| T-PERF-1 | Time and size to open a typical referral on a device | **Run on a laptop, not on a phone** (below) |
+
+### RQ3: brand mapping (2026-10-30)
+
+`node evaluation/e2e/rq3-brand-mapping.ts <bundle.json>` runs the browser's Layer 1 matcher
+(`web/src/features/e2e/flags.ts`) on variants of the 54 hand-checked single-word brands in bundle `177b7e86d7cd`.
+Results: `evaluation/results/rq3-brand-mapping-latest.json`.
+
+| Written as | Cases | Mapped exactly | Approximate, right ingredient | Wrong ingredient | Left unmapped |
+|---|---|---|---|---|---|
+| As on the pack | 54 | 54 | 0 | 0 | 0 |
+| Upper case with a strength ("DISPRIN 75mg") | 54 | 54 | 0 | 0 | 0 |
+| With "Tab." and form words | 54 | 54 | 0 | 0 | 0 |
+| One dropped letter | 54 | 0 | 43 | 1 | 10 |
+| Two letters swapped | 54 | 1 | 50 | 0 | 3 |
+| One letter doubled | 54 | 0 | 52 | 0 | 2 |
+| Two slips | 54 | 0 | 5 | 2 | 47 |
+
+**Reading it:**
+- **Approximate matches are never silent.** The screen shows "Spelling close to …: check it is the same medicine",
+  and any flag from such a match is tagged "name matched approximately".
+- **The 3 wrong-ingredient cases** (out of 378) are why that tag exists.
+- **Unmapped names are "could not be assessed",** not "no issues", and can be sent to the AI.
+- **The benchmark is synthetic.** It tests typing slips, not real prescriptions or the DRAP register names.
+
+### T-PERF-1: opening a referral on the device (2026-10-30)
+
+`node web/scripts/perf-decrypt.ts`: 30 items (25 records and 5 scans of 1.5 MB) in 4 batches. That is about 10 MB to
+download (base64). The median time to unwrap the data keys, decrypt every item and hash it for the manifest check was
+**62 ms** (range 57–72 ms over 5 runs). This was the browser crypto code under Node 24 on the team's laptop. A
+mid-range phone has not been measured.
+
+---
+
+# OCR, extraction and brief evaluation (v1 and v2)
 
 > **v1 measurements.** These figures are for Tesseract on machine-rendered samples. Handwriting (Google Cloud Vision, `OCR_ENGINE=google_vision`) and the AI packet selection have not been evaluated on real data yet; see [testing.md](testing.md).
 

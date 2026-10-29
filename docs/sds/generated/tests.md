@@ -1,6 +1,6 @@
 ## Automated tests
 
-116 tests in 22 files.
+124 tests in 27 files.
 
 ### `services/central/tests/test_ai_suggestions.py` (unit (no services), 4)
 
@@ -11,31 +11,23 @@
 | `test_suggestions_only_for_current_medicines_and_carry_versions` |  |
 | `test_committed_suggestions_exclude_ddinter_pairs_and_are_labelled` |  |
 
-### `services/central/tests/test_evaluator.py` (unit (no services), 11)
+### `services/central/tests/test_evaluator.py` (unit (no services), 5)
 
 | Test | What it checks |
 |---|---|
-| `test_seed_scenarios` |  |
-| `test_procedure_not_known_is_never_guessed` |  |
-| `test_planned_procedure_without_features_is_not_guessed` |  |
-| `test_name_hints_cover_the_seed_procedures` | Words in the procedure name pre-tick the features the seed scenarios need. |
-| `test_consultation_only_has_no_procedure_flags` |  |
+| `test_name_hints_cover_the_seed_procedures` | Words in the procedure name pre-tick the features the doctor confirms (features, not medicines). |
 | `test_unrecognised_medicine_is_reported_not_ignored` |  |
 | `test_unavailable_source_is_a_limitation_not_none` |  |
 | `test_no_rules_is_not_a_negative_result` |  |
-| `test_one_flag_per_medicine_and_rule_however_many_sources` |  |
 | `test_deterministic` |  |
-| `test_messages_never_advise_changing_a_medicine` |  |
 
-### `services/central/tests/test_flagging.py` (unit (no services), 19)
+### `services/central/tests/test_flagging.py` (unit (no services), 17)
 
 | Test | What it checks |
 |---|---|
-| `test_p1_alendronate_dental_label_flag_with_quote` |  |
-| `test_p2_metformin_contrast_label_flag` |  |
 | `test_p3_aspirin_and_diclofenac_interaction` |  |
 | `test_p4_ibuprofen_with_liver_disease_condition_flag` |  |
-| `test_p5_antiplatelets_before_surgery_and_no_invented_insulin_advice` |  |
+| `test_p5_antiplatelets_interact_and_no_invented_insulin_advice` |  |
 | `test_deterministic_byte_identical` |  |
 | `test_unmapped_brand_could_not_be_checked_not_safe` |  |
 | `test_ambiguous_brand_returns_ambiguous` |  |
@@ -47,33 +39,21 @@
 | `test_no_match_says_no_rule_on_file_never_safe` |  |
 | `test_flag_text_never_advises_changing_medication` |  |
 | `test_only_serious_imported_flags_require_a_decision` |  |
-| `test_procedure_unknown_does_not_guess_label_rules` |  |
+| `test_procedure_unknown_gives_only_condition_label_rules` |  |
 | `test_validator_rejects` |  |
 | `test_validator_accepts_and_every_stored_label_rule_passes` |  |
 
-### `services/central/tests/test_grant_closeout.py` (unit (no services), 2)
+### `services/central/tests/test_lifecycle.py` (unit (no services), 10)
 
 | Test | What it checks |
 |---|---|
-| `test_calls_every_source_with_the_referral_reference` |  |
-| `test_one_failing_source_is_reported_and_others_still_run` |  |
-
-### `services/central/tests/test_lifecycle.py` (unit (no services), 15)
-
-| Test | What it checks |
-|---|---|
-| `test_grant_states` |  |
-| `test_grant_duration_bounds` |  |
-| `test_grant_expiry_default_and_max` |  |
-| `test_no_limit_until_accepted_then_safety_limit` |  |
-| `test_receiver_extends_and_completes` |  |
-| `test_decline_removes_now_and_cancel_after_grace` |  |
+| `test_no_limit_until_accepted_then_a_reminder_not_a_purge` |  |
+| `test_extension_moves_the_reminder_and_stops_at_the_maximum` |  |
+| `test_close_purges_after_the_grace_period` |  |
+| `test_decline_and_cancel_purge_after_a_short_grace` |  |
 | `test_test_requests_end_after_results` |  |
-| `test_working_set_restarts_after_purge` |  |
-| `test_manifest_holds_references_not_values` |  |
-| `test_purged_envelope_keeps_identity_only` |  |
-| `test_verify_copy` |  |
 | `test_every_template_is_valid` |  |
+| `test_templates_give_visibility_keys_and_scopes` | Spec v4 4.1: staff see titles only and hold no keys; doctors open content on their device and hold keys. |
 | `test_menu_only_offers_screens_the_roles_allow` |  |
 | `test_front_desk_does_not_get_reviewer_screens` |  |
 | `test_plan_change_only_removes_managed_roles` |  |
@@ -154,7 +134,7 @@
 |---|---|
 | `test_record_titles_name_the_chart_never_the_content` |  |
 | `test_staff_evidence_view_has_no_values_or_ai_reasoning` |  |
-| `test_staff_referral_view_hides_reason_notes_and_procedure` |  |
+| `test_staff_referral_view_hides_notes_and_procedure_but_shows_the_reason` | Spec v4 4: staff see referral metadata including the reason; the doctor's notes and procedure stay hidden. |
 | `test_staff_test_view_hides_question_and_result` |  |
 | `test_consultation_notes_are_hashed_without_changing_older_packages` |  |
 | `test_interaction_flag_quotes_the_label_when_a_sentence_exists` |  |
@@ -167,11 +147,85 @@
 | `test_vision_failure_falls_back_to_tesseract_and_says_so` |  |
 | `test_no_key_never_calls_google` |  |
 
-### `tests/test_drap_brands.py` (integration (full stack), 1)
+### `tests/test_e2e_ai.py` (integration (full stack), 3)
 
 | Test | What it checks |
 |---|---|
-| `test_register_brand_and_choosing_an_ambiguous_one_by_company` |  |
+| `test_identifiers_are_refused_and_never_logged` |  |
+| `test_only_the_referring_doctor_may_ask` |  |
+| `test_answer_is_checked_or_unavailable_is_said` |  |
+
+### `tests/test_e2e_audit.py` (integration (full stack), 3)
+
+| Test | What it checks |
+|---|---|
+| `test_chain_verifies_and_the_table_is_append_only` |  |
+| `test_tampering_behind_the_trigger_is_detected` |  |
+| `test_audit_holds_no_content` |  |
+
+### `tests/test_e2e_consent.py` (integration (full stack), 5)
+
+| Test | What it checks |
+|---|---|
+| `test_adapter_rejects_bad_request_assertions` | T-TOKEN-1: bad signature, wrong audience, expired, over-long, replayed jti, non-participant organisation, a purpose the agreement does not allow, a missing consent link. A request with a well-formed assertion but a consent link that leads nowhere is refused with a reason code (never an empty answer). |
+| `test_staff_request_consent_but_cannot_grant_it` | T-CONSENT-1: staff create a request; only the patient can grant, decline or revoke, in the portal. |
+| `test_patient_grants_consent_and_records_arrive_encrypted` |  |
+| `test_sensitive_lab_result_needs_specific_consent_and_staff_review` | T-POLICY-1 at the laboratory: without specific consent the HIV result is refused with a reason code; with it, the request waits for the lab's staff (pending_manual_review) and is released after their approval. |
+| `test_revoked_consent_blocks_further_requests` |  |
+
+### `tests/test_e2e_flags.py` (integration (full stack), 4)
+
+| Test | What it checks |
+|---|---|
+| `test_bundle_is_hash_checked_and_has_the_brand_and_interaction_data` |  |
+| `test_browser_library_on_the_real_bundle` |  |
+| `test_ignore_and_research_are_audited_without_names` |  |
+| `test_layer2_gets_generic_names_only` |  |
+
+### `tests/test_e2e_keys.py` (integration (full stack), 6)
+
+| Test | What it checks |
+|---|---|
+| `test_doctor_key_is_signed_by_the_hospital_and_gets_the_department_key` |  |
+| `test_registration_needs_proof_of_possession_and_a_doctor` |  |
+| `test_platform_refuses_entries_not_signed_by_the_hospital_and_bad_assertions` | T-DIR-1 (platform side) and the platform's half of T-TOKEN-1. |
+| `test_revoking_a_doctor_rotates_the_department_key` | T-GROUP-1: the leaver keeps only the old version; the department key moves on; a re-joined key gets the new version. |
+| `test_staff_and_patients_cannot_manage_doctor_keys` |  |
+| `test_patient_key_is_signed_by_the_platform` |  |
+
+### `tests/test_e2e_lifecycle.py` (integration (full stack), 3)
+
+| Test | What it checks |
+|---|---|
+| `test_reminders_escalate_extension_moves_them_and_close_purges` |  |
+| `test_extension_stops_at_the_maximum` |  |
+| `test_decline_purges_after_a_short_grace` |  |
+
+### `tests/test_e2e_package.py` (integration (full stack), 4)
+
+| Test | What it checks |
+|---|---|
+| `test_approve_send_and_the_receiving_doctor_opens_it` |  |
+| `test_tampered_or_foreign_signatures_are_refused_and_versions_stay_verifiable` | T-APPROVE-1: a ciphertext hash that does not match, or a manifest signed with another key, is refused; a second version needs its own signature, and the first still verifies for its own version. |
+| `test_receiving_hospital_adds_its_own_records_for_its_doctors` | Spec v4 step 8: receiving staff add their hospital's records; they are encrypted to the department's key, so the department's doctors open them and nobody on the referring side gets a key (or even the titles). |
+| `test_only_the_referring_doctor_approves` |  |
+
+### `tests/test_e2e_patient.py` (integration (full stack), 2)
+
+| Test | What it checks |
+|---|---|
+| `test_patient_adds_a_paper_only_the_doctor_and_patient_can_read` |  |
+| `test_patient_copy_survives_the_purge_and_verifies` |  |
+
+### `tests/test_e2e_retrieval.py` (integration (full stack), 5)
+
+| Test | What it checks |
+|---|---|
+| `test_doctor_opens_records_staff_see_titles_and_the_database_holds_no_plaintext` |  |
+| `test_other_doctors_cannot_open_the_referral` | T-DOC-1: a doctor at another hospital is refused; ciphertext is only ever wrapped to the referring doctor. |
+| `test_doctor_uploads_own_items_wrapped_only_to_allowed_keys` |  |
+| `test_lost_key_records_are_fetched_again_but_platform_only_items_are_lost` | T-REC-1: a replacement key is signed, the old one revoked and the administrators told; records from the institutions come again for the new key; the doctor's own platform-only item has no wrap for the new key. |
+| `test_records_requests_from_others_are_listed_for_the_source_staff_without_content` |  |
 
 ### `tests/test_patient_access.py` (integration (full stack), 3)
 
@@ -181,39 +235,18 @@
 | `test_patient_reads_own_records_from_each_institution` |  |
 | `test_patient_endpoints_refuse_everyone_else_and_staff_endpoints_refuse_patients` |  |
 
-### `tests/test_referral_expiry.py` (integration (full stack), 2)
+### `tests/test_roles.py` (integration (full stack), 2)
 
 | Test | What it checks |
 |---|---|
-| `test_accept_extend_complete_then_expire` |  |
-| `test_decline_removes_the_shared_records_straight_away` |  |
-
-### `tests/test_v2_flow.py` (integration (full stack), 2)
-
-| Test | What it checks |
-|---|---|
-| `test_p5_referral_flow` |  |
-| `test_p3_test_request_flow` | P3 (Abdul Rehman Gondal): MRI knee at AKUH radiology (never seen there) and blood tests at Chughtai Lab (known there). |
-
-### `tests/test_v2_scenarios.py` (integration (full stack), 5)
-
-| Test | What it checks |
-|---|---|
-| `test_scenario_flags` |  |
-| `test_imported_flags_show_source_and_decisions_are_logged` | P3: DDInter interactions and drug-label flags carry their source; Ignore and Research are logged with the rule-set version, and an ignored flag stays in the record. |
-| `test_procedure_without_features_is_not_checked` | A procedure written without saying what it involves: procedure rules are not run, and say so. |
-| `test_p2_every_linked_hospital_and_stopped_medicine` | P2 was seen at AKUH (Aug 2026) and at Ziauddin radiology (Oct 2026): both are read, so his history is not cut to the last hospital visited. Diclofenac was stopped and must not appear as a current medicine. |
-| `test_uploaded_prescription_merges_with_recorded_medicines` | P5's cardiology prescription (photo) lists the same medicines as the clinic record: after staff check the read fields, each medicine is shown once. |
-
-### `tests/test_v3_lifecycle.py` (integration (full stack), 5)
-
-| Test | What it checks |
-|---|---|
-| `test_grants_are_temporary` |  |
 | `test_role_menus` |  |
 | `test_admin_assigns_a_role_by_template` | An institution administrator turns a lab account into front-desk staff and back. The change is made in Keycloak, so it applies on the user's next sign-in, and it is audited. |
-| `test_selection_manifest_own_copy_and_purge` |  |
-| `test_default_selection_matches_seed_expected_view` | The rule-based default (no model) selects exactly the visits from the last 6 months listed in the seed's expected_retrieval_view; older visits are retrieved but start unselected. |
+
+### `tests/test_test_requests.py` (integration (full stack), 1)
+
+| Test | What it checks |
+|---|---|
+| `test_p3_test_request_flow` | P3 (Abdul Rehman Gondal): MRI knee at AKUH radiology (never seen there) and blood tests at Chughtai Lab (known there). |
 
 ### `web/e2e/admin.spec.ts` (browser end-to-end (Playwright), 1)
 
@@ -225,5 +258,5 @@
 
 | Test | What it checks |
 |---|---|
-| `referral: doctor requests, staff prepare, doctor reviews flags, staff send, hospital accepts and completes, doctor closes` |  |
+| `v4 referral: keys, consent in the portal, decrypt, sign, send, the receiver verifies, the patient keeps a copy` |  |
 | `test request: MRI at Aga Khan radiology with images, result back to the doctor` |  |

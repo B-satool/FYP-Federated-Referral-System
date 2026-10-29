@@ -14,7 +14,8 @@ export async function login(page: Page, username: string) {
   await page.locator("#username").fill(username);
   await page.locator("#password").fill(PASSWORD);
   await page.locator("#kc-login").click();
-  await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
+  // staff and doctors have a Sign out button; the patient app has its own tab bar (Sign out is under Profile)
+  await expect(page.getByRole("button", { name: "Sign out" }).or(page.getByRole("button", { name: "Profile" })).first()).toBeVisible();
 }
 
 /** A separate browser context (own session) per user, closed by closeContexts(). */

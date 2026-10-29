@@ -23,3 +23,8 @@ class AuditEvent(Base):
     outcome: Mapped[str] = mapped_column(String(20))
     detail: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    # Hash chain (spec v4 11.5; lifecycle/audit_chain.py): set once by the sealing job, never changed. A database
+    # trigger keeps the table append-only: no delete, no change except sealing an unsealed row.
+    chain_seq: Mapped[int | None] = mapped_column(Integer, nullable=True, unique=True)
+    prev_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    chain_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)

@@ -1,5 +1,7 @@
 # 7. Key workflows
 
+> **Superseded in part by section 18 (spec v4, 2026-10-30).** The referral workflow is now the spec v4 flow (section 18.2): consent in the patient portal, encrypted records, the doctor signs, staff send a titles-only notice, the department decrypts, reminders and purge.
+
 Each diagram shows the calls that happen in the code. Names in `code` are the endpoints or functions involved. Every request carries a Keycloak access token that the receiving service verifies (Section 8.1); the diagrams omit this for brevity.
 
 ## 7.1 Sign-in and request authentication

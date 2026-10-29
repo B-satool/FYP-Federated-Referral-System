@@ -17,6 +17,155 @@ FR-59/FR-60: actor, institution, action, affected record, timestamp, outcome.
 | `outcome` | String(20) | no |  |  |  |
 | `detail` | JSON | no |  | `dict` |  |
 | `created_at` | DateTime(timezone=True) | no | indexed | `utcnow` |  |
+| `chain_seq` | Integer | yes | unique |  | Hash chain (spec v4 11.5; lifecycle/audit_chain.py): set once by the sealing job, never changed. A database trigger keeps the table append-only: no delete, no change except sealing an unsealed row. |
+| `prev_hash` | String(64) | yes |  |  |  |
+| `chain_hash` | String(64) | yes |  |  |  |
+
+### `consents` (Consent, `services/central/app/models/consent.py`)
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `id` | Integer | no | PK |  |  |
+| `reference` | String(30) | no | unique |  |  |
+| `referral_id` | Integer | no | FK → referrals.id, indexed |  |  |
+| `patient_cnic` | String(15) | no | indexed |  |  |
+| `patient_name` | String(200) | no |  |  |  |
+| `purpose` | String(20) | no |  | `'TREAT'` |  |
+| `requesting_org` | String(50) | no |  |  |  |
+| `requesting_practitioner_id` | String(64) | yes |  |  |  |
+| `requesting_practitioner_name` | String(200) | no |  |  |  |
+| `destination_org` | String(50) | yes |  |  |  |
+| `custodians_requested` | JSON | no |  | `list` | what the staff asked for |
+| `categories` | JSON | no |  | `list` |  |
+| `sensitive_offered` | JSON | no |  | `list` |  |
+| `data_period_start` | String(20) | yes |  |  |  |
+| `requested_by_id` | String(64) | no |  |  |  |
+| `requested_by_name` | String(200) | no |  |  |  |
+| `requested_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+| `status` | String(20) | no | indexed | `'requested'` | requested \| granted \| declined \| revoked \| expired \| withdrawn |
+| `custodians_granted` | JSON | no |  | `list` | the patient's answer |
+| `sensitive_specific` | JSON | no |  | `list` |  |
+| `period_start` | DateTime(timezone=True) | yes |  |  |  |
+| `period_end` | DateTime(timezone=True) | yes |  |  |  |
+| `document` | JSON | yes |  |  | FHIR Consent shape, signed by the patient |
+| `patient_key_id` | String(16) | yes |  |  |  |
+| `decided_at` | DateTime(timezone=True) | yes |  |  |  |
+| `decline_reason` | Text | yes |  |  |  |
+| `revocation` | JSON | yes |  |  | signed by the patient |
+| `revoked_at` | DateTime(timezone=True) | yes |  |  |  |
+
+### `record_requests` (RecordRequest, `services/central/app/models/consent.py`)
+
+One request to one institution for a referral's records, and its outcome. A refusal keeps its reason code; an unreachable institution is 'unavailable'. Neither is ever shown as 'no records' (AGENTS.md).
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `id` | Integer | no | PK |  |  |
+| `referral_id` | Integer | no | FK → referrals.id, indexed |  |  |
+| `consent_id` | Integer | no | FK → consents.id, indexed |  |  |
+| `custodian` | String(50) | no |  |  |  |
+| `request_key` | String(200) | no | unique |  |  |
+| `local_patient_id` | String(50) | yes |  |  |  |
+| `practitioner_id` | String(64) | no |  |  |  |
+| `status` | String(30) | no | indexed |  | sent \| answered \| partial \| refused \| pending_manual_review \| no_records \| unavailable \| failed |
+| `refusals` | JSON | no |  | `list` |  |
+| `item_count` | Integer | no |  | `0` |  |
+| `batch_id` | String(60) | yes |  |  |  |
+| `policy_version` | String(60) | yes |  |  |  |
+| `message` | Text | no |  | `''` |  |
+| `requested_by` | String(200) | no |  |  |  |
+| `requested_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+| `answered_at` | DateTime(timezone=True) | yes |  |  |  |
+
+### `encrypted_batches` (EncryptedBatch, `services/central/app/models/encrypted.py`)
+
+Items encrypted under one data key: one institution's answer to one request, one upload by a doctor or the patient, or the receiving hospital's added records.
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `id` | Integer | no | PK |  |  |
+| `referral_id` | Integer | no | FK → referrals.id, indexed |  |  |
+| `batch_id` | String(60) | no | unique |  |  |
+| `origin` | String(20) | no |  |  | custodian (a source institution's answer) \| doctor (the referring doctor's own items) \| patient (patient's scans) \| receiving (records the receiving hospital added) |
+| `source_institution` | String(50) | yes |  |  |  |
+| `record_request_id` | Integer | yes |  |  |  |
+| `created_by` | String(200) | no |  |  |  |
+| `created_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+
+### `encrypted_items` (EncryptedItem, `services/central/app/models/encrypted.py`)
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `id` | Integer | no | PK |  |  |
+| `referral_id` | Integer | no | FK → referrals.id, indexed |  |  |
+| `batch_id` | String(60) | no | indexed |  |  |
+| `item_id` | String(120) | no |  |  |  |
+| `kind` | String(20) | no |  |  | lab \| imaging \| note \| prescription \| scan \| other |
+| `category` | String(30) | yes |  |  |  |
+| `label` | String(300) | no |  |  |  |
+| `item_date` | String(30) | yes |  |  |  |
+| `source_institution` | String(50) | yes |  |  |  |
+| `sensitive` | Boolean | no |  | `False` |  |
+| `sealed` | JSON | no |  |  | {"nonce", "ciphertext"} or {"chunks": [{"nonce", "ciphertext"}, ...]} for large files |
+| `size` | BigInteger | no |  | `0` |  |
+| `ciphertext_sha256` | String(64) | no |  |  |  |
+| `created_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+
+Unique constraints: (batch_id, item_id)
+
+### `package_manifests` (PackageManifest, `services/central/app/models/encrypted.py`)
+
+A doctor-signed package version (spec v4 5.8): the ordered item list with plaintext and ciphertext hashes, the recipient department key, the referral. Immutable; a change is a new version and signature.
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `id` | Integer | no | PK |  |  |
+| `referral_id` | Integer | no | FK → referrals.id, indexed |  |  |
+| `version` | Integer | no |  |  |  |
+| `manifest` | JSON | no |  |  | signed by the doctor (signature inside) |
+| `manifest_sha256` | String(64) | no |  |  |  |
+| `signer_subject` | String(64) | no |  |  |  |
+| `signer_key_id` | String(16) | no |  |  |  |
+| `item_count` | Integer | no |  |  |  |
+| `superseded` | Boolean | no |  | `False` |  |
+| `created_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+
+Unique constraints: (referral_id, version)
+
+### `purge_receipts` (PurgeReceipt, `services/central/app/models/encrypted.py`)
+
+What remains after a referral's content is crypto-shredded (spec v4 11.2).
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `id` | Integer | no | PK |  |  |
+| `referral_id` | Integer | no | FK → referrals.id, unique |  |  |
+| `purged_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+| `items_count` | Integer | no |  |  |  |
+| `wrapped_keys_count` | Integer | no |  |  |  |
+| `manifest_hash` | String(64) | yes |  |  |  |
+| `trigger` | String(40) | no |  |  |  |
+| `detail` | JSON | no |  | `dict` |  |
+| `note` | Text | no |  | `''` |  |
+
+### `wrapped_keys` (WrappedKey, `services/central/app/models/encrypted.py`)
+
+A batch's data key, wrapped to one recipient key (doctor, patient or department group).
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `id` | Integer | no | PK |  |  |
+| `referral_id` | Integer | no | FK → referrals.id, indexed |  |  |
+| `batch_id` | String(60) | no | indexed |  |  |
+| `recipient_type` | String(20) | no |  |  | doctor \| patient \| department |
+| `recipient_subject` | String(100) | no | indexed |  |  |
+| `recipient_key_id` | String(16) | no | indexed |  |  |
+| `key_version` | Integer | yes |  |  |  |
+| `wrapped` | JSON | no |  |  |  |
+| `created_by` | String(200) | no |  |  |  |
+| `created_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+
+Unique constraints: (batch_id, recipient_key_id)
 
 ### `documents` (Document, `services/central/app/models/evidence.py`)
 
@@ -256,6 +405,64 @@ Central reference to a Keycloak account. account_status is checked on every requ
 | `status_changed_by` | String(200) | yes |  |  |  |
 | `status_changed_at` | DateTime(timezone=True) | yes |  |  |  |
 | `last_seen_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+
+### `group_key_wraps` (GroupKeyWrap, `services/central/app/models/keys.py`)
+
+A department group private key wrapped to one member doctor's encryption key (ciphertext).
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `id` | Integer | no | PK |  |  |
+| `hospital_id` | String(50) | no |  |  |  |
+| `department` | String(60) | no |  |  |  |
+| `group_version` | Integer | no |  |  |  |
+| `member_subject_id` | String(64) | no | indexed |  |  |
+| `member_key_id` | String(16) | no | indexed |  |  |
+| `wrapped` | JSON | no |  |  |  |
+| `created_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+
+Unique constraints: (hospital_id, department, group_version, member_key_id)
+
+### `key_directory` (DirectoryEntry, `services/central/app/models/keys.py`)
+
+A doctor's, department's or patient's public keys, signed by the issuing hospital (or, for a patient, the platform). Stored exactly as signed; clients and adapters verify the signature against pinned keys.
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `id` | Integer | no | PK |  |  |
+| `subject_id` | String(100) | no | indexed |  |  |
+| `subject_type` | String(20) | no | indexed |  | doctor \| department \| patient |
+| `hospital_id` | String(50) | yes | indexed |  |  |
+| `department` | String(60) | yes | indexed |  |  |
+| `enc_key_id` | String(16) | no | unique |  |  |
+| `key_version` | Integer | no |  |  |  |
+| `issued_by` | String(50) | no |  |  |  |
+| `entry` | JSON | no |  |  |  |
+| `revocation` | JSON | yes |  |  |  |
+| `revoked_at` | DateTime(timezone=True) | yes |  |  |  |
+| `created_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+
+### `platform_keys` (PlatformKey, `services/central/app/models/keys.py`)
+
+The platform's own signing key (request assertions to adapters, patient key entries). Sealed with the platform's key-store secret.
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `kid` | String(16) | no | PK |  |  |
+| `public_spki` | Text | no |  |  |  |
+| `private_sealed` | JSON | no |  |  |  |
+| `created_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+| `retired_at` | DateTime(timezone=True) | yes |  |  |  |
+
+### `seen_assertions` (SeenAssertion, `services/central/app/models/keys.py`)
+
+Adapter request assertions already accepted (jti), until they expire: a replay is refused.
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `jti` | String(80) | no | PK |  |  |
+| `issuer` | String(50) | no |  |  |  |
+| `expires_at` | DateTime(timezone=True) | no | indexed |  |  |
 
 ### `ai_suggestions` (AiSuggestion, `services/central/app/models/medications.py`)
 
@@ -760,7 +967,11 @@ Unique constraints: (referral_id, version)
 | `accepted_at` | DateTime(timezone=True) | yes |  |  |  |
 | `working_set_expires_at` | DateTime(timezone=True) | yes | indexed |  | Temporary working set: retrieved records and everything derived from them are held only until working_set_expires_at, then their clinical content is removed (identifiers, status, audit, manifest and fingerprint stay). See lifecycle/working_set.py. |
 | `working_set_purged_at` | DateTime(timezone=True) | yes |  |  |  |
-| `receiver_completed_at` | DateTime(timezone=True) | yes |  |  | the receiving doctor marked the referral complete (its shared records are removed after the grace period) |
+| `receiver_completed_at` | DateTime(timezone=True) | yes |  |  | the specialist closed the referral (spec v4 step 11): purged after the grace period |
 | `receiver_completed_by` | String(200) | yes |  |  |  |
+| `close_reminder_due_at` | DateTime(timezone=True) | yes | indexed |  | spec v4 7: the close reminder (30 days after acceptance, or the end of an extension), weekly repeats, escalation to the receiving department's staff; never a silent auto-close |
+| `reminders_sent` | Integer | no |  | `0` |  |
+| `last_reminder_at` | DateTime(timezone=True) | yes |  |  |  |
+| `escalated_at` | DateTime(timezone=True) | yes |  |  |  |
 | `created_at` | DateTime(timezone=True) | no | indexed | `utcnow` |  |
 | `updated_at` | DateTime(timezone=True) | no |  | `utcnow` |  |

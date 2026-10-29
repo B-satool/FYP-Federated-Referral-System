@@ -1,5 +1,7 @@
 # 6. Component design
 
+> **Superseded in part by section 18 (spec v4, 2026-10-30).** Packet selection runs in the browser (floor) and through the AI relay on request; flags run in the browser (Layer 1) with an AI Layer 2; papers are read and encrypted on the device; the server-side selection, evaluator and OCR paths are kept only for tests and test-and-scan orders (sections 18.5 to 18.7).
+
 This section describes each component's responsibilities, main rules and collaborators. The exact endpoints, request bodies and access checks are generated in Appendices F and G.
 
 ## 6.1 Referrals and the status machine (`central/app/referrals`)

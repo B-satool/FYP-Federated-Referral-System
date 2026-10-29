@@ -1,5 +1,7 @@
 # 4. Architecture
 
+> **Superseded in part by section 18 (spec v4, 2026-10-30).** Retrieval no longer copies plaintext records to the platform: institutions answer records requests with ciphertext under the patient's signed consent, and the doctor's device decrypts and signs the package (section 18.2 to 18.4).
+
 ## 4.1 Container view
 
 ```mermaid

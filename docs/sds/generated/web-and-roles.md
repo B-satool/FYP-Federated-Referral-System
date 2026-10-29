@@ -8,13 +8,14 @@
 | `*` | `SignIn` |
 | `/` | `Home` |
 | `/accessibility` | `AccessibilityStatement` |
-| `/admin/access` | `SourceAccess` |
 | `/admin/audit` | `AuditLog` |
+| `/admin/keys` | `DoctorKeys` |
 | `/admin/users` | `AdminUsers` |
 | `/callback` | `Home` |
 | `/documents/:id` | `DocumentReview` |
 | `/incoming` | `IncomingList` |
 | `/incoming/:id` | `IncomingCase` |
+| `/keys` | `KeysPage` |
 | `/medicine-names` | `MedicineNames` |
 | `/orders` | `OrderList` |
 | `/orders/:id` | `OrderView` |
@@ -23,6 +24,7 @@
 | `/referrals` | `ReferralList` |
 | `/referrals/:id` | `ReferralWorkspace` |
 | `/referrals/new` | `NewReferral` |
+| `/release-requests` | `ReleaseRequests` |
 | `/rules` | `RulesPage` |
 | `/terms` | `TermsOfUse` |
 | `/work-queue` | `WorkQueue` |
@@ -31,19 +33,22 @@
 
 | Feature | Files |
 |---|---|
-| `admin` | AdminUsers.tsx, AuditLog.tsx, SourceAccess.tsx |
+| `admin` | AdminUsers.tsx, AuditLog.tsx, DoctorKeys.tsx |
 | `auth` | NotFound.tsx, SignIn.tsx |
 | `documents` | DocumentReview.tsx, DocumentsTab.tsx |
+| `e2e` | AiSuggest.tsx, FlagViews.tsx, Papers.tsx, ReceivedPackage.tsx, ai.ts, approve.ts, bundle.ts, deidentify.ts, flags.ts, ocr.ts, records.ts, selection.ts, upload.ts |
 | `identity` | ConfirmPatient.tsx, PatientLinks.tsx |
 | `incoming` | Incoming.tsx |
+| `keys` | DeviceKey.tsx |
 | `legal` | LegalPages.tsx |
 | `orders` | Orders.tsx |
-| `patient` | PatientApp.tsx |
-| `referrals` | AuditTab.tsx, HoldNotice.tsx, Journey.tsx, LinksTab.tsx, MedicinesTab.tsx, NewReferral.tsx, RecordsTab.tsx, ReferralForm.tsx, ReferralList.tsx, ReferralWorkspace.tsx, RequestTab.tsx, ResponseTab.tsx, SendTab.tsx, TestsTab.tsx, steps.ts |
+| `patient` | Consent.tsx, MyCopy.tsx, PatientApp.tsx |
+| `referrals` | AuditTab.tsx, HoldNotice.tsx, Journey.tsx, LinksTab.tsx, MedicinesTab.tsx, NewReferral.tsx, Records.tsx, ReferralForm.tsx, ReferralList.tsx, ReferralWorkspace.tsx, RequestTab.tsx, ResponseTab.tsx, SendTab.tsx, TestsTab.tsx, steps.ts |
+| `release` | ReleaseRequests.tsx |
 | `rules` | MedicineNames.tsx, RulesPage.tsx |
 | `workqueue` | WorkQueue.tsx, queue.ts |
 
-### Role templates and menus (`rules/roles/templates.v1.json`)
+### Role templates and menus (`rules/roles/templates.v2.json`)
 
 The menu is built from `GET /me`; it only hides screens. The API checks are the enforcement.
 
@@ -53,27 +58,30 @@ The menu is built from `GET /me`; it only hides screens. The API checks are the 
 | `requests` | `/referrals` | Work | clinician, clinic_staff |
 | `incoming` | `/incoming` | Work | clinician, clinic_staff, institution_admin |
 | `records_requests` | `/patient-links` | Work | clinic_staff, institution_admin |
+| `release_requests` | `/release-requests` | Work | clinic_staff, institution_admin, diagnostics_staff |
 | `orders` | `/orders` | Work | diagnostics_staff |
 | `rules` | `/rules` | Rules | rule_reviewer |
 | `medicine_names` | `/medicine-names` | Rules | rule_reviewer |
 | `accounts` | `/admin/users` | Administration | institution_admin |
-| `source_access` | `/admin/access` | Administration | institution_admin |
+| `doctor_keys` | `/admin/keys` | Administration | institution_admin |
 | `audit` | `/admin/audit` | Administration | institution_admin |
+| `device_key` | `/keys` | Security | clinician |
 
-| Template | Name | Realm roles | Institution kinds | Default grant days | Home | Menu |
-|---|---|---|---|---|---|---|
-| `front_desk` | Staff (referral coordinator) | clinic_staff | clinic, hospital | 7 | work_queue | work_queue, requests, incoming, records_requests |
-| `doctor` | Doctor | clinician | clinic, hospital | 14 | work_queue | work_queue, requests, incoming |
-| `lab_radiology` | Laboratory, radiology or ECG staff | diagnostics_staff | laboratory, hospital, clinic | 7 | orders | orders |
-| `institution_administrator` | Institution administrator | institution_admin | clinic, hospital, laboratory | 14 | accounts | accounts, source_access, audit, incoming, records_requests |
-| `rule_reviewer` | Clinical rule reviewer | rule_reviewer | clinic, hospital | 14 | rules | rules, medicine_names |
+| Template | Name | Realm roles | Institution kinds | Record visibility | Holds keys | Home | Menu |
+|---|---|---|---|---|---|---|---|
+| `front_desk` | Staff (referral coordinator) | clinic_staff | clinic, hospital | titles_only | no | work_queue | work_queue, requests, incoming, records_requests, release_requests |
+| `doctor` | Doctor | clinician | clinic, hospital | content | yes | work_queue | work_queue, requests, incoming, device_key |
+| `lab_radiology` | Laboratory, radiology or ECG staff | diagnostics_staff | laboratory, hospital, clinic | titles_only | no | orders | orders, release_requests |
+| `institution_administrator` | Institution administrator | institution_admin | clinic, hospital, laboratory | titles_only | no | accounts | accounts, doctor_keys, release_requests, audit, incoming, records_requests |
+| `rule_reviewer` | Medicine-name reviewer | rule_reviewer | clinic, hospital | none | no | rules | rules, medicine_names |
+| `patient` | Patient | patient |  | content | yes |  |  |
 
 ### npm scripts
 
 | Script | Command |
 |---|---|
-| `dev` | `vite` |
-| `build` | `tsc -b && vite build` |
+| `dev` | `node scripts/copy-ocr-assets.mjs && vite` |
+| `build` | `node scripts/copy-ocr-assets.mjs && tsc -b && vite build` |
 | `typecheck` | `tsc -b --noEmit` |
 | `preview` | `vite preview` |
 | `test:e2e` | `playwright test` |

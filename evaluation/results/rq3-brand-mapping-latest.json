@@ -1,0 +1,62 @@
+{
+ "brands": 54,
+ "bundle_version": "177b7e86d7cd",
+ "by_variant": {
+  "as_written": {
+   "n": 54,
+   "exact": 54,
+   "probable": 0,
+   "wrong": 0,
+   "unmapped": 0,
+   "ambiguous": 0
+  },
+  "upper_with_strength": {
+   "n": 54,
+   "exact": 54,
+   "probable": 0,
+   "wrong": 0,
+   "unmapped": 0,
+   "ambiguous": 0
+  },
+  "tab_prefix_and_form": {
+   "n": 54,
+   "exact": 54,
+   "probable": 0,
+   "wrong": 0,
+   "unmapped": 0,
+   "ambiguous": 0
+  },
+  "dropped_letter": {
+   "n": 54,
+   "exact": 0,
+   "probable": 43,
+   "wrong": 1,
+   "unmapped": 10,
+   "ambiguous": 0
+  },
+  "swapped_letters": {
+   "n": 54,
+   "exact": 1,
+   "probable": 50,
+   "wrong": 0,
+   "unmapped": 3,
+   "ambiguous": 0
+  },
+  "doubled_letter": {
+   "n": 54,
+   "exact": 0,
+   "probable": 52,
+   "wrong": 0,
+   "unmapped": 2,
+   "ambiguous": 0
+  },
+  "two_slips": {
+   "n": 54,
+   "exact": 0,
+   "probable": 5,
+   "wrong": 2,
+   "unmapped": 47,
+   "ambiguous": 0
+  }
+ }
+}

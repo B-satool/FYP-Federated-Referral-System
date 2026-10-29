@@ -2,13 +2,13 @@
 
 | | |
 |---|---|
-| Document version | **v1.3.0** |
-| Released | 2026-10-29 |
+| Document version | **v2.0.0** |
+| Released | 2026-10-30 |
 | System | Federated referral preparation and follow-through platform (FYP), v2 code base |
 | Status | Living document: regenerated from the code on every change, frozen per release in `docs/sds/versions/` |
-| Structure fingerprint | `0591aa7834c8bef4` |
-| Written-sections fingerprint | `8b8b237a796f8a48` |
-| Source fingerprint | `baf4f4fc16161f9c` |
+| Structure fingerprint | `42abfbc3e696f490` |
+| Written-sections fingerprint | `10d390901f5e37c7` |
+| Source fingerprint | `24af5749843bb5f1` |
 | Maintained by | The project team. See section 17 for how to update and release it. |
 
 ## Contents
@@ -122,6 +122,17 @@
   - [17.2 Procedure for a change](#172-procedure-for-a-change)
   - [17.3 Files](#173-files)
   - [17.4 How the generator reads the code](#174-how-the-generator-reads-the-code)
+- [18. End-to-end encrypted referrals (architecture spec v4)](#18-end-to-end-encrypted-referrals-architecture-spec-v4)
+  - [18.1 What the platform holds](#181-what-the-platform-holds)
+  - [18.2 Flow](#182-flow)
+  - [18.3 Keys and the directory](#183-keys-and-the-directory)
+  - [18.4 The signed package (spec 5.8)](#184-the-signed-package-spec-58)
+  - [18.5 AI (spec 8, 9.1)](#185-ai-spec-8-91)
+  - [18.6 Medication flags (spec 9)](#186-medication-flags-spec-9)
+  - [18.7 Papers (spec 10)](#187-papers-spec-10)
+  - [18.8 Lifecycle and purge (spec 7, 11)](#188-lifecycle-and-purge-spec-7-11)
+  - [18.9 Audit (spec 11.5)](#189-audit-spec-115)
+  - [18.10 Tests](#1810-tests)
 - [Appendix A. ERD: central platform](#appendix-a-erd-central-platform)
 - [Appendix B. ERD: institution service](#appendix-b-erd-institution-service)
 - [Appendix C. References across system boundaries](#appendix-c-references-across-system-boundaries)
@@ -374,6 +385,8 @@ Some invariants were changed by recorded decisions: the temporary working set (2
 
 # 4. Architecture
 
+> **Superseded in part by section 18 (spec v4, 2026-10-30).** Retrieval no longer copies plaintext records to the platform: institutions answer records requests with ciphertext under the patient's signed consent, and the doctor's device decrypts and signs the package (section 18.2 to 18.4).
+
 ## 4.1 Container view
 
 ```mermaid
@@ -560,6 +573,8 @@ The menu comes from the role templates (`GET /me`). Hiding a screen is a conveni
 
 # 5. Data architecture
 
+> **Superseded in part by section 18 (spec v4, 2026-10-30).** Retrieved records are no longer stored as plaintext `evidence_items`: the platform keeps `encrypted_batches`, `encrypted_items`, `wrapped_keys`, `package_manifests` and `purge_receipts` (section 18.1, 18.8). The sender's copy and the receiver's stored package were removed.
+
 ## 5.1 Databases and ownership
 
 ```mermaid
@@ -730,6 +745,8 @@ Every resource carries `meta.versionId` (the source record version) and `meta.so
 
 
 # 6. Component design
+
+> **Superseded in part by section 18 (spec v4, 2026-10-30).** Packet selection runs in the browser (floor) and through the AI relay on request; flags run in the browser (Layer 1) with an AI Layer 2; papers are read and encrypted on the device; the server-side selection, evaluator and OCR paths are kept only for tests and test-and-scan orders (sections 18.5 to 18.7).
 
 This section describes each component's responsibilities, main rules and collaborators. The exact endpoints, request bodies and access checks are generated in Appendices F and G.
 
@@ -983,6 +1000,8 @@ Then the doctor or staff close it (`POST /referrals/{id}/close`).
 
 
 # 7. Key workflows
+
+> **Superseded in part by section 18 (spec v4, 2026-10-30).** The referral workflow is now the spec v4 flow (section 18.2): consent in the patient portal, encrypted records, the doctor signs, staff send a titles-only notice, the department decrypts, reminders and purge.
 
 Each diagram shows the calls that happen in the code. Names in `code` are the endpoints or functions involved. Every request carries a Keycloak access token that the receiving service verifies (Section 8.1); the diagrams omit this for brevity.
 
@@ -1262,6 +1281,8 @@ sequenceDiagram
 
 # 8. Security architecture
 
+> **Superseded in part by section 18 (spec v4, 2026-10-30).** Access to referral records is now consent plus each institution's policy plus signed request assertions (spec v4 6), and content is end-to-end encrypted (sections 18.1, 18.3; docs/security-model.md). Sharing grants were removed.
+
 ## 8.1 Authentication
 
 | Party | Mechanism |
@@ -1400,6 +1421,8 @@ Google Cloud Vision receives page images, which cannot be de-identified. It is u
 
 # 9. AI and machine-learning design
 
+> **Superseded in part by section 18 (spec v4, 2026-10-30).** The AI no longer runs on the server automatically: it runs through the relay, on the doctor's request, with text de-identified and previewed on the device (section 18.5).
+
 The system uses AI in three places, each optional and each kept outside the safety-critical path:
 
 | Use | Technique | Runs | Can it change flags or remove records? |
@@ -1510,6 +1533,8 @@ The app only looks these up (`medications/suggestions.py`, `ai_view.py`). A pair
 
 
 # 10. Medication flagging design
+
+> **Superseded in part by section 18 (spec v4, 2026-10-30).** Flags are computed on the device from the hash-checked bundle (Layer 1) with AI suggestions (Layer 2); the hand-written drug-class rules and the drug-procedure label rules were removed (section 18.6).
 
 ## 10.1 Principles
 
@@ -1878,6 +1903,8 @@ Appendix O lists every test with its description, generated from the test files.
 
 # 16. Known limitations, risks and open decisions
 
+> **Superseded in part by section 18 (spec v4, 2026-10-30).** The spec v4 limits (a compromised device, the platform serving the client code, visible metadata, the AI relay, client-reported decrypt events) are in docs/security-model.md.
+
 ## 16.1 Built differently from the SRS or not built
 
 | Item | Status | Reference |
@@ -1997,6 +2024,108 @@ Other commands:
 When a new kind of structure is added (for example a new service), extend `build_sds.py` so the appendices cover it, then release a new major or minor version.
 
 
+# 18. End-to-end encrypted referrals (architecture spec v4)
+
+This section describes the system as built from `docs/e2e-architecture-spec-v4.md` (approved 2026-10-29). Where it
+disagrees with an earlier section, this one is current; each earlier section marks what it superseded. Sumaiya B.
+built WP0 to WP4 (keys, consent, encrypted retrieval, role screens); WP5 to WP11 were finished on 2026-10-30.
+
+## 18.1 What the platform holds
+
+The central platform holds record content only as ciphertext, only while the referral is open. It never holds a data
+key or anyone's private key; its own signing key is the only private key it keeps (AGENTS.md invariant 13). It holds
+plaintext metadata: who referred whom, when, the department, the urgency, the reason, record titles, and the patient's
+demographics for matching. The threat model and its limits are in `docs/security-model.md`; the cryptography in
+`docs/crypto.md`.
+
+## 18.2 Flow
+
+| Step | Who | What happens | Code |
+|---|---|---|---|
+| 1 | Referring doctor | Fills in the request (reason, notes, procedure) | `referrals/router.py` |
+| 2 | Staff, then the patient | Staff request consent; the patient signs it in the patient portal on their phone | `consent/router.py`, `web/src/features/patient/Consent.tsx` |
+| 3 | Staff | Records requests to the consented institutions, each with a signed ES256 assertion; each adapter checks the consent and its own policy and answers with titles, ciphertext and wrapped data keys, or a refusal with a reason code | `records/requests.py`, `services/provider/app/release.py`, `policy.py` |
+| 4 | Referring doctor | Decrypts on the device; the deterministic floor ticks the defaults; the AI may be asked (de-identified, previewed); enters the medicine list; adds papers (read on the device) | `web/src/features/referrals/Records.tsx`, `MedicinesTab.tsx`, `e2e/Papers.tsx` |
+| 5 | Referring doctor | Approves: the device signs the manifest (each item's plaintext and ciphertext hashes) and re-wraps the data keys to the receiving department's group key and the patient's key (notes only if shared) | `web/src/features/e2e/approve.ts`, `sending/packages.py` (`approve`) |
+| 6, 7 | Staff, receiving staff | Staff send a titles-only notice; receiving staff acknowledge, confirm the patient (CNIC and name) and assign a doctor | `sending/packages.py` (`send`), `services/provider/app/main.py` |
+| 8 | Receiving staff | Optionally add their hospital's own records, encrypted by their adapter to the department's group key | `POST /cases/{id}/own-records`, `POST /e2e/adapter/receiving-batches` |
+| 9, 10 | Receiving doctor | Opens the package with the department group key, verifies the signature and every item hash, accepts or declines, may ask for more information | `web/src/features/e2e/ReceivedPackage.tsx`, `GET /e2e/received/{reference}/package` |
+| 11 | System, receiving doctor | Reminders 30 days after acceptance, then weekly, then escalation; extend (with a reason, at most 180 days) or close; purge after the grace period | `lifecycle/working_set.py` |
+| 12 | Patient | Saves the signed package on the phone; it opens and verifies after the purge | `patient_access.py` (`/copy`), `web/src/features/patient/MyCopy.tsx` |
+
+## 18.3 Keys and the directory
+
+Doctors' and patients' key pairs are created in the browser and kept in IndexedDB, sealed with a passphrase (PBKDF2
+600,000 iterations, AES-256-GCM). Only public keys leave the device. Hospitals sign their doctors' and departments'
+directory entries; the platform signs patients'. Every client and adapter verifies an entry against the issuer's key
+pinned at onboarding (`infra/participants/participants.json`, `scripts/onboard_participants.py`) before encrypting to
+it. Department group keys are held by the hospital's adapter and wrapped to each member doctor; a leaver triggers
+rotation.
+
+## 18.4 The signed package (spec 5.8)
+
+`refx.package.manifest/v1` (`refcommon.e2e.package_manifest`, mirrored in `web/src/crypto/suite.ts`) lists each item
+with `content_hash` (SHA-256 of the plaintext) and `ciphertext_hash`, the recipient department's group key id and
+version, the patient's key id, and the signer. The platform checks the signature against the doctor's hospital-signed
+key and each ciphertext hash against what it stores, stores the manifest immutably, and supersedes the previous
+version. `POST /e2e/verify-manifest` tells any holder whether their copy is the recorded version (or that the referral
+was purged).
+
+## 18.5 AI (spec 8, 9.1)
+
+| Use | Input | Output checks | Code |
+|---|---|---|---|
+| Record suggestions | De-identified on the device (`web/src/features/e2e/deidentify.ts`), shown and editable before sending | Unknown or repeated ids dropped; reasons with treatment or dosing wording withheld | `POST /ai/relay/selection` |
+| Flags, Layer 2 | Generic names, the procedure, an age band, the Layer 1 pairs already flagged | Names must be from the input; Layer 1 pairs never repeated; advice and "safe" wording dropped; labelled "AI suggestion, not verified" | `POST /ai/relay/flags` |
+
+The relay (`app/ai_relay.py`) stores nothing and logs no content: the audit entry holds the actor, the referral, the
+counts, the payload's SHA-256, the model, the latency and the outcome. It refuses a payload that still contains the
+patient's name, CNIC, record number, the referral reference, an institution's name or the date of birth. It runs only
+when a doctor clicks.
+
+## 18.6 Medication flags (spec 9)
+
+Layer 1 runs on the device (`web/src/features/e2e/flags.ts`, pure functions) over `GET /med-bundle`: the medicine
+names (hand-checked names and the DRAP register, with products listed by company for ambiguous names), the components
+of combination products and the DDInter pairs with label quotes. The bundle is versioned by its SHA-256 over canonical
+JSON, which the browser recomputes before use. Names are mapped exactly, by strict start-of-name for register brands,
+or approximately (one or two letters away, shown as "probable"); ambiguous names wait for the doctor to choose the
+product. Unmapped names and ingredients without interaction data are "could not be assessed". Ignore and Research are
+logged with a hash of the flag key. There is no drug-procedure table anywhere (T-FLAG-2): `seed-rules.json` and the
+drug-procedure label rules were removed; those risks come only from Layer 2. The server's evaluator remains for tests
+and test-and-scan orders only.
+
+## 18.7 Papers (spec 10)
+
+Papers are read on the device with Tesseract.js 5.1.1; the engine and the English model are served by this
+application (`web/public/ocr`, copied at build), not a CDN. The doctor checks and corrects each medicine against the
+image; the image and the reading are encrypted together in one batch. The patient can add papers from the app,
+encrypted to the referring doctor's and their own key. The server's plaintext upload path refuses referrals; staff
+see "Scanned paper" or "Patient-provided document" and a date.
+
+## 18.8 Lifecycle and purge (spec 7, 11)
+
+Settings: `ACCEPTED_HOLD_DAYS` (30), `REMINDER_INTERVAL_DAYS` (7), `ESCALATE_AFTER_REMINDERS` (3),
+`MAX_REFERRAL_DAYS` (180), `CLOSE_GRACE_DAYS` (7), `DECLINE_GRACE_DAYS` (1). Jobs: `close_reminders` hourly,
+`purge_working_sets` every 10 minutes. Purge deletes the ciphertext, titles, batches and wrapped keys, writes a
+`purge_receipts` row (manifest hash, counts, trigger) and tells the receiving hospital. It is idempotent. See
+`docs/data-lifecycle.md`.
+
+## 18.9 Audit (spec 11.5)
+
+Audit entries hold ids, actors, reason codes and hashes; never content, keys or de-identified text. The table is
+append-only (a database trigger refuses deletes and changes to sealed entries). The `seal_audit` job (every minute)
+chains new entries: `chain_seq`, `prev_hash`, and `chain_hash` = SHA-256 of the previous hash and the entry's canonical
+fields. `GET /admin/audit/chain` recomputes the chain. Entries newer than 30 seconds are not yet sealed. Decrypt events
+are reported by the client and are best effort.
+
+## 18.10 Tests
+
+The spec's acceptance tests (section 17) and where they run are listed in `docs/security-model.md`. Integration tests:
+`tests/test_e2e_*.py` (keys, consent, retrieval, package, AI, flags, patient, lifecycle, audit). Unit tests: `libs/common/tests` (the suite, Python and browser interop, Layer 1 and the
+drug-procedure scan) and `services/provider/tests` (policy). Browser journey: `web/e2e/smoke.spec.ts`.
+
+
 # Appendix A. ERD: central platform
 
 _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
@@ -2005,11 +2134,32 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 
 Generated from the SQLAlchemy models. Solid lines are database foreign keys; dotted lines are logical references held as plain columns (no constraint). PK primary key, FK foreign key, UK unique.
 
-#### Overview: all 34 tables and their relationships
+#### Overview: all 45 tables and their relationships
 
 ```mermaid
 erDiagram
     audit_events {
+        int id PK "not null"
+    }
+    consents {
+        int id PK "not null"
+    }
+    record_requests {
+        int id PK "not null"
+    }
+    encrypted_batches {
+        int id PK "not null"
+    }
+    encrypted_items {
+        int id PK "not null"
+    }
+    package_manifests {
+        int id PK "not null"
+    }
+    purge_receipts {
+        int id PK "not null"
+    }
+    wrapped_keys {
         int id PK "not null"
     }
     documents {
@@ -2041,6 +2191,18 @@ erDiagram
     }
     users {
         string id PK "not null, String(64)"
+    }
+    group_key_wraps {
+        int id PK "not null"
+    }
+    key_directory {
+        int id PK "not null"
+    }
+    platform_keys {
+        string kid PK "not null, String(16)"
+    }
+    seen_assertions {
+        string jti PK "not null, String(80)"
     }
     ai_suggestions {
         string pair_key PK "not null, String(210)"
@@ -2113,6 +2275,7 @@ erDiagram
     }
     ai_suggestions |o..o{ suggestion_reviews : "pair_key (logical)"
     briefs ||--o{ referral_packages : "brief_id"
+    consents ||--o{ record_requests : "consent_id"
     documents |o--o{ evidence_items : "document_id"
     documents |o--o{ jobs : "document_id"
     documents ||--o{ extraction_runs : "document_id"
@@ -2138,9 +2301,12 @@ erDiagram
     referrals |o--o{ patient_links : "referral_id"
     referrals ||--o{ briefs : "referral_id"
     referrals ||--o{ clarifications : "referral_id"
+    referrals ||--o{ consents : "referral_id"
     referrals ||--o{ consultation_responses : "referral_id"
     referrals ||--o{ diagnostic_requests : "referral_id"
     referrals ||--o{ documents : "referral_id"
+    referrals ||--o{ encrypted_batches : "referral_id"
+    referrals ||--o{ encrypted_items : "referral_id"
     referrals ||--o{ evaluation_runs : "referral_id"
     referrals ||--o{ evidence_items : "referral_id"
     referrals ||--o{ flag_reviews : "referral_id"
@@ -2148,11 +2314,15 @@ erDiagram
     referrals ||--o{ medication_entries : "referral_id"
     referrals ||--o{ medication_flags : "referral_id"
     referrals ||--o{ outbox : "referral_id"
+    referrals ||--o{ package_manifests : "referral_id"
+    referrals ||--o{ purge_receipts : "referral_id"
+    referrals ||--o{ record_requests : "referral_id"
     referrals ||--o{ referral_events : "referral_id"
     referrals ||--o{ referral_packages : "referral_id"
     referrals ||--o{ selection_runs : "referral_id"
     referrals ||--o{ source_retrievals : "referral_id"
     referrals ||--o{ suggestion_reviews : "referral_id"
+    referrals ||--o{ wrapped_keys : "referral_id"
     selection_runs |o..o{ evidence_items : "ai_run_id (logical)"
     users |o..o{ notifications : "recipient_id (logical)"
     users |o..o{ patient_links : "requested_by_id (logical)"
@@ -2175,7 +2345,139 @@ erDiagram
         string outcome "not null, String(20)"
         json detail "not null"
         datetime created_at "not null, DateTime(timezone=True)"
+        int chain_seq UK "nullable"
+        string prev_hash "nullable, String(64)"
+        string chain_hash "nullable, String(64)"
     }
+```
+
+#### ERD: `consent` domain (2 tables, `services/central/app/models/consent.py`)
+
+```mermaid
+erDiagram
+    consents {
+        int id PK "not null"
+        string reference UK "not null, String(30)"
+        int referral_id FK "not null"
+        string patient_cnic "not null, String(15)"
+        string patient_name "not null, String(200)"
+        string purpose "not null, String(20)"
+        string requesting_org "not null, String(50)"
+        string requesting_practitioner_id "nullable, String(64)"
+        string requesting_practitioner_name "not null, String(200)"
+        string destination_org "nullable, String(50)"
+        json custodians_requested "not null"
+        json categories "not null"
+        json sensitive_offered "not null"
+        string data_period_start "nullable, String(20)"
+        string requested_by_id "not null, String(64)"
+        string requested_by_name "not null, String(200)"
+        datetime requested_at "not null, DateTime(timezone=True)"
+        string status "not null, String(20)"
+        json custodians_granted "not null"
+        json sensitive_specific "not null"
+        datetime period_start "nullable, DateTime(timezone=True)"
+        datetime period_end "nullable, DateTime(timezone=True)"
+        json document "nullable"
+        string patient_key_id "nullable, String(16)"
+        datetime decided_at "nullable, DateTime(timezone=True)"
+        text decline_reason "nullable"
+        json revocation "nullable"
+        datetime revoked_at "nullable, DateTime(timezone=True)"
+    }
+    record_requests {
+        int id PK "not null"
+        int referral_id FK "not null"
+        int consent_id FK "not null"
+        string custodian "not null, String(50)"
+        string request_key UK "not null, String(200)"
+        string local_patient_id "nullable, String(50)"
+        string practitioner_id "not null, String(64)"
+        string status "not null, String(30)"
+        json refusals "not null"
+        int item_count "not null"
+        string batch_id "nullable, String(60)"
+        string policy_version "nullable, String(60)"
+        text message "not null"
+        string requested_by "not null, String(200)"
+        datetime requested_at "not null, DateTime(timezone=True)"
+        datetime answered_at "nullable, DateTime(timezone=True)"
+    }
+    consents ||--o{ record_requests : "consent_id"
+    referrals ||--o{ consents : "referral_id"
+    referrals ||--o{ record_requests : "referral_id"
+```
+
+#### ERD: `encrypted` domain (5 tables, `services/central/app/models/encrypted.py`)
+
+```mermaid
+erDiagram
+    encrypted_batches {
+        int id PK "not null"
+        int referral_id FK "not null"
+        string batch_id UK "not null, String(60)"
+        string origin "not null, String(20)"
+        string source_institution "nullable, String(50)"
+        int record_request_id "nullable"
+        string created_by "not null, String(200)"
+        datetime created_at "not null, DateTime(timezone=True)"
+    }
+    encrypted_items {
+        int id PK "not null"
+        int referral_id FK "not null"
+        string batch_id "not null, String(60)"
+        string item_id "not null, String(120)"
+        string kind "not null, String(20)"
+        string category "nullable, String(30)"
+        string label "not null, String(300)"
+        string item_date "nullable, String(30)"
+        string source_institution "nullable, String(50)"
+        bool sensitive "not null"
+        json sealed "not null"
+        string size "not null"
+        string ciphertext_sha256 "not null, String(64)"
+        datetime created_at "not null, DateTime(timezone=True)"
+    }
+    package_manifests {
+        int id PK "not null"
+        int referral_id FK "not null"
+        int version "not null"
+        json manifest "not null"
+        string manifest_sha256 "not null, String(64)"
+        string signer_subject "not null, String(64)"
+        string signer_key_id "not null, String(16)"
+        int item_count "not null"
+        bool superseded "not null"
+        datetime created_at "not null, DateTime(timezone=True)"
+    }
+    purge_receipts {
+        int id PK "not null"
+        int referral_id FK,UK "not null"
+        datetime purged_at "not null, DateTime(timezone=True)"
+        int items_count "not null"
+        int wrapped_keys_count "not null"
+        string manifest_hash "nullable, String(64)"
+        string trigger "not null, String(40)"
+        json detail "not null"
+        text note "not null"
+    }
+    wrapped_keys {
+        int id PK "not null"
+        int referral_id FK "not null"
+        string batch_id "not null, String(60)"
+        string recipient_type "not null, String(20)"
+        string recipient_subject "not null, String(100)"
+        string recipient_key_id "not null, String(16)"
+        int key_version "nullable"
+        json wrapped "not null"
+        string created_by "not null, String(200)"
+        datetime created_at "not null, DateTime(timezone=True)"
+    }
+    referrals ||--o{ encrypted_batches : "referral_id"
+    referrals ||--o{ encrypted_items : "referral_id"
+    referrals ||--o{ package_manifests : "referral_id"
+    referrals ||--o{ purge_receipts : "referral_id"
+    referrals ||--o{ wrapped_keys : "referral_id"
 ```
 
 #### ERD: `evidence` domain (7 tables, `services/central/app/models/evidence.py`)
@@ -2406,6 +2708,48 @@ erDiagram
     users |o..o{ notifications : "recipient_id (logical)"
     users |o..o{ patient_links : "requested_by_id (logical)"
     users |o..o{ referrals : "requesting_doctor_id (logical)"
+```
+
+#### ERD: `keys` domain (4 tables, `services/central/app/models/keys.py`)
+
+```mermaid
+erDiagram
+    group_key_wraps {
+        int id PK "not null"
+        string hospital_id "not null, String(50)"
+        string department "not null, String(60)"
+        int group_version "not null"
+        string member_subject_id "not null, String(64)"
+        string member_key_id "not null, String(16)"
+        json wrapped "not null"
+        datetime created_at "not null, DateTime(timezone=True)"
+    }
+    key_directory {
+        int id PK "not null"
+        string subject_id "not null, String(100)"
+        string subject_type "not null, String(20)"
+        string hospital_id "nullable, String(50)"
+        string department "nullable, String(60)"
+        string enc_key_id UK "not null, String(16)"
+        int key_version "not null"
+        string issued_by "not null, String(50)"
+        json entry "not null"
+        json revocation "nullable"
+        datetime revoked_at "nullable, DateTime(timezone=True)"
+        datetime created_at "not null, DateTime(timezone=True)"
+    }
+    platform_keys {
+        string kid PK "not null, String(16)"
+        text public_spki "not null"
+        json private_sealed "not null"
+        datetime created_at "not null, DateTime(timezone=True)"
+        datetime retired_at "nullable, DateTime(timezone=True)"
+    }
+    seen_assertions {
+        string jti PK "not null, String(80)"
+        string issuer "not null, String(50)"
+        datetime expires_at "not null, DateTime(timezone=True)"
+    }
 ```
 
 #### ERD: `medications` domain (12 tables, `services/central/app/models/medications.py`)
@@ -2821,6 +3165,10 @@ erDiagram
         datetime working_set_purged_at "nullable, DateTime(timezone=True)"
         datetime receiver_completed_at "nullable, DateTime(timezone=True)"
         string receiver_completed_by "nullable, String(200)"
+        datetime close_reminder_due_at "nullable, DateTime(timezone=True)"
+        int reminders_sent "not null"
+        datetime last_reminder_at "nullable, DateTime(timezone=True)"
+        datetime escalated_at "nullable, DateTime(timezone=True)"
         datetime created_at "not null, DateTime(timezone=True)"
         datetime updated_at "not null, DateTime(timezone=True)"
     }
@@ -2831,9 +3179,12 @@ erDiagram
     referrals |o--o{ patient_links : "referral_id"
     referrals ||--o{ briefs : "referral_id"
     referrals ||--o{ clarifications : "referral_id"
+    referrals ||--o{ consents : "referral_id"
     referrals ||--o{ consultation_responses : "referral_id"
     referrals ||--o{ diagnostic_requests : "referral_id"
     referrals ||--o{ documents : "referral_id"
+    referrals ||--o{ encrypted_batches : "referral_id"
+    referrals ||--o{ encrypted_items : "referral_id"
     referrals ||--o{ evaluation_runs : "referral_id"
     referrals ||--o{ evidence_items : "referral_id"
     referrals ||--o{ flag_reviews : "referral_id"
@@ -2841,11 +3192,15 @@ erDiagram
     referrals ||--o{ medication_entries : "referral_id"
     referrals ||--o{ medication_flags : "referral_id"
     referrals ||--o{ outbox : "referral_id"
+    referrals ||--o{ package_manifests : "referral_id"
+    referrals ||--o{ purge_receipts : "referral_id"
+    referrals ||--o{ record_requests : "referral_id"
     referrals ||--o{ referral_events : "referral_id"
     referrals ||--o{ referral_packages : "referral_id"
     referrals ||--o{ selection_runs : "referral_id"
     referrals ||--o{ source_retrievals : "referral_id"
     referrals ||--o{ suggestion_reviews : "referral_id"
+    referrals ||--o{ wrapped_keys : "referral_id"
     users |o..o{ notifications : "recipient_id (logical)"
     users |o..o{ referrals : "requesting_doctor_id (logical)"
 ```
@@ -2859,13 +3214,10 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 
 Generated from the SQLAlchemy models. Solid lines are database foreign keys; dotted lines are logical references held as plain columns (no constraint). PK primary key, FK foreign key, UK unique.
 
-#### Overview: all 18 tables and their relationships
+#### Overview: all 22 tables and their relationships
 
 ```mermaid
 erDiagram
-    access_grants {
-        int id PK "not null"
-    }
     audit_events {
         int id PK "not null"
     }
@@ -2878,7 +3230,13 @@ erDiagram
     consultation_responses {
         int id PK "not null"
     }
+    doctor_keys {
+        int id PK "not null"
+    }
     forwarded_results {
+        int id PK "not null"
+    }
+    group_key_wraps {
         int id PK "not null"
     }
     imaging_reports {
@@ -2888,6 +3246,9 @@ erDiagram
         int id PK "not null"
     }
     info_requests {
+        int id PK "not null"
+    }
+    key_store {
         int id PK "not null"
     }
     lab_results {
@@ -2908,6 +3269,12 @@ erDiagram
     patients {
         string local_id PK "not null, String(30)"
     }
+    record_requests {
+        int id PK "not null"
+    }
+    seen_assertions {
+        string jti PK "not null, String(80)"
+    }
     sent_copies {
         int id PK "not null"
     }
@@ -2924,7 +3291,6 @@ erDiagram
     cases ||--o{ info_requests : "case_id"
     orders |o--o{ outbox : "order_id"
     orders ||--o{ order_attachments : "order_id"
-    patients |o..o{ access_grants : "local_patient_id (logical)"
     patients |o..o{ cases : "local_patient_id (logical)"
     patients |o..o{ orders : "local_patient_id (logical)"
     patients ||--o{ conditions : "patient_id"
@@ -2939,20 +3305,6 @@ erDiagram
 
 ```mermaid
 erDiagram
-    access_grants {
-        int id PK "not null"
-        string grantee_institution "not null, String(50)"
-        string local_patient_id "not null, String(50)"
-        json categories "not null"
-        string status "not null, String(20)"
-        text basis "not null"
-        string granted_by "not null, String(200)"
-        datetime created_at "not null, DateTime(timezone=True)"
-        string revoked_by "nullable, String(200)"
-        datetime revoked_at "nullable, DateTime(timezone=True)"
-        datetime expires_at "nullable, DateTime(timezone=True)"
-        string referral_ref "nullable, String(60)"
-    }
     audit_events {
         int id PK "not null"
         string actor_id "not null, String(100)"
@@ -3006,6 +3358,7 @@ erDiagram
         string snomed "nullable, String(30)"
         string clinical_status "not null, String(20)"
         string onset "nullable, String(10)"
+        string sensitive_category "nullable, String(40)"
         int version "not null"
         datetime updated_at "not null, DateTime(timezone=True)"
     }
@@ -3023,12 +3376,41 @@ erDiagram
         datetime returned_at "nullable, DateTime(timezone=True)"
         string return_key UK "nullable, String(200)"
     }
+    doctor_keys {
+        int id PK "not null"
+        string subject_id "not null, String(64)"
+        string username "not null, String(100)"
+        string display_name "not null, String(200)"
+        string department "nullable, String(60)"
+        string enc_key_id "not null, String(16)"
+        int key_version "not null"
+        json request "not null"
+        json entry "nullable"
+        string status "not null, String(20)"
+        bool recovery "not null"
+        string approved_by "nullable, String(200)"
+        json revocation "nullable"
+        string revoked_by "nullable, String(200)"
+        datetime revoked_at "nullable, DateTime(timezone=True)"
+        datetime published_at "nullable, DateTime(timezone=True)"
+        datetime created_at "not null, DateTime(timezone=True)"
+    }
     forwarded_results {
         int id PK "not null"
         string forward_key UK "not null, String(200)"
         int case_id FK "not null"
         json content "not null"
         datetime received_at "not null, DateTime(timezone=True)"
+    }
+    group_key_wraps {
+        int id PK "not null"
+        string department "not null, String(60)"
+        int group_version "not null"
+        string member_subject_id "not null, String(64)"
+        string member_key_id "not null, String(16)"
+        json wrapped "not null"
+        datetime published_at "nullable, DateTime(timezone=True)"
+        datetime created_at "not null, DateTime(timezone=True)"
     }
     imaging_reports {
         string id PK "not null, String(40)"
@@ -3039,6 +3421,7 @@ erDiagram
         text findings "not null"
         text impression "not null"
         string reporter "nullable, String(200)"
+        string sensitive_category "nullable, String(40)"
         int version "not null"
         datetime updated_at "not null, DateTime(timezone=True)"
     }
@@ -3064,6 +3447,17 @@ erDiagram
         datetime answered_at "nullable, DateTime(timezone=True)"
         string answer_key UK "nullable, String(200)"
     }
+    key_store {
+        int id PK "not null"
+        string purpose "not null, String(80)"
+        int version "not null"
+        text public_spki "not null"
+        json private_sealed "not null"
+        json entry "nullable"
+        datetime published_at "nullable, DateTime(timezone=True)"
+        datetime created_at "not null, DateTime(timezone=True)"
+        datetime retired_at "nullable, DateTime(timezone=True)"
+    }
     lab_results {
         string id PK "not null, String(40)"
         string patient_id FK "not null"
@@ -3076,6 +3470,7 @@ erDiagram
         string unit "nullable, String(40)"
         string reference_range "nullable, String(60)"
         string abnormal_flag "nullable, String(20)"
+        string sensitive_category "nullable, String(40)"
         string status "not null, String(20)"
         text note "nullable"
         int version "not null"
@@ -3093,6 +3488,7 @@ erDiagram
         string status "not null, String(20)"
         string prescriber "nullable, String(200)"
         text note "nullable"
+        string sensitive_category "nullable, String(40)"
         int version "not null"
         datetime updated_at "not null, DateTime(timezone=True)"
     }
@@ -3166,6 +3562,37 @@ erDiagram
         int version "not null"
         datetime updated_at "not null, DateTime(timezone=True)"
     }
+    record_requests {
+        int id PK "not null"
+        string request_key UK "not null, String(200)"
+        string referral_ref "not null, String(40)"
+        string requesting_org "not null, String(50)"
+        string practitioner_id "not null, String(64)"
+        string practitioner_name "nullable, String(200)"
+        string purpose "not null, String(20)"
+        string consent_ref "not null, String(60)"
+        string local_patient_id "nullable, String(50)"
+        json categories "not null"
+        string since "nullable, String(20)"
+        text reason_text "nullable"
+        json sensitive "not null"
+        json practitioner_entry "nullable"
+        json patient_entry "nullable"
+        string status "not null, String(30)"
+        json refusals "not null"
+        string policy_version "not null, String(40)"
+        int item_count "not null"
+        string decided_by "nullable, String(200)"
+        datetime decided_at "nullable, DateTime(timezone=True)"
+        datetime delivered_at "nullable, DateTime(timezone=True)"
+        text delivery_error "nullable"
+        datetime created_at "not null, DateTime(timezone=True)"
+    }
+    seen_assertions {
+        string jti PK "not null, String(80)"
+        string issuer "not null, String(50)"
+        datetime expires_at "not null, DateTime(timezone=True)"
+    }
     sent_copies {
         int id PK "not null"
         string copy_key UK "not null, String(220)"
@@ -3192,6 +3619,7 @@ erDiagram
         string clinician "nullable, String(200)"
         text reason "not null"
         text summary "not null"
+        string sensitive_category "nullable, String(40)"
         int version "not null"
         datetime updated_at "not null, DateTime(timezone=True)"
     }
@@ -3202,7 +3630,6 @@ erDiagram
     cases ||--o{ info_requests : "case_id"
     orders |o--o{ outbox : "order_id"
     orders ||--o{ order_attachments : "order_id"
-    patients |o..o{ access_grants : "local_patient_id (logical)"
     patients |o..o{ cases : "local_patient_id (logical)"
     patients |o..o{ orders : "local_patient_id (logical)"
     patients ||--o{ conditions : "patient_id"
@@ -3260,6 +3687,155 @@ FR-59/FR-60: actor, institution, action, affected record, timestamp, outcome.
 | `outcome` | String(20) | no |  |  |  |
 | `detail` | JSON | no |  | `dict` |  |
 | `created_at` | DateTime(timezone=True) | no | indexed | `utcnow` |  |
+| `chain_seq` | Integer | yes | unique |  | Hash chain (spec v4 11.5; lifecycle/audit_chain.py): set once by the sealing job, never changed. A database trigger keeps the table append-only: no delete, no change except sealing an unsealed row. |
+| `prev_hash` | String(64) | yes |  |  |  |
+| `chain_hash` | String(64) | yes |  |  |  |
+
+#### `consents` (Consent, `services/central/app/models/consent.py`)
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `id` | Integer | no | PK |  |  |
+| `reference` | String(30) | no | unique |  |  |
+| `referral_id` | Integer | no | FK → referrals.id, indexed |  |  |
+| `patient_cnic` | String(15) | no | indexed |  |  |
+| `patient_name` | String(200) | no |  |  |  |
+| `purpose` | String(20) | no |  | `'TREAT'` |  |
+| `requesting_org` | String(50) | no |  |  |  |
+| `requesting_practitioner_id` | String(64) | yes |  |  |  |
+| `requesting_practitioner_name` | String(200) | no |  |  |  |
+| `destination_org` | String(50) | yes |  |  |  |
+| `custodians_requested` | JSON | no |  | `list` | what the staff asked for |
+| `categories` | JSON | no |  | `list` |  |
+| `sensitive_offered` | JSON | no |  | `list` |  |
+| `data_period_start` | String(20) | yes |  |  |  |
+| `requested_by_id` | String(64) | no |  |  |  |
+| `requested_by_name` | String(200) | no |  |  |  |
+| `requested_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+| `status` | String(20) | no | indexed | `'requested'` | requested \| granted \| declined \| revoked \| expired \| withdrawn |
+| `custodians_granted` | JSON | no |  | `list` | the patient's answer |
+| `sensitive_specific` | JSON | no |  | `list` |  |
+| `period_start` | DateTime(timezone=True) | yes |  |  |  |
+| `period_end` | DateTime(timezone=True) | yes |  |  |  |
+| `document` | JSON | yes |  |  | FHIR Consent shape, signed by the patient |
+| `patient_key_id` | String(16) | yes |  |  |  |
+| `decided_at` | DateTime(timezone=True) | yes |  |  |  |
+| `decline_reason` | Text | yes |  |  |  |
+| `revocation` | JSON | yes |  |  | signed by the patient |
+| `revoked_at` | DateTime(timezone=True) | yes |  |  |  |
+
+#### `record_requests` (RecordRequest, `services/central/app/models/consent.py`)
+
+One request to one institution for a referral's records, and its outcome. A refusal keeps its reason code; an unreachable institution is 'unavailable'. Neither is ever shown as 'no records' (AGENTS.md).
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `id` | Integer | no | PK |  |  |
+| `referral_id` | Integer | no | FK → referrals.id, indexed |  |  |
+| `consent_id` | Integer | no | FK → consents.id, indexed |  |  |
+| `custodian` | String(50) | no |  |  |  |
+| `request_key` | String(200) | no | unique |  |  |
+| `local_patient_id` | String(50) | yes |  |  |  |
+| `practitioner_id` | String(64) | no |  |  |  |
+| `status` | String(30) | no | indexed |  | sent \| answered \| partial \| refused \| pending_manual_review \| no_records \| unavailable \| failed |
+| `refusals` | JSON | no |  | `list` |  |
+| `item_count` | Integer | no |  | `0` |  |
+| `batch_id` | String(60) | yes |  |  |  |
+| `policy_version` | String(60) | yes |  |  |  |
+| `message` | Text | no |  | `''` |  |
+| `requested_by` | String(200) | no |  |  |  |
+| `requested_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+| `answered_at` | DateTime(timezone=True) | yes |  |  |  |
+
+#### `encrypted_batches` (EncryptedBatch, `services/central/app/models/encrypted.py`)
+
+Items encrypted under one data key: one institution's answer to one request, one upload by a doctor or the patient, or the receiving hospital's added records.
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `id` | Integer | no | PK |  |  |
+| `referral_id` | Integer | no | FK → referrals.id, indexed |  |  |
+| `batch_id` | String(60) | no | unique |  |  |
+| `origin` | String(20) | no |  |  | custodian (a source institution's answer) \| doctor (the referring doctor's own items) \| patient (patient's scans) \| receiving (records the receiving hospital added) |
+| `source_institution` | String(50) | yes |  |  |  |
+| `record_request_id` | Integer | yes |  |  |  |
+| `created_by` | String(200) | no |  |  |  |
+| `created_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+
+#### `encrypted_items` (EncryptedItem, `services/central/app/models/encrypted.py`)
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `id` | Integer | no | PK |  |  |
+| `referral_id` | Integer | no | FK → referrals.id, indexed |  |  |
+| `batch_id` | String(60) | no | indexed |  |  |
+| `item_id` | String(120) | no |  |  |  |
+| `kind` | String(20) | no |  |  | lab \| imaging \| note \| prescription \| scan \| other |
+| `category` | String(30) | yes |  |  |  |
+| `label` | String(300) | no |  |  |  |
+| `item_date` | String(30) | yes |  |  |  |
+| `source_institution` | String(50) | yes |  |  |  |
+| `sensitive` | Boolean | no |  | `False` |  |
+| `sealed` | JSON | no |  |  | {"nonce", "ciphertext"} or {"chunks": [{"nonce", "ciphertext"}, ...]} for large files |
+| `size` | BigInteger | no |  | `0` |  |
+| `ciphertext_sha256` | String(64) | no |  |  |  |
+| `created_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+
+Unique constraints: (batch_id, item_id)
+
+#### `package_manifests` (PackageManifest, `services/central/app/models/encrypted.py`)
+
+A doctor-signed package version (spec v4 5.8): the ordered item list with plaintext and ciphertext hashes, the recipient department key, the referral. Immutable; a change is a new version and signature.
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `id` | Integer | no | PK |  |  |
+| `referral_id` | Integer | no | FK → referrals.id, indexed |  |  |
+| `version` | Integer | no |  |  |  |
+| `manifest` | JSON | no |  |  | signed by the doctor (signature inside) |
+| `manifest_sha256` | String(64) | no |  |  |  |
+| `signer_subject` | String(64) | no |  |  |  |
+| `signer_key_id` | String(16) | no |  |  |  |
+| `item_count` | Integer | no |  |  |  |
+| `superseded` | Boolean | no |  | `False` |  |
+| `created_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+
+Unique constraints: (referral_id, version)
+
+#### `purge_receipts` (PurgeReceipt, `services/central/app/models/encrypted.py`)
+
+What remains after a referral's content is crypto-shredded (spec v4 11.2).
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `id` | Integer | no | PK |  |  |
+| `referral_id` | Integer | no | FK → referrals.id, unique |  |  |
+| `purged_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+| `items_count` | Integer | no |  |  |  |
+| `wrapped_keys_count` | Integer | no |  |  |  |
+| `manifest_hash` | String(64) | yes |  |  |  |
+| `trigger` | String(40) | no |  |  |  |
+| `detail` | JSON | no |  | `dict` |  |
+| `note` | Text | no |  | `''` |  |
+
+#### `wrapped_keys` (WrappedKey, `services/central/app/models/encrypted.py`)
+
+A batch's data key, wrapped to one recipient key (doctor, patient or department group).
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `id` | Integer | no | PK |  |  |
+| `referral_id` | Integer | no | FK → referrals.id, indexed |  |  |
+| `batch_id` | String(60) | no | indexed |  |  |
+| `recipient_type` | String(20) | no |  |  | doctor \| patient \| department |
+| `recipient_subject` | String(100) | no | indexed |  |  |
+| `recipient_key_id` | String(16) | no | indexed |  |  |
+| `key_version` | Integer | yes |  |  |  |
+| `wrapped` | JSON | no |  |  |  |
+| `created_by` | String(200) | no |  |  |  |
+| `created_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+
+Unique constraints: (batch_id, recipient_key_id)
 
 #### `documents` (Document, `services/central/app/models/evidence.py`)
 
@@ -3499,6 +4075,64 @@ Central reference to a Keycloak account. account_status is checked on every requ
 | `status_changed_by` | String(200) | yes |  |  |  |
 | `status_changed_at` | DateTime(timezone=True) | yes |  |  |  |
 | `last_seen_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+
+#### `group_key_wraps` (GroupKeyWrap, `services/central/app/models/keys.py`)
+
+A department group private key wrapped to one member doctor's encryption key (ciphertext).
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `id` | Integer | no | PK |  |  |
+| `hospital_id` | String(50) | no |  |  |  |
+| `department` | String(60) | no |  |  |  |
+| `group_version` | Integer | no |  |  |  |
+| `member_subject_id` | String(64) | no | indexed |  |  |
+| `member_key_id` | String(16) | no | indexed |  |  |
+| `wrapped` | JSON | no |  |  |  |
+| `created_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+
+Unique constraints: (hospital_id, department, group_version, member_key_id)
+
+#### `key_directory` (DirectoryEntry, `services/central/app/models/keys.py`)
+
+A doctor's, department's or patient's public keys, signed by the issuing hospital (or, for a patient, the platform). Stored exactly as signed; clients and adapters verify the signature against pinned keys.
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `id` | Integer | no | PK |  |  |
+| `subject_id` | String(100) | no | indexed |  |  |
+| `subject_type` | String(20) | no | indexed |  | doctor \| department \| patient |
+| `hospital_id` | String(50) | yes | indexed |  |  |
+| `department` | String(60) | yes | indexed |  |  |
+| `enc_key_id` | String(16) | no | unique |  |  |
+| `key_version` | Integer | no |  |  |  |
+| `issued_by` | String(50) | no |  |  |  |
+| `entry` | JSON | no |  |  |  |
+| `revocation` | JSON | yes |  |  |  |
+| `revoked_at` | DateTime(timezone=True) | yes |  |  |  |
+| `created_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+
+#### `platform_keys` (PlatformKey, `services/central/app/models/keys.py`)
+
+The platform's own signing key (request assertions to adapters, patient key entries). Sealed with the platform's key-store secret.
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `kid` | String(16) | no | PK |  |  |
+| `public_spki` | Text | no |  |  |  |
+| `private_sealed` | JSON | no |  |  |  |
+| `created_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+| `retired_at` | DateTime(timezone=True) | yes |  |  |  |
+
+#### `seen_assertions` (SeenAssertion, `services/central/app/models/keys.py`)
+
+Adapter request assertions already accepted (jti), until they expire: a replay is refused.
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `jti` | String(80) | no | PK |  |  |
+| `issuer` | String(50) | no |  |  |  |
+| `expires_at` | DateTime(timezone=True) | no | indexed |  |  |
 
 #### `ai_suggestions` (AiSuggestion, `services/central/app/models/medications.py`)
 
@@ -4003,8 +4637,12 @@ Unique constraints: (referral_id, version)
 | `accepted_at` | DateTime(timezone=True) | yes |  |  |  |
 | `working_set_expires_at` | DateTime(timezone=True) | yes | indexed |  | Temporary working set: retrieved records and everything derived from them are held only until working_set_expires_at, then their clinical content is removed (identifiers, status, audit, manifest and fingerprint stay). See lifecycle/working_set.py. |
 | `working_set_purged_at` | DateTime(timezone=True) | yes |  |  |  |
-| `receiver_completed_at` | DateTime(timezone=True) | yes |  |  | the receiving doctor marked the referral complete (its shared records are removed after the grace period) |
+| `receiver_completed_at` | DateTime(timezone=True) | yes |  |  | the specialist closed the referral (spec v4 step 11): purged after the grace period |
 | `receiver_completed_by` | String(200) | yes |  |  |  |
+| `close_reminder_due_at` | DateTime(timezone=True) | yes | indexed |  | spec v4 7: the close reminder (30 days after acceptance, or the end of an extension), weekly repeats, escalation to the receiving department's staff; never a silent auto-close |
+| `reminders_sent` | Integer | no |  | `0` |  |
+| `last_reminder_at` | DateTime(timezone=True) | yes |  |  |  |
+| `escalated_at` | DateTime(timezone=True) | yes |  |  |  |
 | `created_at` | DateTime(timezone=True) | no | indexed | `utcnow` |  |
 | `updated_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
 
@@ -4014,23 +4652,6 @@ Unique constraints: (referral_id, version)
 _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 
 ### Data dictionary: Institution service database (one per institution: `drali_db`, `chughtai_db`, `ziauddin_db`, `akuh_db`)
-
-#### `access_grants` (AccessGrant, `services/provider/app/models.py`)
-
-| Column | Type | Null | Keys | Default | Meaning |
-|---|---|---|---|---|---|
-| `id` | Integer | no | PK |  | (from AccessGrantMixin) |
-| `grantee_institution` | String(50) | no | indexed |  | (from AccessGrantMixin) |
-| `local_patient_id` | String(50) | no | indexed |  | (from AccessGrantMixin) |
-| `categories` | JSON | no |  |  | (from AccessGrantMixin) |
-| `status` | String(20) | no |  | `'active'` | (from AccessGrantMixin) |
-| `basis` | Text | no |  | `''` | (from AccessGrantMixin) |
-| `granted_by` | String(200) | no |  |  | (from AccessGrantMixin) |
-| `created_at` | DateTime(timezone=True) | no |  | `utcnow` | (from AccessGrantMixin) |
-| `revoked_by` | String(200) | yes |  |  | (from AccessGrantMixin) |
-| `revoked_at` | DateTime(timezone=True) | yes |  |  | (from AccessGrantMixin) |
-| `expires_at` | DateTime(timezone=True) | yes | indexed |  | (from AccessGrantMixin) Temporary access: the grant stops working at expires_at (NULL only for legacy grants). |
-| `referral_ref` | String(60) | yes | indexed |  | (from AccessGrantMixin) The referral this grant was opened for, so it can be closed with the referral. |
 
 #### `audit_events` (AuditEvent, `services/provider/app/models.py`)
 
@@ -4096,6 +4717,7 @@ One referral received by this institution, across all sent versions.
 | `snomed` | String(30) | yes |  |  |  |
 | `clinical_status` | String(20) | no |  |  |  |
 | `onset` | String(10) | yes |  |  | as recorded: YYYY, YYYY-MM or YYYY-MM-DD |
+| `sensitive_category` | String(40) | yes |  |  | the category this institution marks sensitive (psychiatric \| hiv_sexual_health \| ...), released only with the patient's specific consent (spec v4 4.2, 6.2) |
 | `version` | Integer | no |  | `1` | (from Versioned) |
 | `updated_at` | DateTime(timezone=True) | no |  | `utcnow` | (from Versioned) |
 
@@ -4116,6 +4738,30 @@ One referral received by this institution, across all sent versions.
 | `returned_at` | DateTime(timezone=True) | yes |  |  |  |
 | `return_key` | String(200) | yes | unique |  |  |
 
+#### `doctor_keys` (DoctorKey, `services/provider/app/models.py`)
+
+A doctor's public keys, signed by this hospital once it accepts them (spec v4 5.4). The doctor's private keys stay on the doctor's device.
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `id` | Integer | no | PK |  |  |
+| `subject_id` | String(64) | no | indexed |  |  |
+| `username` | String(100) | no |  |  |  |
+| `display_name` | String(200) | no |  |  |  |
+| `department` | String(60) | yes | indexed |  |  |
+| `enc_key_id` | String(16) | no | indexed |  |  |
+| `key_version` | Integer | no |  |  |  |
+| `request` | JSON | no |  |  | the doctor's signed registration (proof of possession) |
+| `entry` | JSON | yes |  |  | the hospital-signed directory entry |
+| `status` | String(20) | no | indexed | `'pending'` | pending (waits for an administrator) \| active \| revoked \| rejected |
+| `recovery` | Boolean | no |  | `False` | replaces a key the doctor lost |
+| `approved_by` | String(200) | yes |  |  |  |
+| `revocation` | JSON | yes |  |  |  |
+| `revoked_by` | String(200) | yes |  |  |  |
+| `revoked_at` | DateTime(timezone=True) | yes |  |  |  |
+| `published_at` | DateTime(timezone=True) | yes |  |  |  |
+| `created_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+
 #### `forwarded_results` (ForwardedResult, `services/provider/app/models.py`)
 
 A diagnostic report from another department or institution, attached to a case.
@@ -4127,6 +4773,23 @@ A diagnostic report from another department or institution, attached to a case.
 | `case_id` | Integer | no | FK → cases.id, indexed |  |  |
 | `content` | JSON | no |  |  |  |
 | `received_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+
+#### `group_key_wraps` (GroupKeyWrap, `services/provider/app/models.py`)
+
+A department group private key, wrapped to one member doctor's encryption key (ciphertext only).
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `id` | Integer | no | PK |  |  |
+| `department` | String(60) | no | indexed |  |  |
+| `group_version` | Integer | no |  |  |  |
+| `member_subject_id` | String(64) | no | indexed |  |  |
+| `member_key_id` | String(16) | no |  |  |  |
+| `wrapped` | JSON | no |  |  |  |
+| `published_at` | DateTime(timezone=True) | yes |  |  |  |
+| `created_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+
+Unique constraints: (department, group_version, member_key_id)
 
 #### `imaging_reports` (ImagingReport, `services/provider/app/models.py`)
 
@@ -4140,6 +4803,7 @@ A diagnostic report from another department or institution, attached to a case.
 | `findings` | Text | no |  | `''` |  |
 | `impression` | Text | no |  | `''` |  |
 | `reporter` | String(200) | yes |  |  |  |
+| `sensitive_category` | String(40) | yes |  |  | the category this institution marks sensitive (psychiatric \| hiv_sexual_health \| ...), released only with the patient's specific consent (spec v4 4.2, 6.2) |
 | `version` | Integer | no |  | `1` | (from Versioned) |
 | `updated_at` | DateTime(timezone=True) | no |  | `utcnow` | (from Versioned) |
 
@@ -4175,6 +4839,24 @@ Unique constraints: (case_id, version)
 | `answered_at` | DateTime(timezone=True) | yes |  |  |  |
 | `answer_key` | String(200) | yes | unique |  |  |
 
+#### `key_store` (KeyStore, `services/provider/app/models.py`)
+
+This institution's own private keys: the hospital signing key and each department's group key. The private part is sealed with the service's key-store secret (AES-256-GCM); it never leaves this service.
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `id` | Integer | no | PK |  |  |
+| `purpose` | String(80) | no | indexed |  | hospital_signing \| group:<department> |
+| `version` | Integer | no |  | `1` |  |
+| `public_spki` | Text | no |  |  |  |
+| `private_sealed` | JSON | no |  |  |  |
+| `entry` | JSON | yes |  |  | the signed directory entry for a department group key (published to the platform) |
+| `published_at` | DateTime(timezone=True) | yes |  |  |  |
+| `created_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+| `retired_at` | DateTime(timezone=True) | yes |  |  |  |
+
+Unique constraints: (purpose, version)
+
 #### `lab_results` (LabResult, `services/provider/app/models.py`)
 
 | Column | Type | Null | Keys | Default | Meaning |
@@ -4190,6 +4872,7 @@ Unique constraints: (case_id, version)
 | `unit` | String(40) | yes |  |  |  |
 | `reference_range` | String(60) | yes |  |  |  |
 | `abnormal_flag` | String(20) | yes |  |  |  |
+| `sensitive_category` | String(40) | yes |  |  | the category this institution marks sensitive (psychiatric \| hiv_sexual_health \| ...), released only with the patient's specific consent (spec v4 4.2, 6.2) |
 | `status` | String(20) | no |  | `'final'` |  |
 | `note` | Text | yes |  |  |  |
 | `version` | Integer | no |  | `1` | (from Versioned) |
@@ -4210,6 +4893,7 @@ Unique constraints: (case_id, version)
 | `status` | String(20) | no |  |  | active \| stopped \| completed |
 | `prescriber` | String(200) | yes |  |  |  |
 | `note` | Text | yes |  |  |  |
+| `sensitive_category` | String(40) | yes |  |  | the category this institution marks sensitive (psychiatric \| hiv_sexual_health \| ...), released only with the patient's specific consent (spec v4 4.2, 6.2) |
 | `version` | Integer | no |  | `1` | (from Versioned) |
 | `updated_at` | DateTime(timezone=True) | no |  | `utcnow` | (from Versioned) |
 
@@ -4299,6 +4983,47 @@ Events for the central platform, written in the same transaction as the change.
 | `version` | Integer | no |  | `1` | (from Versioned) |
 | `updated_at` | DateTime(timezone=True) | no |  | `utcnow` | (from Versioned) |
 
+#### `record_requests` (RecordRequest, `services/provider/app/models.py`)
+
+A request from the platform for a referral's records, checked against the patient's consent and this institution's own policy. Answered at once, refused with a reason code, or queued for this institution's staff (pending_manual_review). Only the decision and counts are kept here; the records stay in their own tables.
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `id` | Integer | no | PK |  |  |
+| `request_key` | String(200) | no | unique |  |  |
+| `referral_ref` | String(40) | no | indexed |  |  |
+| `requesting_org` | String(50) | no |  |  |  |
+| `practitioner_id` | String(64) | no |  |  |  |
+| `practitioner_name` | String(200) | yes |  |  |  |
+| `purpose` | String(20) | no |  |  |  |
+| `consent_ref` | String(60) | no |  |  |  |
+| `local_patient_id` | String(50) | yes |  |  |  |
+| `categories` | JSON | no |  | `list` |  |
+| `since` | String(20) | yes |  |  |  |
+| `reason_text` | Text | yes |  |  | the referral reason (administrative) |
+| `sensitive` | JSON | no |  | `list` | sensitive categories the request asks for |
+| `practitioner_entry` | JSON | yes |  |  | the requesting doctor's signed key |
+| `patient_entry` | JSON | yes |  |  | the patient's platform-signed key |
+| `status` | String(30) | no | indexed |  | answered \| partial \| refused \| pending_manual_review \| declined |
+| `refusals` | JSON | no |  | `list` |  |
+| `policy_version` | String(40) | no |  |  |  |
+| `item_count` | Integer | no |  | `0` |  |
+| `decided_by` | String(200) | yes |  |  |  |
+| `decided_at` | DateTime(timezone=True) | yes |  |  |  |
+| `delivered_at` | DateTime(timezone=True) | yes |  |  |  |
+| `delivery_error` | Text | yes |  |  |  |
+| `created_at` | DateTime(timezone=True) | no |  | `utcnow` |  |
+
+#### `seen_assertions` (SeenAssertion, `services/provider/app/models.py`)
+
+Request assertions already accepted (jti), kept until they expire, so a replay is refused.
+
+| Column | Type | Null | Keys | Default | Meaning |
+|---|---|---|---|---|---|
+| `jti` | String(80) | no | PK |  |  |
+| `issuer` | String(50) | no |  |  |  |
+| `expires_at` | DateTime(timezone=True) | no | indexed |  |  |
+
 #### `sent_copies` (SentCopy, `services/provider/app/models.py`)
 
 This institution's own copy of a referral it sent (and the response it received). Delivered by the central platform, whose working copy is temporary; this copy is the sender's lasting record.
@@ -4336,6 +5061,7 @@ This institution's own copy of a referral it sent (and the response it received)
 | `clinician` | String(200) | yes |  |  |  |
 | `reason` | Text | no |  | `''` |  |
 | `summary` | Text | no |  | `''` |  |
+| `sensitive_category` | String(40) | yes |  |  | the category this institution marks sensitive (psychiatric \| hiv_sexual_health \| ...), released only with the patient's specific consent (spec v4 4.2, 6.2) |
 | `version` | Integer | no |  | `1` | (from Versioned) |
 | `updated_at` | DateTime(timezone=True) | no |  | `utcnow` | (from Versioned) |
 
@@ -4348,29 +5074,62 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 
 Generated from the FastAPI route decorators. *Access checks* lists the authorisation calls made inside each handler (roles, institution scope, service identity, optimistic-concurrency checks). Every endpoint except `/health` and `/ready` also requires a valid Keycloak access token (verified signature, issuer, audience and introspection). Parameters exclude the database session and the caller's identity.
 
-#### Central platform API (`central`, port 8000): 100 endpoints
+#### Central platform API (`central`, port 8000): 122 endpoints
+
+##### AI relay (de-identified, on request)
+
+| Method | Path | Purpose | Access checks | Parameters | Handler |
+|---|---|---|---|---|---|
+| POST | `/ai/relay/flags` | Layer 2: generic names and the procedure only. Adds suggestions; it can never remove or change a Layer 1 flag (those are computed on the device and never sent back). | _referral_for → load_referral() | body: FlagsIn | relay_flags (services/central/app/ai_relay.py:249) |
+| POST | `/ai/relay/selection` | Relay selection. | _referral_for → load_referral() | body: SelectionIn | relay_selection (services/central/app/ai_relay.py:130) |
 
 ##### audit and reference data
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
 | GET | `/admin/audit` | Administrators see audit metadata for their institution (no clinical record content). | require_roles(institution_admin, action=admin.audit) | action: str \| None; outcome: str \| None; limit: int | institution_audit (services/central/app/audit_router.py:52) |
-| GET | `/me` | Me. | valid access token (any role) |  | me (services/central/app/audit_router.py:74) |
-| GET | `/reference-data` | Reference data. | valid access token (any role) |  | reference_data (services/central/app/audit_router.py:88) |
+| GET | `/admin/audit/chain` | Recompute the audit trail's hash chain (spec v4 11.5): sealed and unsealed counts and the first break, if any. | require_roles(institution_admin, action=admin.audit_chain) |  | audit_chain (services/central/app/audit_router.py:74) |
+| GET | `/me` | Me. | valid access token (any role) |  | me (services/central/app/audit_router.py:83) |
+| GET | `/reference-data` | Reference data. | valid access token (any role) |  | reference_data (services/central/app/audit_router.py:97) |
 | GET | `/referrals/{referral_id}/audit` | Referral audit. | load_referral(view_audit) | referral_id: int | referral_audit (services/central/app/audit_router.py:45) |
+
+##### consent
+
+| Method | Path | Purpose | Access checks | Parameters | Handler |
+|---|---|---|---|---|---|
+| GET | `/e2e/adapter/consents/{reference}` | The signed consent behind a request, for the institution to check itself. Only a custodian named by the patient may read it. | public (no token) | reference: str | adapter_consent (services/central/app/consent/router.py:233) |
+| GET | `/patient-access/consents` | My consents. | valid access token (any role) |  | my_consents (services/central/app/consent/router.py:131) |
+| POST | `/patient-access/consents/{reference}/decision` | Decide consent. | valid access token (any role) | reference: str; body: DecisionIn | decide_consent (services/central/app/consent/router.py:173) |
+| POST | `/patient-access/consents/{reference}/prepare` | The exact document for the patient's choices, for the patient's device to show and sign. | valid access token (any role) | reference: str; body: PrepareIn | prepare_consent (services/central/app/consent/router.py:150) |
+| POST | `/patient-access/consents/{reference}/revoke` | Future requests are refused. Records a doctor already opened cannot be recalled (stated in the portal). | valid access token (any role) | reference: str; body: RevokeIn | revoke_consent (services/central/app/consent/router.py:211) |
+| GET | `/referrals/{referral_id}/consents` | Referral consents. | load_referral(view, roles=['clinic_staff', 'clinician']) | referral_id: int | referral_consents (services/central/app/consent/router.py:108) |
+| POST | `/referrals/{referral_id}/consents` | Staff ask the patient (through the patient portal) for permission to fetch records for this referral. | load_referral(consent_request, roles=('clinic_staff',)) | referral_id: int; body: ConsentRequestIn | request_consent (services/central/app/consent/router.py:75) |
 
 ##### documents
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/documents/{document_id}` | Get document. | _load_doc → load_referral() | document_id: int | get_document (services/central/app/documents/router.py:116) |
-| GET | `/documents/{document_id}/file` | Download. | _load_doc → load_referral() | document_id: int | download (services/central/app/documents/router.py:135) |
-| GET | `/documents/{document_id}/pages/{page}` | Page image. | _load_doc → load_referral() | document_id: int; page: int | page_image (services/central/app/documents/router.py:147) |
-| POST | `/documents/{document_id}/reprocess` | Reprocess. | _load_doc → load_referral() | document_id: int | reprocess (services/central/app/documents/router.py:157) |
-| GET | `/jobs/{job_id}` | Get job. | load_referral(view) | job_id: str | get_job (services/central/app/documents/router.py:170) |
-| GET | `/referrals/{referral_id}/documents` | List documents. | load_referral(view) | referral_id: int | list_documents (services/central/app/documents/router.py:99) |
-| POST | `/referrals/{referral_id}/documents` | Upload. | ensure_clinical_edit_allowed(); load_referral(upload) | referral_id: int; file: UploadFile; doc_type: str | upload (services/central/app/documents/router.py:47) |
-| GET | `/referrals/{referral_id}/jobs` | Referral jobs. | load_referral(view) | referral_id: int | referral_jobs (services/central/app/documents/router.py:182) |
+| GET | `/documents/{document_id}` | Get document. | _load_doc → load_referral() | document_id: int | get_document (services/central/app/documents/router.py:120) |
+| GET | `/documents/{document_id}/file` | Download. | _load_doc → load_referral() | document_id: int | download (services/central/app/documents/router.py:139) |
+| GET | `/documents/{document_id}/pages/{page}` | Page image. | _load_doc → load_referral() | document_id: int; page: int | page_image (services/central/app/documents/router.py:151) |
+| POST | `/documents/{document_id}/reprocess` | Reprocess. | _load_doc → load_referral() | document_id: int | reprocess (services/central/app/documents/router.py:161) |
+| GET | `/jobs/{job_id}` | Get job. | load_referral(view) | job_id: str | get_job (services/central/app/documents/router.py:174) |
+| GET | `/referrals/{referral_id}/documents` | List documents. | load_referral(view) | referral_id: int | list_documents (services/central/app/documents/router.py:103) |
+| POST | `/referrals/{referral_id}/documents` | Upload. | ensure_clinical_edit_allowed(); load_referral(upload, roles=('clinician',)) | referral_id: int; file: UploadFile; doc_type: str | upload (services/central/app/documents/router.py:47) |
+| GET | `/referrals/{referral_id}/jobs` | Referral jobs. | load_referral(view) | referral_id: int | referral_jobs (services/central/app/documents/router.py:186) |
+
+##### end-to-end keys
+
+| Method | Path | Purpose | Access checks | Parameters | Handler |
+|---|---|---|---|---|---|
+| GET | `/.well-known/jwks.json` | The platform's public signing key, pinned by every adapter at onboarding. | public (no token) |  | jwks (services/central/app/keys/router.py:39) |
+| POST | `/e2e/adapter/directory` | Receive directory. | public (no token) | body: DirectoryBatch | receive_directory (services/central/app/keys/router.py:63) |
+| POST | `/e2e/client-events` | Events only a client can see: a directory signature that failed in the browser, which items a doctor opened (decrypted). Best effort: a modified client could skip them (stated in docs/security-model.md). The detail must hold ids, counts and reason codes only; text values are cut short and never content. | valid access token (any role) | body: ClientEventIn | client_event (services/central/app/keys/router.py:271) |
+| GET | `/e2e/directory` | Directory. | has_any(patient) | subject_id: str \| None; hospital_id: str \| None; department: str \| None; subject_type: str \| None; include_revoked: bool | directory (services/central/app/keys/router.py:131) |
+| GET | `/e2e/directory/departments/{hospital_id}/{department}` | Department entries. | valid access token (any role) | hospital_id: str; department: str | department_entries (services/central/app/keys/router.py:181) |
+| GET | `/e2e/directory/me` | The caller's own entries, and the department group keys wrapped to their current key. | has_any(patient) |  | my_directory (services/central/app/keys/router.py:167) |
+| GET | `/e2e/participants` | Onboarded institutions as pinned at this installation (for display; clients use their own pinned copy). | valid access token (any role) |  | participants (services/central/app/keys/router.py:47) |
+| POST | `/e2e/patient-keys` | A patient's keys, generated on the patient's device. The platform signs the entry for the signed-in patient (CNIC from the verified token) and revokes the patient's earlier key. | valid access token (any role) | body: PatientKeyIn | register_patient_key (services/central/app/keys/router.py:200) |
 
 ##### evidence
 
@@ -4390,14 +5149,20 @@ Generated from the FastAPI route decorators. *Access checks* lists the authorisa
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/health` | Health. | public (no token) |  | health (services/central/app/main.py:45) |
-| GET | `/ready` | Ready. | public (no token) |  | ready (services/central/app/main.py:50) |
+| GET | `/health` | Health. | public (no token) |  | health (services/central/app/main.py:49) |
+| GET | `/ready` | Ready. | public (no token) |  | ready (services/central/app/main.py:54) |
 
 ##### inbound (institution services)
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| POST | `/inbound/provider-events` | Provider event. | require_service(svc_provider) | body: ProviderEvent | provider_event (services/central/app/delivery/inbound.py:26) |
+| POST | `/inbound/provider-events` | Provider event. | require_service(svc_provider) | body: ProviderEvent | provider_event (services/central/app/delivery/inbound.py:28) |
+
+##### medication data bundle
+
+| Method | Path | Purpose | Access checks | Parameters | Handler |
+|---|---|---|---|---|---|
+| GET | `/med-bundle` | The current bundle; clients keep it until the version changes. | valid access token (any role) | response: Response | med_bundle (services/central/app/medications/bundle.py:61) |
 
 ##### medications
 
@@ -4427,53 +5192,64 @@ Generated from the FastAPI route decorators. *Access checks* lists the authorisa
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/notifications` | List notifications. | _mine() | unread_only: bool | list_notifications (services/central/app/notifications.py:56) |
-| POST | `/notifications/read-all` | Mark all read. | _mine() |  | mark_all_read (services/central/app/notifications.py:75) |
-| POST | `/notifications/{notification_id}/read` | Mark read. | _mine() | notification_id: int | mark_read (services/central/app/notifications.py:64) |
+| GET | `/notifications` | List notifications. | _mine() | unread_only: bool | list_notifications (services/central/app/notifications.py:65) |
+| POST | `/notifications/read-all` | Mark all read. | _mine() |  | mark_all_read (services/central/app/notifications.py:84) |
+| POST | `/notifications/{notification_id}/read` | Mark read. | _mine() | notification_id: int | mark_read (services/central/app/notifications.py:73) |
 
 ##### patient access
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/patient-access/places` | The institutions on the network. The patient's device asks each one directly whether it holds records for them; the platform does not keep that list. | require_patient → deny(patient, self, Only a patient account can use the patient view); require_patient → deny(patient, self, This patient account has no CNIC, so nothing can be matched to it); require_patient → role patient required |  | places (services/central/app/patient_access.py:124) |
-| GET | `/patient-access/referrals` | Every referral and test request for this patient, at any institution, newest first. Drafts the doctor has not submitted are left out. | require_patient → deny(patient, self, Only a patient account can use the patient view); require_patient → deny(patient, self, This patient account has no CNIC, so nothing can be matched to it); require_patient → role patient required |  | my_referrals (services/central/app/patient_access.py:102) |
+| GET | `/patient-access/places` | The institutions on the network. The patient's device asks each one directly whether it holds records for them; the platform does not keep that list. | require_patient → deny(patient, self, Only a patient account can use the patient view); require_patient → deny(patient, self, This patient account has no CNIC, so nothing can be matched to it); require_patient → role patient required |  | places (services/central/app/patient_access.py:220) |
+| GET | `/patient-access/referrals` | Every referral and test request for this patient, at any institution, newest first. Drafts the doctor has not submitted are left out. | require_patient → deny(patient, self, Only a patient account can use the patient view); require_patient → deny(patient, self, This patient account has no CNIC, so nothing can be matched to it); require_patient → role patient required |  | my_referrals (services/central/app/patient_access.py:114) |
+| GET | `/patient-access/referrals/{reference}/copy` | The patient's own copy (spec v4 11.3): the signed manifest, the items, and the data keys wrapped to the patient's key. The app decrypts it on the phone, checks it against the signature and keeps it there, even after the referral is purged here. Items the doctor did not share with the patient have no wrap for them. | _own_referral → deny(referral, Not your referral); _own_referral → require_patient → deny(patient, self, Only a patient account can use the patient view); _own_referral → require_patient → deny(patient, self, This patient account has no CNIC, so nothing can be matched to it); _own_referral → require_patient → role patient required | reference: str | my_copy (services/central/app/patient_access.py:144) |
+| POST | `/patient-access/referrals/{reference}/papers` | Papers the patient adds in the app (spec v4 step 2, 10): encrypted on the phone to the referring doctor's key and the patient's own key. The platform checks only the shape; staff see "Patient-provided document" and a date. | _own_referral → deny(referral, Not your referral); _own_referral → require_patient → deny(patient, self, Only a patient account can use the patient view); _own_referral → require_patient → deny(patient, self, This patient account has no CNIC, so nothing can be matched to it); _own_referral → require_patient → role patient required | reference: str; body: PatientBatchIn | add_papers (services/central/app/patient_access.py:169) |
 
 ##### patient links
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/admin/role-templates` | Templates this institution's administrator may apply. | require_roles(institution_admin, action=admin.role_templates) |  | list_role_templates (services/central/app/identity/router.py:412) |
-| GET | `/admin/users` | List users. | require_roles(institution_admin, action=admin.users) |  | list_users (services/central/app/identity/router.py:320) |
-| POST | `/admin/users/{user_id}/apply-template` | Replace the user's template-managed realm roles with the template's (never service roles, never oneself). | require_roles(institution_admin, action=admin.apply_template) | user_id: str; body: ApplyTemplateIn | apply_role_template (services/central/app/identity/router.py:419) |
-| POST | `/admin/users/{user_id}/disable` | Disable user. | _set_status → require_roles(institution_admin, action=admin.user_status) | user_id: str; body: StatusIn | disable_user (services/central/app/identity/router.py:375) |
-| POST | `/admin/users/{user_id}/enable` | Enable user. | _set_status → require_roles(institution_admin, action=admin.user_status) | user_id: str; body: StatusIn | enable_user (services/central/app/identity/router.py:380) |
-| GET | `/institutions` | Institutions. | valid access token (any role) |  | institutions (services/central/app/identity/router.py:385) |
+| GET | `/admin/role-templates` | Templates this institution's administrator may apply. | require_roles(institution_admin, action=admin.role_templates) |  | list_role_templates (services/central/app/identity/router.py:407) |
+| GET | `/admin/users` | List users. | require_roles(institution_admin, action=admin.users) |  | list_users (services/central/app/identity/router.py:315) |
+| POST | `/admin/users/{user_id}/apply-template` | Replace the user's template-managed realm roles with the template's (never service roles, never oneself). | require_roles(institution_admin, action=admin.apply_template) | user_id: str; body: ApplyTemplateIn | apply_role_template (services/central/app/identity/router.py:414) |
+| POST | `/admin/users/{user_id}/disable` | Disable user. | _set_status → require_roles(institution_admin, action=admin.user_status) | user_id: str; body: StatusIn | disable_user (services/central/app/identity/router.py:370) |
+| POST | `/admin/users/{user_id}/enable` | Enable user. | _set_status → require_roles(institution_admin, action=admin.user_status) | user_id: str; body: StatusIn | enable_user (services/central/app/identity/router.py:375) |
+| GET | `/institutions` | Institutions. | valid access token (any role) |  | institutions (services/central/app/identity/router.py:380) |
 | GET | `/patient-links` | Links of one of your own patient records (all states, with history). | require_roles(clinic_staff, clinician, institution_admin, diagnostics_staff, action=patient_link.view) | institution: str \| None; local_id: str \| None | list_links (services/central/app/identity/router.py:81) |
 | POST | `/patient-links` | Ask another institution to confirm their record of one of your patients. | require_roles(clinic_staff, clinician, action=patient_link.request) | body: LinkIn | request_link (services/central/app/identity/router.py:127) |
 | GET | `/patient-links/incoming` | Requests from other institutions for your staff to check. | require_roles(clinic_staff, clinician, institution_admin, diagnostics_staff, action=patient_link.incoming) | status: str | incoming (services/central/app/identity/router.py:102) |
 | GET | `/patient-links/outgoing` | Outgoing. | require_roles(clinic_staff, clinician, institution_admin, diagnostics_staff, action=patient_link.outgoing) | status: str | outgoing (services/central/app/identity/router.py:112) |
-| POST | `/patient-links/{link_id}/approve` | Only staff at the target institution approve. Approval records the basis and shares the patient's referral-relevant records with the requesting institution. | require_roles(clinic_staff, institution_admin, diagnostics_staff, action=patient_link.approve) | link_id: int; body: ApproveIn | approve_link (services/central/app/identity/router.py:161) |
-| POST | `/patient-links/{link_id}/invalidate` | Stops future use. History is kept, and referrals that used it are flagged for review. | require_roles(clinician, institution_admin, clinic_staff, action=patient_link.invalidate) | link_id: int; body: DecisionIn | invalidate_link (services/central/app/identity/router.py:256) |
+| POST | `/patient-links/{link_id}/approve` | Only staff at the target institution approve, after comparing the identity details. A link says who the patient is there; it does not release any record (that needs the patient's consent). | require_roles(clinic_staff, institution_admin, diagnostics_staff, action=patient_link.approve) | link_id: int; body: ApproveIn | approve_link (services/central/app/identity/router.py:161) |
+| POST | `/patient-links/{link_id}/invalidate` | Stops future use. History is kept, and referrals that used it are flagged for review. | require_roles(clinician, institution_admin, clinic_staff, action=patient_link.invalidate) | link_id: int; body: DecisionIn | invalidate_link (services/central/app/identity/router.py:251) |
 | POST | `/patient-links/{link_id}/lookup` | Target staff search their own patient index for the person in the request. | require_roles(clinic_staff, institution_admin, diagnostics_staff, action=patient_link.lookup) | link_id: int | lookup (services/central/app/identity/router.py:138) |
-| POST | `/patient-links/{link_id}/reject` | Reject link. | require_roles(clinic_staff, institution_admin, diagnostics_staff, action=patient_link.reject) | link_id: int; body: DecisionIn | reject_link (services/central/app/identity/router.py:236) |
-| GET | `/patients/search` | Search your own institution's patient index (name, local ID or CNIC). | require_roles(clinic_staff, clinician, institution_admin, diagnostics_staff, action=patients.search) | q: str | search_patients (services/central/app/identity/router.py:295) |
+| POST | `/patient-links/{link_id}/reject` | Reject link. | require_roles(clinic_staff, institution_admin, diagnostics_staff, action=patient_link.reject) | link_id: int; body: DecisionIn | reject_link (services/central/app/identity/router.py:231) |
+| GET | `/patients/search` | Search your own institution's patient index (name, local ID or CNIC). | require_roles(clinic_staff, clinician, institution_admin, diagnostics_staff, action=patients.search) | q: str | search_patients (services/central/app/identity/router.py:290) |
+
+##### records (encrypted)
+
+| Method | Path | Purpose | Access checks | Parameters | Handler |
+|---|---|---|---|---|---|
+| POST | `/e2e/adapter/receiving-batches` | The receiving hospital adds its own records for its doctors (spec v4 step 8, 5.6 step 6): a batch from its adapter (signed request), encrypted to its own department's group key, so only that department's doctors open it. The referring side never gets a wrap for it. | public (no token) | body: ReceivingBatchIn | receiving_batch (services/central/app/records/router.py:187) |
+| POST | `/e2e/adapter/record-responses` | An institution's answer after its staff reviewed a request (signed request from that institution). | public (no token) | body: AdapterAnswer | adapter_answer (services/central/app/records/router.py:89) |
+| GET | `/e2e/received/{reference}/package` | The receiving department's doctors fetch the sent package (ciphertext and the data keys wrapped to the department group key) and open it on their device. The receiving hospital's system keeps no copy (D2). | department_member → role clinician required | reference: str | received_package (services/central/app/records/router.py:221) |
+| GET | `/referrals/{referral_id}/encrypted` | Titles, ciphertext and the data keys wrapped to the caller's own keys. Decryption happens on the device. | require_referring_doctor → load_referral(roles=('clinician',)) | referral_id: int | encrypted_items (services/central/app/records/router.py:112) |
+| POST | `/referrals/{referral_id}/encrypted-batches` | The doctor's own items (consultation notes, the medicine list asked from the patient, scans), encrypted on the doctor's device. The platform checks only the shape: who the keys are wrapped to and the size. | require_referring_doctor → load_referral(roles=('clinician',)) | referral_id: int; body: BatchIn | upload_batch (services/central/app/records/router.py:274) |
+| GET | `/referrals/{referral_id}/record-requests` | List record requests. | load_referral(view, roles=['clinic_staff', 'clinician']) | referral_id: int | list_record_requests (services/central/app/records/router.py:62) |
+| POST | `/referrals/{referral_id}/record-requests` | Send the records requests the patient's consent allows (staff or the referring doctor). | load_referral(records_request, roles=['clinic_staff', 'clinician']) | referral_id: int | request_records (services/central/app/records/router.py:48) |
+| GET | `/referrals/{referral_id}/titles` | What every role at the referring institution may see of the records: titles only. | load_referral(view, roles=['clinic_staff', 'clinician']) | referral_id: int | referral_titles (services/central/app/records/router.py:70) |
 
 ##### referrals
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/referrals` | List referrals. | require_roles(clinic_staff, clinician, action=referral.search); role clinician required | patient: str \| None; reference: str \| None; status: str \| None; destination: str \| None; kind: str \| None; mine: bool; date_from: date \| None; date_to: date \| None; limit: int | list_referrals (services/central/app/referrals/router.py:179) |
-| POST | `/referrals` | Only a doctor applies for a referral or a test. | require_roles(clinician, action=referral.create) | body: ReferralForm | create_referral (services/central/app/referrals/router.py:143) |
-| GET | `/referrals/{referral_id}` | Get referral. | load_referral(view); role clinician required | referral_id: int | get_referral (services/central/app/referrals/router.py:253) |
-| PATCH | `/referrals/{referral_id}` | Doctors edit their request. After it was sent, a clinical change opens an amendment. | check_version(); load_referral(edit) | referral_id: int; body: ReferralUpdate | update_referral (services/central/app/referrals/router.py:288) |
-| POST | `/referrals/{referral_id}/cancel` | Only a doctor withdraws a request; staff cannot stop it. | check_version(); load_referral(cancel) | referral_id: int; body: CancelIn | cancel (services/central/app/referrals/router.py:428) |
-| GET | `/referrals/{referral_id}/events` | Events. | load_referral(view) | referral_id: int | events (services/central/app/referrals/router.py:439) |
-| POST | `/referrals/{referral_id}/links` | Staff ask another institution (where the patient has been) to confirm the patient. | load_referral(link) | referral_id: int; body: LinkRequestIn | request_referral_link (services/central/app/referrals/router.py:351) |
-| POST | `/referrals/{referral_id}/recommend` | Staff ask for the AI recommendation again (for example after adding papers). | load_referral(prepare, roles=('clinic_staff',)) | referral_id: int | recommend_selection (services/central/app/referrals/router.py:402) |
-| GET | `/referrals/{referral_id}/retrievals` | Retrieval history. | load_referral(view) | referral_id: int | retrieval_history (services/central/app/referrals/router.py:416) |
-| POST | `/referrals/{referral_id}/retrieve` | Retrieve records. | load_referral(retrieve) | referral_id: int | retrieve_records (services/central/app/referrals/router.py:365) |
-| GET | `/referrals/{referral_id}/selection` | Selection status. | load_referral(view) | referral_id: int | selection_status (services/central/app/referrals/router.py:391) |
-| POST | `/referrals/{referral_id}/submit` | Submit request. | check_version(); load_referral(submit_request) | referral_id: int; body: VersionIn | submit_request (services/central/app/referrals/router.py:332) |
+| GET | `/referrals` | List referrals. | require_roles(clinic_staff, clinician, action=referral.search); role clinician required | patient: str \| None; reference: str \| None; status: str \| None; destination: str \| None; kind: str \| None; mine: bool; date_from: date \| None; date_to: date \| None; limit: int | list_referrals (services/central/app/referrals/router.py:181) |
+| POST | `/referrals` | Only a doctor applies for a referral or a test. | require_roles(clinician, action=referral.create) | body: ReferralForm | create_referral (services/central/app/referrals/router.py:144) |
+| GET | `/referrals/{referral_id}` | Get referral. | load_referral(view); role clinician required | referral_id: int | get_referral (services/central/app/referrals/router.py:257) |
+| PATCH | `/referrals/{referral_id}` | Doctors edit their request. After it was sent, a clinical change opens an amendment. | check_version(); load_referral(edit) | referral_id: int; body: ReferralUpdate | update_referral (services/central/app/referrals/router.py:320) |
+| POST | `/referrals/{referral_id}/cancel` | Only a doctor withdraws a request; staff cannot stop it. | check_version(); load_referral(cancel) | referral_id: int; body: CancelIn | cancel (services/central/app/referrals/router.py:402) |
+| GET | `/referrals/{referral_id}/events` | Events. | load_referral(view) | referral_id: int | events (services/central/app/referrals/router.py:413) |
+| POST | `/referrals/{referral_id}/links` | Staff ask another institution (where the patient has been) to confirm the patient. | load_referral(link) | referral_id: int; body: LinkRequestIn | request_referral_link (services/central/app/referrals/router.py:383) |
+| POST | `/referrals/{referral_id}/submit` | Submit request. | check_version(); load_referral(submit_request) | referral_id: int; body: VersionIn | submit_request (services/central/app/referrals/router.py:364) |
 
 ##### response and follow-through
 
@@ -4492,16 +5268,13 @@ Generated from the FastAPI route decorators. *Access checks* lists the authorisa
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/referrals/{referral_id}/brief-preview` | What the specialist will receive if the referral is sent now (clinical content: doctors only). | load_referral(view) | referral_id: int | brief_preview (services/central/app/sending/router.py:36) |
-| GET | `/referrals/{referral_id}/delivery` | Delivery. | load_referral(view) | referral_id: int | delivery (services/central/app/sending/router.py:113) |
-| GET | `/referrals/{referral_id}/packages/{version}` | Get package. | load_referral(view) | referral_id: int; version: int | get_package (services/central/app/sending/router.py:122) |
-| POST | `/referrals/{referral_id}/packages/{version}/verify` | Compare a copy of the package (held by the sender or the receiver) with the fingerprint kept at sending. | load_referral(view) | referral_id: int; version: int; body: VerifyCopyIn | verify_package_copy (services/central/app/sending/router.py:146) |
-| POST | `/referrals/{referral_id}/packages/{version}/verify-own-copy` | Fetch this clinic's own stored copy (from its own system, with the user's token) and check it. The copy is clinical content, so this is for doctors. | load_referral(view) | referral_id: int; version: int | verify_own_copy (services/central/app/sending/router.py:158) |
-| POST | `/referrals/{referral_id}/packet-reviewed` | The doctor has reviewed the clinical content of the packet: papers, medicines, flags and the records chosen. Staff can then send it. Any later clinical change clears this (workflow.after_change). | check_version(); load_referral(review_packet) | referral_id: int; body: SendIn | mark_packet_reviewed (services/central/app/sending/router.py:68) |
-| POST | `/referrals/{referral_id}/prepared` | Staff have retrieved the records and uploaded the papers; the doctor can now review the clinical content. | check_version(); load_referral(prepare) | referral_id: int; body: SendIn | mark_prepared (services/central/app/sending/router.py:47) |
-| GET | `/referrals/{referral_id}/readiness` | Get readiness. | load_referral(view) | referral_id: int | get_readiness (services/central/app/sending/router.py:30) |
-| POST | `/referrals/{referral_id}/retry-delivery` | Retry reuses the same delivery key, so the receiver never gets a duplicate. | load_referral(send) | referral_id: int | retry_delivery (services/central/app/sending/router.py:103) |
-| POST | `/referrals/{referral_id}/send` | Staff send the referral once every check is done. | check_version(); load_referral(send) | referral_id: int; body: SendIn | send (services/central/app/sending/router.py:92) |
+| POST | `/e2e/verify-manifest` | Given a stored copy of a signed manifest (the receiver's, or the patient's), say whether it is the version the platform recorded, whether its signature verifies against the signer's key, and whether the referral was purged (then only the manifest hash remains). The holder checks the item hashes against its decrypted copy. | valid access token (any role) | body: VerifyIn | verify_manifest (services/central/app/sending/router.py:100) |
+| GET | `/referrals/{referral_id}/delivery` | Delivery. | load_referral(view) | referral_id: int | delivery (services/central/app/sending/router.py:86) |
+| GET | `/referrals/{referral_id}/packages` | Every approved version. Staff see who signed what and when; the manifest itself (item hashes) for doctors. | load_referral(view, roles=['clinic_staff', 'clinician']) | referral_id: int | list_packages (services/central/app/sending/router.py:49) |
+| POST | `/referrals/{referral_id}/packages` | The referring doctor approves: a manifest signed on their device, and the data keys re-wrapped to the receiving department's group key and the patient's key. | load_referral(approve) | referral_id: int; body: ApproveIn | approve_package (services/central/app/sending/router.py:35) |
+| GET | `/referrals/{referral_id}/readiness` | Get readiness. | load_referral(view) | referral_id: int | get_readiness (services/central/app/sending/router.py:24) |
+| POST | `/referrals/{referral_id}/retry-delivery` | Retry reuses the same delivery key, so the receiver never gets a duplicate. | load_referral(send) | referral_id: int | retry_delivery (services/central/app/sending/router.py:76) |
+| POST | `/referrals/{referral_id}/send` | Staff send the approved version to the receiving hospital. | check_version(); load_referral(send) | referral_id: int; body: SendIn | send (services/central/app/sending/router.py:63) |
 
 ##### tests and scans
 
@@ -4520,121 +5293,106 @@ Generated from the FastAPI route decorators. *Access checks* lists the authorisa
 |---|---|---|---|---|---|
 | GET | `/work-queue` | Work queue. | require_roles(clinician, clinic_staff, action=work_queue); role clinic_staff required; role clinician required |  | work_queue (services/central/app/workqueue.py:27) |
 
-#### Institution service API (`drali` 8001, `chughtai` 8002, `ziauddin` 8003, `akuh` 8004): 44 endpoints
+#### Institution service API (`drali` 8001, `chughtai` 8002, `ziauddin` 8003, `akuh` 8004): 39 endpoints
 
 ##### fhir
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/fhir/patients/{local_id}/records` | Referral profile, kept to what a referral needs: conditions, surgeries, current medications only, and visits, results and imaging since the window start (latest result per test). Returned as a FHIR searchset Bundle. | decide_access(); forbid() | local_id: str; categories: str \| None; since: str \| None | patient_records (services/provider/app/main.py:366) |
-
-##### grant close-out
-
-| Method | Path | Purpose | Access checks | Parameters | Handler |
-|---|---|---|---|---|---|
-| POST | `/grants/revoke-by-referral` | Revoke by referral. | forbid(Only the central platform service can close grants by referral); role svc_central required | body: RevokeByReferralIn | revoke_by_referral (libs/common/refcommon/sourcekit.py:302) |
+| GET | `/fhir/patients/{local_id}/records` | Referral profile, kept to what a referral needs: conditions, surgeries, current medications only, and visits, results and imaging since the window start (latest result per test). Returned as a FHIR searchset Bundle. | decide_access(); forbid() | local_id: str; categories: str \| None; since: str \| None | patient_records (services/provider/app/main.py:325) |
 
 ##### health
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/health` | Health. | public (no token) |  | health (libs/common/refcommon/sourcekit.py:339) |
-| GET | `/ready` | Ready. | public (no token) |  | ready (libs/common/refcommon/sourcekit.py:343) |
+| GET | `/health` | Health. | public (no token) |  | health (libs/common/refcommon/sourcekit.py:137) |
+| GET | `/ready` | Ready. | public (no token) |  | ready (libs/common/refcommon/sourcekit.py:141) |
 
 ##### identity
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| POST | `/identity/lookup` | Own staff look up who a link request refers to. Candidates are shown to a person, with each field compared; nothing is linked automatically. | require_own(clinic_staff, clinician, institution_admin, diagnostics_staff, what=look up a patient for a link request) | body: LookupIn | identity_lookup (services/provider/app/main.py:232) |
-| POST | `/identity/register` | Register a patient who is new to this institution (first referral or test here). | require_own(clinic_staff, institution_admin, diagnostics_staff, what=register a new patient) | body: RegisterIn | register_patient (services/provider/app/main.py:270) |
+| POST | `/identity/lookup` | Own staff look up who a link request refers to. Candidates are shown to a person, with each field compared; nothing is linked automatically. | require_own(clinic_staff, clinician, institution_admin, diagnostics_staff, what=look up a patient for a link request) | body: LookupIn | identity_lookup (services/provider/app/main.py:229) |
+| POST | `/identity/register` | Register a patient who is new to this institution (first referral or test here). | require_own(clinic_staff, institution_admin, diagnostics_staff, what=register a new patient) | body: RegisterIn | register_patient (services/provider/app/main.py:267) |
 
 ##### inbound (central platform)
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| POST | `/inbound/clarification-answers` | Receive answer. | _require_central() | body: ClarificationAnswer | receive_answer (services/provider/app/main.py:671) |
-| POST | `/inbound/orders` | Receive order. | _require_central() | body: DiagnosticOrder | receive_order (services/provider/app/main.py:570) |
-| POST | `/inbound/referral-expired` | The referral's time is up: remove this institution's copy of the shared records (the packages and the results forwarded with them). Its own decision, questions and response are its record and are kept. | _require_central() | body: ExpiredIn | referral_expired (services/provider/app/main.py:548) |
-| POST | `/inbound/referrals` | Idempotent receipt of a sent referral version (keyed by delivery key). | _require_central() | raw: dict | receive_package (services/provider/app/main.py:503) |
-| POST | `/inbound/results` | Receive result. | _require_central() | body: ResultForward | receive_result (services/provider/app/main.py:598) |
-| POST | `/outbound-copies` | Store our own copy of a referral we sent, or of the response to it (idempotent by key). | _require_central() | body: SentCopyIn | receive_sent_copy (services/provider/app/main.py:621) |
+| POST | `/inbound/clarification-answers` | Receive answer. | _require_central() | body: ClarificationAnswer | receive_answer (services/provider/app/main.py:632) |
+| POST | `/inbound/orders` | Receive order. | _require_central() | body: DiagnosticOrder | receive_order (services/provider/app/main.py:531) |
+| POST | `/inbound/referral-expired` | The referral's time is up: remove this institution's copy of the shared records (the packages and the results forwarded with them). Its own decision, questions and response are its record and are kept. | _require_central() | body: ExpiredIn | referral_expired (services/provider/app/main.py:509) |
+| POST | `/inbound/referrals` | Idempotent receipt of a sent referral version (keyed by delivery key): a notice with record titles and the signed manifest's hash, never record content (spec v4, D2). | _require_central() | raw: dict | receive_package (services/provider/app/main.py:462) |
+| POST | `/inbound/results` | Receive result. | _require_central() | body: ResultForward | receive_result (services/provider/app/main.py:559) |
+| POST | `/outbound-copies` | Store our own copy of a referral we sent, or of the response to it (idempotent by key). | _require_central() | body: SentCopyIn | receive_sent_copy (services/provider/app/main.py:582) |
 
 ##### incoming referrals
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/cases` | List cases. | _visible → _is_intake → has_any(clinic_staff, institution_admin); _visible → role clinician required; require_own(clinician, clinic_staff, institution_admin, what=see incoming referrals) |  | list_cases (services/provider/app/main.py:731) |
-| GET | `/cases/{case_id}` | Get case. | _get_case(); require_own(clinician, clinic_staff, institution_admin, what=see incoming referrals); role clinician required | case_id: int | get_case (services/provider/app/main.py:786) |
-| POST | `/cases/{case_id}/acknowledge` | Staff confirm the referral has been received here. | _get_case(); require_own(clinic_staff, institution_admin, what=acknowledge a referral) | case_id: int | acknowledge (services/provider/app/main.py:738) |
-| POST | `/cases/{case_id}/assign` | Staff send the referral to the doctor who will see the patient (can be changed until they decide). | _get_case(); require_own(clinic_staff, institution_admin, what=assign a referral) | case_id: int; body: AssignIn | assign (services/provider/app/main.py:759) |
+| GET | `/cases` | List cases. | _visible → _is_intake → has_any(clinic_staff, institution_admin); _visible → role clinician required; require_own(clinician, clinic_staff, institution_admin, what=see incoming referrals) |  | list_cases (services/provider/app/main.py:692) |
+| GET | `/cases/{case_id}` | Get case. | _get_case(); require_own(clinician, clinic_staff, institution_admin, what=see incoming referrals); role clinician required | case_id: int | get_case (services/provider/app/main.py:784) |
+| POST | `/cases/{case_id}/acknowledge` | Staff confirm the referral has been received here. | _get_case(); require_own(clinic_staff, institution_admin, what=acknowledge a referral) | case_id: int | acknowledge (services/provider/app/main.py:699) |
+| POST | `/cases/{case_id}/assign` | Staff send the referral to the doctor who will see the patient (can be changed until they decide). | _get_case(); require_own(clinic_staff, institution_admin, what=assign a referral) | case_id: int; body: AssignIn | assign (services/provider/app/main.py:720) |
+| POST | `/cases/{case_id}/own-records` | Staff add this hospital's own records for the patient to the referral (spec v4 step 8). This system collects them and encrypts them to the receiving department's group key, so only its doctors open them; staff never see the content. Sensitive categories are left out. The referring side gets no key for them. | _get_case(); require_own(clinic_staff, institution_admin, what=add this hospital's records) | case_id: int | add_own_records (services/provider/app/main.py:740) |
 
 ##### intake
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| POST | `/intake/patient` | Staff here confirmed who an arriving patient is (through the central link request): the incoming referral and test orders for that request now point at this record. | require_own(clinic_staff, institution_admin, diagnostics_staff, what=confirm an arriving patient) | body: IntakeIn | intake_patient (services/provider/app/main.py:654) |
+| POST | `/intake/patient` | Staff here confirmed who an arriving patient is (through the central link request): the incoming referral and test orders for that request now point at this record. | require_own(clinic_staff, institution_admin, diagnostics_staff, what=confirm an arriving patient) | body: IntakeIn | intake_patient (services/provider/app/main.py:615) |
 
 ##### laboratory and imaging
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/orders` | List orders. | _require_diagnostics() |  | list_orders (services/provider/app/main.py:1033) |
-| GET | `/orders/{order_id}` | Get order. | _get_order(); _require_diagnostics() | order_id: int | get_order (services/provider/app/main.py:1040) |
-| POST | `/orders/{order_id}/accept` | Accept order. | _get_order(); _require_diagnostics() | order_id: int | accept_order (services/provider/app/main.py:1057) |
-| GET | `/orders/{order_id}/attachments/{attachment_id}` | Order attachment. | _get_order(); _require_diagnostics() | order_id: int; attachment_id: int | order_attachment (services/provider/app/main.py:1046) |
-| POST | `/orders/{order_id}/done` | Order done. | _get_order(); _require_diagnostics() | order_id: int | order_done (services/provider/app/main.py:1097) |
-| POST | `/orders/{order_id}/reject` | A rejection always carries a reason (wrong test, preparation needed, no capacity). | _get_order(); _require_diagnostics() | order_id: int; body: RejectIn | reject_order (services/provider/app/main.py:1072) |
-| POST | `/orders/{order_id}/report` | Return the report (with images for scans). It is also filed in this institution's own records. | _get_order(); _require_diagnostics() | order_id: int; body: ReportIn | report_order (services/provider/app/main.py:1157) |
-| POST | `/orders/{order_id}/schedule` | Schedule order. | _get_order(); _require_diagnostics() | order_id: int; body: ScheduleIn | schedule_order (services/provider/app/main.py:1087) |
+| GET | `/orders` | List orders. | _require_diagnostics() |  | list_orders (services/provider/app/main.py:1038) |
+| GET | `/orders/{order_id}` | Get order. | _get_order(); _require_diagnostics() | order_id: int | get_order (services/provider/app/main.py:1045) |
+| POST | `/orders/{order_id}/accept` | Accept order. | _get_order(); _require_diagnostics() | order_id: int | accept_order (services/provider/app/main.py:1062) |
+| GET | `/orders/{order_id}/attachments/{attachment_id}` | Order attachment. | _get_order(); _require_diagnostics() | order_id: int; attachment_id: int | order_attachment (services/provider/app/main.py:1051) |
+| POST | `/orders/{order_id}/done` | Order done. | _get_order(); _require_diagnostics() | order_id: int | order_done (services/provider/app/main.py:1102) |
+| POST | `/orders/{order_id}/reject` | A rejection always carries a reason (wrong test, preparation needed, no capacity). | _get_order(); _require_diagnostics() | order_id: int; body: RejectIn | reject_order (services/provider/app/main.py:1077) |
+| POST | `/orders/{order_id}/report` | Return the report (with images for scans). It is also filed in this institution's own records. | _get_order(); _require_diagnostics() | order_id: int; body: ReportIn | report_order (services/provider/app/main.py:1162) |
+| POST | `/orders/{order_id}/schedule` | Schedule order. | _get_order(); _require_diagnostics() | order_id: int; body: ScheduleIn | schedule_order (services/provider/app/main.py:1092) |
 
 ##### patient access
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/patient-access/records` | The patient's whole record at this institution: no referral window and stopped medicines included. | _own_patient_records → forbid(Only a patient account can read its own records here); _own_patient_records → forbid(This patient account has no CNIC, so no record can be matched to it); _own_patient_records → role patient required |  | patient_history (services/provider/app/main.py:460) |
-| GET | `/patient-access/summary` | Whether this institution holds records for the signed-in patient, and how many of each kind. | _own_patient_records → forbid(Only a patient account can read its own records here); _own_patient_records → forbid(This patient account has no CNIC, so no record can be matched to it); _own_patient_records → role patient required |  | patient_summary (services/provider/app/main.py:442) |
+| GET | `/patient-access/records` | The patient's whole record at this institution: no referral window and stopped medicines included. | _own_patient_records → forbid(Only a patient account can read its own records here); _own_patient_records → forbid(This patient account has no CNIC, so no record can be matched to it); _own_patient_records → role patient required |  | patient_history (services/provider/app/main.py:419) |
+| GET | `/patient-access/summary` | Whether this institution holds records for the signed-in patient, and how many of each kind. | _own_patient_records → forbid(Only a patient account can read its own records here); _own_patient_records → forbid(This patient account has no CNIC, so no record can be matched to it); _own_patient_records → role patient required |  | patient_summary (services/provider/app/main.py:401) |
 
 ##### patients
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/patients` | Own patient index (name, local ID or CNIC). | require_own(clinic_staff, clinician, institution_admin, diagnostics_staff, what=search the patient index) | q: str | search_patients (services/provider/app/main.py:195) |
-| GET | `/patients/{local_id}` | Get patient. | require_own(clinic_staff, clinician, institution_admin, diagnostics_staff, what=view patient details) | local_id: str | get_patient (services/provider/app/main.py:215) |
+| GET | `/patients` | Own patient index (name, local ID or CNIC). | require_own(clinic_staff, clinician, institution_admin, diagnostics_staff, what=search the patient index) | q: str | search_patients (services/provider/app/main.py:192) |
+| GET | `/patients/{local_id}` | Get patient. | require_own(clinic_staff, clinician, institution_admin, diagnostics_staff, what=view patient details) | local_id: str | get_patient (services/provider/app/main.py:212) |
 
 ##### receiving doctor
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| POST | `/cases/{case_id}/complete` | The referred doctor has finished with the referral. The shared records are removed 72 hours later. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int | complete_case (services/provider/app/main.py:955) |
+| POST | `/cases/{case_id}/complete` | The specialist closes the referral (spec v4 step 11). The encrypted referral is purged a week later; the patient keeps their own copy. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int | complete_case (services/provider/app/main.py:955) |
 | POST | `/cases/{case_id}/decision` | Decide. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: DecisionIn | decide (services/provider/app/main.py:829) |
-| POST | `/cases/{case_id}/extend-hold` | The referred doctor needs the shared records for longer: kept for another 30 days from now. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: ExtendHoldIn | extend_hold (services/provider/app/main.py:975) |
+| POST | `/cases/{case_id}/extend-hold` | The specialist keeps the referral open longer: another 30 days, with a reason, at most MAX_REFERRAL_DAYS after accepting (spec v4 7). The close reminder moves to the new date. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: ExtendHoldIn | extend_hold (services/provider/app/main.py:976) |
 | POST | `/cases/{case_id}/info-requests` | Request info. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: InfoIn | request_info (services/provider/app/main.py:858) |
 | PUT | `/cases/{case_id}/response` | Save response. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: ResponseIn | save_response (services/provider/app/main.py:894) |
 | POST | `/cases/{case_id}/response/send` | The receiving doctor signs off and returns the response in one step. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: SendIn | send_response (services/provider/app/main.py:922) |
-| POST | `/outbox/{item_id}/retry` | Retry outbox. | require_own(clinician, diagnostics_staff, institution_admin, what=retry delivery) | item_id: int | retry_outbox (services/provider/app/main.py:1195) |
+| POST | `/outbox/{item_id}/retry` | Retry outbox. | require_own(clinician, diagnostics_staff, institution_admin, what=retry delivery) | item_id: int | retry_outbox (services/provider/app/main.py:1200) |
 
 ##### records
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/outbound-copies` | Our own copies for one referral (doctors and staff here). | require_own(clinician, clinic_staff, what=read our copies of sent referrals); role clinician required | referral_id: str | list_sent_copies (services/provider/app/main.py:637) |
-| GET | `/patients/{local_id}/activity` | When the patient was last seen here (visit, test or scan). Used to choose the most recently visited institution of each kind. | decide_access(); forbid() | local_id: str | patient_activity (services/provider/app/main.py:348) |
-
-##### sharing
-
-| Method | Path | Purpose | Access checks | Parameters | Handler |
-|---|---|---|---|---|---|
-| POST | `/sharing/grants` | Created when this institution's own staff approve a patient-link request: the requesting institution may then read this patient's referral-relevant records. | require_own(clinic_staff, institution_admin, what=share patient records) | body: ShareIn | share_records (services/provider/app/main.py:301) |
+| GET | `/outbound-copies` | Our own copies for one referral (doctors and staff here). | require_own(clinician, clinic_staff, what=read our copies of sent referrals); role clinician required | referral_id: str | list_sent_copies (services/provider/app/main.py:598) |
+| GET | `/patients/{local_id}/activity` | When the patient was last seen here (visit, test or scan). Used to choose the most recently visited institution of each kind. | decide_access(); forbid() | local_id: str | patient_activity (services/provider/app/main.py:307) |
 
 ##### source administration
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/admin/audit` | List audit. | require_admin() | limit: int | list_audit (libs/common/refcommon/sourcekit.py:280) |
-| GET | `/admin/grants` | List grants. | require_admin() |  | list_grants (libs/common/refcommon/sourcekit.py:222) |
-| POST | `/admin/grants` | Create grant. | require_admin() | body: GrantIn | create_grant (libs/common/refcommon/sourcekit.py:227) |
-| POST | `/admin/grants/{grant_id}/extend` | Only this source's administrator can extend. Counted from now, capped at MAX_GRANT_DAYS. | require_admin() | grant_id: int; body: ExtendIn | extend_grant (libs/common/refcommon/sourcekit.py:248) |
-| POST | `/admin/grants/{grant_id}/revoke` | Revoke grant. | require_admin() | grant_id: int | revoke_grant (libs/common/refcommon/sourcekit.py:267) |
+| GET | `/admin/audit` | List audit. | forbid(Only this institution's administrators can read its audit trail); role institution_admin required | limit: int | list_audit (libs/common/refcommon/sourcekit.py:102) |
 
 
 # Appendix G. Exchange contracts and request bodies
@@ -4648,6 +5406,7 @@ Project API contracts between the central platform and the institution services.
 | Constant | Value |
 |---|---|
 | `PACKAGE_ENVELOPE_VERSION` | `referral-package/2.0` |
+| `NOTICE_VERSION` | `referral-notice/3.0` |
 | `ORDER_ENVELOPE_VERSION` | `diagnostic-order/1.0` |
 | `EVENT_ENVELOPE_VERSION` | `provider-event/1.0` |
 | `CONTRACT_NOTE` | `Project API contract (not a standard FHIR resource)` |
@@ -4782,6 +5541,34 @@ One sent version of a referral. The requesting doctor authorised the request; st
 | `fhir_bundle` | dict[str, Any] | (required) |  |
 | `supersedes_version` | int \| None | None |  |
 
+#### `ReferralNotice`
+
+Spec v4 (approval A4): what the receiving hospital's system gets when a referral is sent. Administrative data only: who, from where, how urgent, why, the patient's identity details for linking, the record titles and the signed manifest's hash. No record content: the department's doctors fetch the ciphertext from the platform and decrypt it on their own devices with the department group key. The receiving hospital keeps no copy of other hospitals' records (D2).
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `envelope_version` | str | NOTICE_VERSION |  |
+| `contract_note` | str | CONTRACT_NOTE |  |
+| `delivery_key` | str | (required) |  |
+| `referral_id` | str | (required) |  |
+| `package_version` | int | (required) |  |
+| `sender_institution` | str | (required) |  |
+| `sender_name` | str | (required) |  |
+| `sender_department` | str \| None | None |  |
+| `destination_institution` | str | (required) |  |
+| `destination_department` | str | (required) |  |
+| `destination_doctor` | str \| None | None |  |
+| `urgency` | str | (required) |  |
+| `reason` | str | (required) |  |
+| `patient` | dict[str, Any] | (required) |  |
+| `requesting_doctor` | dict[str, Any] | (required) |  |
+| `titles` | list[dict[str, Any]] | Field(default_factory=list) |  |
+| `manifest_sha256` | str | (required) |  |
+| `signed_by` | dict[str, Any] | Field(default_factory=dict) |  |
+| `sent_by` | str | (required) |  |
+| `sent_at` | datetime | (required) |  |
+| `supersedes_version` | int \| None | None |  |
+
 #### `DiagnosticOrder`
 
 A test or scan request sent to a laboratory or imaging department. It is a separate order: it does not depend on the specialist's decision about the referral.
@@ -4854,6 +5641,85 @@ A returned diagnostic report forwarded to the referral's receiving hospital, so 
 | `answered_at` | datetime | (required) |  |
 
 ### Request bodies (API input models)
+
+#### `SelectionRecord` (services/central/app/ai_relay.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `id` | int | (required) |  |
+| `category` | str | Field(max_length=40) |  |
+| `when` | str \| None | Field(None, max_length=60) |  |
+| `default` | bool | False |  |
+| `text` | str | Field(max_length=MAX_TEXT) |  |
+
+#### `SelectionPayload` (services/central/app/ai_relay.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `patient` | dict[str, Any] | {} |  |
+| `referral` | dict[str, Any] | {} |  |
+| `records` | list[SelectionRecord] | Field(max_length=MAX_RECORDS) |  |
+
+#### `SelectionIn` (services/central/app/ai_relay.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `referral_id` | int | (required) |  |
+| `payload` | SelectionPayload | (required) |  |
+
+#### `FlagsPayload` (services/central/app/ai_relay.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `medicines` | list[str] | Field(max_length=40) |  |
+| `procedure` | str \| None | Field(None, max_length=200) |  |
+| `age_band` | str \| None | Field(None, max_length=20) |  |
+| `already_flagged` | list[list[str]] | Field(default_factory=list, max_length=200) |  |
+| `not_in_dataset` | list[str] | Field(default_factory=list, max_length=40) |  |
+
+#### `FlagsIn` (services/central/app/ai_relay.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `referral_id` | int | (required) |  |
+| `payload` | FlagsPayload | (required) |  |
+
+#### `ConsentRequestIn` (services/central/app/consent/router.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `custodians` | list[str] \| None | None | default: the referring institution and every verified linked source |
+
+#### `PrepareIn` (services/central/app/consent/router.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `custodians` | list[str] | Field(min_length=1) |  |
+| `sensitive` | list[str] | [] |  |
+| `duration_days` | int | (required) |  |
+
+#### `DecisionIn` (services/central/app/consent/router.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `decision` | str | Field(pattern='^(grant\|decline)$') |  |
+| `document` | dict \| None | None |  |
+| `reason` | str \| None | None |  |
+
+#### `RevokeIn` (services/central/app/consent/router.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `revocation` | dict | (required) |  |
 
 #### `CancelIn` (services/central/app/diagnostics/router.py)
 
@@ -4989,6 +5855,34 @@ A returned diagnostic report forwarded to the referral's receiving hospital, so 
 | `template_id` | str | (required) |  |
 | `reason` | str | Field(min_length=3) |  |
 
+#### `DirectoryBatch` (services/central/app/keys/router.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `entries` | list[dict] | [] |  |
+| `revocations` | list[dict] | [] |  |
+| `group_wraps` | list[dict] | [] |  |
+| `notices` | list[dict] | [] |  |
+
+#### `PatientKeyIn` (services/central/app/keys/router.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `registration` | dict | (required) |  |
+
+#### `ClientEventIn` (services/central/app/keys/router.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `action` | str | (required) |  |
+| `target_type` | str | (required) |  |
+| `target_id` | str | (required) |  |
+| `referral_id` | int \| None | None |  |
+| `detail` | dict | {} |  |
+
 #### `SuggestionReviewIn` (services/central/app/medications/router.py)
 
 
@@ -5074,6 +5968,44 @@ A returned diagnostic report forwarded to the referral's receiving hospital, so 
 | `reference_checked` | str | Field(min_length=5) |  |
 | `note` | str | '' |  |
 
+#### `PatientBatchIn` (services/central/app/patient_access.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `batch_id` | str | (required) |  |
+| `items` | list[dict] | (required) |  |
+| `wraps` | list[dict] | (required) |  |
+
+#### `AdapterAnswer` (services/central/app/records/router.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `request_key` | str | (required) |  |
+| `status` | str | (required) |  |
+| `refusals` | list[dict] | [] |  |
+| `policy_version` | str \| None | None |  |
+| `notes` | list[str] | [] |  |
+| `batch` | dict \| None | None |  |
+
+#### `ReceivingBatchIn` (services/central/app/records/router.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `referral` | str | (required) |  |
+| `batch` | dict | (required) |  |
+
+#### `BatchIn` (services/central/app/records/router.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `batch_id` | str | (required) |  |
+| `items` | list[dict] | (required) |  |
+| `wraps` | list[dict] | (required) |  |
+
 #### `DiagnosticIn` (services/central/app/referrals/router.py)
 
 
@@ -5129,6 +6061,14 @@ A returned diagnostic report forwarded to the referral's receiving hospital, so 
 | `expected_version` | int | (required) |  |
 | `reason` | str | Field(min_length=3) |  |
 
+#### `ApproveIn` (services/central/app/sending/router.py)
+
+
+| Field | Type | Default | Note |
+|---|---|---|---|
+| `manifest` | dict | (required) |  |
+| `wraps` | list[dict] | (required) |  |
+
 #### `SendIn` (services/central/app/sending/router.py)
 
 
@@ -5136,12 +6076,13 @@ A returned diagnostic report forwarded to the referral's receiving hospital, so 
 |---|---|---|---|
 | `expected_version` | int | (required) |  |
 
-#### `VerifyCopyIn` (services/central/app/sending/router.py)
+#### `VerifyIn` (services/central/app/sending/router.py)
 
 
 | Field | Type | Default | Note |
 |---|---|---|---|
-| `package` | dict | (required) |  |
+| `reference` | str | (required) |  |
+| `manifest` | dict | (required) |  |
 
 #### `LookupIn` (services/provider/app/main.py)
 
@@ -5165,17 +6106,6 @@ A returned diagnostic report forwarded to the referral's receiving hospital, so 
 | `sex` | str | (required) |  |
 | `phone` | str \| None | None |  |
 | `city` | str \| None | None |  |
-
-#### `ShareIn` (services/provider/app/main.py)
-
-
-| Field | Type | Default | Note |
-|---|---|---|---|
-| `grantee_institution` | str | (required) |  |
-| `local_patient_id` | str | (required) |  |
-| `basis` | str | Field(min_length=5) |  |
-| `duration_days` | int | DEFAULT_GRANT_DAYS |  |
-| `referral_ref` | str \| None | None |  |
 
 #### `ExpiredIn` (services/provider/app/main.py)
 
@@ -5305,35 +6235,6 @@ A returned diagnostic report forwarded to the referral's receiving hospital, so 
 | `allowed` | set[str] | (required) |  |
 | `denied` | set[str] | (required) |  |
 | `reason` | str | (required) |  |
-| `expired` | bool | False |  |
-
-#### `GrantIn` (libs/common/refcommon/sourcekit.py)
-
-
-| Field | Type | Default | Note |
-|---|---|---|---|
-| `grantee_institution` | str | (required) |  |
-| `local_patient_id` | str | (required) |  |
-| `categories` | list[str] | (required) |  |
-| `basis` | str | '' |  |
-| `duration_days` | int | DEFAULT_GRANT_DAYS |  |
-| `referral_ref` | str \| None | None |  |
-
-#### `ExtendIn` (libs/common/refcommon/sourcekit.py)
-
-
-| Field | Type | Default | Note |
-|---|---|---|---|
-| `days` | int | (required) |  |
-| `reason` | str | (required) |  |
-
-#### `RevokeByReferralIn` (libs/common/refcommon/sourcekit.py)
-
-
-| Field | Type | Default | Note |
-|---|---|---|---|
-| `referral_ref` | str | (required) |  |
-| `reason` | str | 'referral finished' |  |
 
 
 # Appendix H. State machines and status values
@@ -5390,6 +6291,10 @@ Status groups: **PRE_SUBMISSION** = `draft`, `requested`; **IN_FLIGHT** = `accep
 
 | Database | Column | Values | Default |
 |---|---|---|---|
+| central | `consents.status` | requested \| granted \| declined \| revoked \| expired \| withdrawn | `'requested'` |
+| central | `record_requests.status` | sent \| answered \| partial \| refused \| pending_manual_review \| no_records \| unavailable \| failed |  |
+| central | `encrypted_batches.origin` | custodian (a source institution's answer) \| doctor (the referring doctor's own items) \| patient (patient's scans) \| receiving (records the receiving hospital added) |  |
+| central | `encrypted_items.kind` | lab \| imaging \| note \| prescription \| scan \| other |  |
 | central | `documents.status` | uploaded \| queued \| processing \| extracted \| failed | `'uploaded'` |
 | central | `evidence_items.origin` | source \| document \| manual |  |
 | central | `evidence_items.review_state` | imported \| proposed \| corrected \| unresolved \| excluded \| manual |  |
@@ -5421,9 +6326,11 @@ Status groups: **PRE_SUBMISSION** = `draft`, `requested`; **IN_FLIGHT** = `accep
 | central | `referrals.status` | Workflow | `'draft'` |
 | institution | `cases.status` | received -> acknowledged (staff) -> assigned (staff) -> accepted \| declined (doctor) -> responded -> completed | `'received'` |
 | institution | `consultation_responses.status` | draft \| returned | `'draft'` |
+| institution | `doctor_keys.status` | pending (waits for an administrator) \| active \| revoked \| rejected | `'pending'` |
 | institution | `info_requests.status` | open \| answered | `'open'` |
 | institution | `medications.status` | active \| stopped \| completed |  |
 | institution | `orders.status` | requested \| accepted \| rejected \| scheduled \| done \| reported | `'requested'` |
+| institution | `record_requests.status` | answered \| partial \| refused \| pending_manual_review \| declined |  |
 | institution | `sent_copies.kind` | package \| response |  |
 
 
@@ -5440,9 +6347,9 @@ Redis is the queue only; job state lives in PostgreSQL (`jobs` table).
 | `process_document` | on demand | Process document. | `process_document` |
 | `deliver_outbox` | every 5 s | Deliver outbox. | `deliver_outbox` |
 | `retention_sweep` | every 3600 s | Delete uploaded document copies of closed referrals after the retention period. Approved package snapshots and audit history are retained by policy. | `retention_sweep` |
-| `close_referral_grants` | every 60 s | For finished referrals, ask each institution to revoke the access grants opened for them. | `close_referral_grants` |
-| `purge_working_sets` | every 600 s | Remove the clinical content of working sets whose time is up (see lifecycle/working_set.py). | `purge_working_sets` |
-| `recommend_selection` | on demand | AI packet-selection recommendation, run in the background after retrieval (it can take a minute). | `recommend_selection` |
+| `purge_working_sets` | every 600 s | Crypto-shred referrals whose time is up (see lifecycle/working_set.py); a failure is retried next run. | `purge_working_sets` |
+| `seal_audit` | every 60 s | Add the audit events written since the last run to the hash chain (spec v4 11.5). | `seal_audit` |
+| `close_reminders` | every 3600 s | Close reminders 30 days after acceptance, weekly repeats and escalation (spec v4 7). | `close_reminders` |
 
 
 # Appendix J. Configuration and deployment descriptors
@@ -5460,18 +6367,23 @@ Every variable read with `os.environ.get`, `os.getenv` or a boolean helper, with
 | `ACCEPTED_HOLD_DAYS` | `'30'` | a received referral's shared records: kept ACCEPTED_HOLD_DAYS after acceptance (extendable by the referred doctor), and removed GRACE_HOURS after they mark it complete (the platform applies the same rules) | services/central/app/config.py:56, services/provider/app/config.py:17 |
 | `ANTHROPIC_API_KEY` | `''` |  | services/central/app/config.py:25 |
 | `CENTRAL_URL` | `'http://central:8000'` |  | services/provider/app/config.py:9 |
-| `DATABASE_URL` | `'postgresql+psycopg://central:central@postgres/central_db'` |  | services/central/app/config.py:13, services/provider/app/main.py:76, services/provider/app/seed.py:120 |
-| `DEFAULT_GRANT_DAYS` | `'14'` | Access grants are temporary. New grants always get an expiry; the duration is chosen up to this limit (days). Grants created before expiry existed have none and are reported as "legacy" so an administrator can renew or revoke them. | libs/common/refcommon/sourcekit.py:39 |
+| `CLOSE_GRACE_DAYS` | `'7'` | spec v4 7: the specialist closes (purged CLOSE_GRACE_DAYS later) or extends, at most MAX_REFERRAL_DAYS after accepting | services/central/app/config.py:60, services/provider/app/config.py:20 |
+| `DATABASE_URL` | `'postgresql+psycopg://central:central@postgres/central_db'` |  | services/central/app/config.py:13, services/provider/app/main.py:72, services/provider/app/seed.py:114 |
+| `DECLINE_GRACE_DAYS` | `'1'` |  | services/central/app/config.py:61 |
+| `DOCTOR_KEY_VALID_DAYS` | `'365'` |  | services/provider/app/config.py:27 |
 | `DOCUMENT_RETENTION_DAYS` | `'365'` |  | services/central/app/config.py:50 |
+| `ESCALATE_AFTER_REMINDERS` | `'3'` |  | services/central/app/config.py:58 |
 | `EXTRACTION_MODE` | `'auto'` | auto \| llm \| rules | services/central/app/config.py:39 |
 | `GOOGLE_VISION_API_KEY` | `''` |  | services/central/app/config.py:43 |
 | `GOOGLE_VISION_ENDPOINT` | `'https://vision.googleapis.com/v1/images:annotate'` |  | services/central/app/config.py:44 |
+| `HUB_URL` | `CENTRAL_URL` |  | services/provider/app/config.py:26 |
 | `INSTITUTION_ID` | `(required)` | drali \| chughtai \| ziauddin \| akuh | services/provider/app/config.py:6 |
 | `INSTITUTION_NAME` | `INSTITUTION` |  | services/provider/app/config.py:7 |
 | `INTROSPECT_TOKENS` | `True` |  | libs/common/refcommon/auth.py:70 |
 | `KEYCLOAK_INTERNAL_URL` | `'http://keycloak:8080'` |  | libs/common/refcommon/auth.py:65 |
 | `KEYCLOAK_PUBLIC_URL` | `'http://localhost:8080'` |  | libs/common/refcommon/auth.py:66 |
 | `KEYCLOAK_REALM` | `'referral'` |  | libs/common/refcommon/auth.py:67 |
+| `KEYSTORE_SECRET` | `''` | End-to-end encryption (spec v4): the platform's own signing key is sealed with this secret | services/central/app/config.py:73, services/provider/app/config.py:25 |
 | `LLM_API_KEY` | `''` |  | services/central/app/config.py:36 |
 | `LLM_BASE_URL` | `''` | openai_compatible: vLLM, Kimi or any other chat-completions server (…/v1) | services/central/app/config.py:35 |
 | `LLM_CONTEXT_TOKENS` | `'16384'` | local Ollama models | services/central/app/config.py:30 |
@@ -5481,19 +6393,21 @@ Every variable read with `os.environ.get`, `os.getenv` or a boolean helper, with
 | `LLM_REASONING_EFFORT` | `''` | sent only when set: low \| medium \| high for reasoning models such as gpt-oss on Groq | services/central/app/config.py:38 |
 | `LLM_TIMEOUT_SECONDS` | `'120'` |  | services/central/app/config.py:46 |
 | `LOCAL_ID_PREFIX` | `'PT'` |  | services/provider/app/config.py:8 |
-| `MAX_GRANT_DAYS` | `'30'` |  | libs/common/refcommon/sourcekit.py:40 |
 | `MAX_PAGES` | `'10'` |  | services/central/app/config.py:49 |
-| `MAX_RETRIEVAL_SOURCES` | `'5'` | Retrieval asks every linked institution, up to this many besides the referring one (most recently visited first), so the AI recommendation stays within what it can read. The rest are listed as not retrieved, never as "no records". | services/central/app/config.py:63 |
+| `MAX_REFERRAL_DAYS` | `'180'` |  | services/central/app/config.py:59, services/provider/app/config.py:21 |
+| `MAX_RETRIEVAL_SOURCES` | `'5'` | Retrieval asks every linked institution, up to this many besides the referring one (most recently visited first), so the AI recommendation stays within what it can read. The rest are listed as not retrieved, never as "no records". | services/central/app/config.py:68 |
 | `MAX_UPLOAD_BYTES` | `str(10 * 1024 * 1024)` |  | services/central/app/config.py:48 |
 | `OCR_ENGINE` | `'tesseract'` | Reading papers: tesseract (printed text, on this computer) \| google_vision (printed and handwritten; the page image is sent to Google Cloud Vision) | services/central/app/config.py:42 |
 | `OCR_TIMEOUT_SECONDS` | `'60'` |  | services/central/app/config.py:45 |
 | `OLLAMA_API_KEY` | `''` |  | services/central/app/config.py:29 |
 | `OLLAMA_HOST` | `'http://host.docker.internal:11434'` | Ollama: a local server (which also serves ":cloud" models once `ollama signin` has run on that computer), or https://ollama.com directly with OLLAMA_API_KEY. | services/central/app/config.py:28 |
+| `PARTICIPANTS_FILE` | `'/etc/refx/participants/participants.json'` |  | libs/common/refcommon/participants.py:39 |
 | `REDIS_URL` | `'redis://redis:6379/0'` |  | services/central/app/config.py:14 |
-| `REFERRAL_HISTORY_YEARS` | `'3'` | How far back retrieval asks each source (the 6-month window is the default selection, not a fetch limit), for a destination with no entry in SPECIALTY_HISTORY_YEARS | services/central/app/config.py:59 |
+| `REFERRAL_HISTORY_YEARS` | `'3'` | How far back retrieval asks each source (the 6-month window is the default selection, not a fetch limit), for a destination with no entry in SPECIALTY_HISTORY_YEARS | services/central/app/config.py:64 |
 | `REFERRAL_WINDOW_DAYS` | `'183'` | Visits, results and imaging older than this are not retrieved for a referral. | services/central/app/config.py:21, services/provider/app/config.py:14 |
+| `REMINDER_INTERVAL_DAYS` | `'7'` |  | services/central/app/config.py:57 |
 | `REPO_ASSETS` | `'/srv/assets'` |  | services/central/app/config.py:16 |
-| `RUN_JOBS_INLINE` | `False` |  | services/central/app/config.py:65 |
+| `RUN_JOBS_INLINE` | `False` |  | services/central/app/config.py:70 |
 | `SEED_DATA_DIR` | `'/srv/seed-data/patients'` |  | services/provider/app/seed.py:24 |
 | `SERVICE_CLIENT_ID` | (none) |  | libs/common/refcommon/auth.py:68 |
 | `SERVICE_CLIENT_SECRET` | (none) |  | libs/common/refcommon/auth.py:69 |
@@ -5501,7 +6415,7 @@ Every variable read with `os.environ.get`, `os.getenv` or a boolean helper, with
 | `SOURCE_TIMEOUT_SECONDS` | `'10'` |  | services/central/app/config.py:18 |
 | `STORAGE_ROOT` | `'/data/documents'` |  | services/central/app/config.py:15 |
 | `TOKEN_AUDIENCE` | `f'{INSTITUTION}-api'` |  | services/provider/app/config.py:10 |
-| `WORKING_SET_GRACE_HOURS` | `'72'` | How long a referral's shared records are kept (docs/decisions/2026-10-28-referral-expiry.md): no limit until the receiving doctor accepts; then a safety limit of ACCEPTED_HOLD_DAYS, which that doctor can extend by the same again; removed WORKING_SET_GRACE_HOURS after they mark the referral complete (or it is cancelled), and straight away if they decline it. | services/central/app/config.py:55, services/provider/app/config.py:18 |
+| `WORKING_SET_GRACE_HOURS` | `'72'` | test requests | services/central/app/config.py:55, services/provider/app/config.py:18 |
 
 #### `.env.example` (installation settings)
 
@@ -5523,6 +6437,11 @@ Secret values are never shown here. Copy `.env.example` to `.env` and set every 
 | `CHUGHTAI_CLIENT_SECRET` | secret: set per installation |  |
 | `ZIAUDDIN_CLIENT_SECRET` | secret: set per installation |  |
 | `AKUH_CLIENT_SECRET` | secret: set per installation |  |
+| `PLATFORM_KEYSTORE_SECRET` | secret: set per installation | End-to-end encryption (spec v4): each service seals its own private keys (hospital signing key, department group keys, the platform signing key) with its key-store secret. At least 16 characters; different per service. |
+| `DRALI_KEYSTORE_SECRET` | secret: set per installation |  |
+| `CHUGHTAI_KEYSTORE_SECRET` | secret: set per installation |  |
+| `ZIAUDDIN_KEYSTORE_SECRET` | secret: set per installation |  |
+| `AKUH_KEYSTORE_SECRET` | secret: set per installation |  |
 | `LLM_PROVIDER` | `anthropic` | Language model (optional; used only to read uploaded papers). Leave ANTHROPIC_API_KEY empty to use the rule-based reader instead. |
 | `ANTHROPIC_API_KEY` | secret: set per installation |  |
 | `LLM_MODEL` | `claude-opus-5-5` |  |
@@ -5545,13 +6464,13 @@ Secret values are never shown here. Copy `.env.example` to `.env` and set every 
 | `postgres` | postgres:16-alpine |  |  | AKUH_DB_PASSWORD, CENTRAL_DB_PASSWORD, CHUGHTAI_DB_PASSWORD, DRALI_DB_PASSWORD, KEYCLOAK_DB_PASSWORD, POSTGRES_PASSWORD, POSTGRES_USER, ZIAUDDIN_DB_PASSWORD | pgdata:/var/lib/postgresql/data, ./infra/postgres/init:/docker-entrypoint-initdb.d:ro |  | yes |
 | `redis` | redis:7-alpine |  |  |  |  |  | yes |
 | `keycloak` | quay.io/keycloak/keycloak:26.0 | 8080:8080 | postgres | AKUH_CLIENT_SECRET, CENTRAL_CLIENT_SECRET, CHUGHTAI_CLIENT_SECRET, DEMO_USER_PASSWORD, DRALI_CLIENT_SECRET, JAVA_OPTS_KC_HEAP, KC_BOOTSTRAP_ADMIN_PASSWORD, KC_BOOTSTRAP_ADMIN_USERNAME, KC_DB, KC_DB_PASSWORD, KC_DB_URL, KC_DB_USERNAME, KC_HEALTH_ENABLED, KC_HOSTNAME, KC_HTTP_ENABLED, WEB_ORIGIN, ZIAUDDIN_CLIENT_SECRET | ./infra/keycloak/import:/opt/keycloak/data/import:ro | `start-dev --import-realm` | yes |
-| `drali` | build: services/provider/Dockerfile | 8001:8000 | keycloak, postgres | CENTRAL_URL, DATABASE_URL, INSTITUTION_ID, INSTITUTION_NAME, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, LOCAL_ID_PREFIX, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET |  |  | yes |
-| `chughtai` | build: services/provider/Dockerfile | 8002:8000 | keycloak, postgres | CENTRAL_URL, DATABASE_URL, INSTITUTION_ID, INSTITUTION_NAME, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, LOCAL_ID_PREFIX, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET |  |  | yes |
-| `ziauddin` | build: services/provider/Dockerfile | 8003:8000 | keycloak, postgres | CENTRAL_URL, DATABASE_URL, INSTITUTION_ID, INSTITUTION_NAME, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, LOCAL_ID_PREFIX, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET |  |  | yes |
-| `akuh` | build: services/provider/Dockerfile | 8004:8000 | keycloak, postgres | CENTRAL_URL, DATABASE_URL, INSTITUTION_ID, INSTITUTION_NAME, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, LOCAL_ID_PREFIX, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET |  |  | yes |
-| `central` | build: services/central/Dockerfile | 8000:8000 | keycloak, postgres, redis | AKUH_URL, ANTHROPIC_API_KEY, CHUGHTAI_URL, DATABASE_URL, DOCUMENT_RETENTION_DAYS, DRALI_URL, EXTRACTION_MODE, GOOGLE_VISION_API_KEY, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, LLM_API_KEY, LLM_BASE_URL, LLM_CONTEXT_TOKENS, LLM_EXTERNAL_ALLOWED, LLM_MODEL, LLM_PROVIDER, LLM_REASONING_EFFORT, LLM_TIMEOUT_SECONDS, OCR_ENGINE, OLLAMA_API_KEY, OLLAMA_HOST, REDIS_URL, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET, STORAGE_ROOT, ZIAUDDIN_URL | documents:/data/documents |  | yes |
-| `worker` | build: services/central/Dockerfile |  | central, redis | AKUH_URL, ANTHROPIC_API_KEY, CHUGHTAI_URL, DATABASE_URL, DOCUMENT_RETENTION_DAYS, DRALI_URL, EXTRACTION_MODE, GOOGLE_VISION_API_KEY, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, LLM_API_KEY, LLM_BASE_URL, LLM_CONTEXT_TOKENS, LLM_EXTERNAL_ALLOWED, LLM_MODEL, LLM_PROVIDER, LLM_REASONING_EFFORT, LLM_TIMEOUT_SECONDS, OCR_ENGINE, OLLAMA_API_KEY, OLLAMA_HOST, REDIS_URL, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET, STORAGE_ROOT, ZIAUDDIN_URL | documents:/data/documents | `celery -A app.tasks worker -B --loglevel=info --concurrency=2 -Q referral` |  |
-| `web` | build: Dockerfile | 3000:80 | central |  |  |  |  |
+| `drali` | build: services/provider/Dockerfile | 8001:8000 | keycloak, postgres | CENTRAL_URL, DATABASE_URL, INSTITUTION_ID, INSTITUTION_NAME, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, KEYSTORE_SECRET, LOCAL_ID_PREFIX, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET | ./infra/participants:/etc/refx/participants:ro |  | yes |
+| `chughtai` | build: services/provider/Dockerfile | 8002:8000 | keycloak, postgres | CENTRAL_URL, DATABASE_URL, INSTITUTION_ID, INSTITUTION_NAME, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, KEYSTORE_SECRET, LOCAL_ID_PREFIX, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET | ./infra/participants:/etc/refx/participants:ro |  | yes |
+| `ziauddin` | build: services/provider/Dockerfile | 8003:8000 | keycloak, postgres | CENTRAL_URL, DATABASE_URL, INSTITUTION_ID, INSTITUTION_NAME, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, KEYSTORE_SECRET, LOCAL_ID_PREFIX, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET | ./infra/participants:/etc/refx/participants:ro |  | yes |
+| `akuh` | build: services/provider/Dockerfile | 8004:8000 | keycloak, postgres | CENTRAL_URL, DATABASE_URL, INSTITUTION_ID, INSTITUTION_NAME, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, KEYSTORE_SECRET, LOCAL_ID_PREFIX, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET | ./infra/participants:/etc/refx/participants:ro |  | yes |
+| `central` | build: services/central/Dockerfile | 8000:8000 | keycloak, postgres, redis | AKUH_URL, ANTHROPIC_API_KEY, CHUGHTAI_URL, DATABASE_URL, DOCUMENT_RETENTION_DAYS, DRALI_URL, EXTRACTION_MODE, GOOGLE_VISION_API_KEY, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, KEYSTORE_SECRET, LLM_API_KEY, LLM_BASE_URL, LLM_CONTEXT_TOKENS, LLM_EXTERNAL_ALLOWED, LLM_MODEL, LLM_PROVIDER, LLM_REASONING_EFFORT, LLM_TIMEOUT_SECONDS, OCR_ENGINE, OLLAMA_API_KEY, OLLAMA_HOST, REDIS_URL, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET, STORAGE_ROOT, ZIAUDDIN_URL | documents:/data/documents, ./infra/participants:/etc/refx/participants:ro |  | yes |
+| `worker` | build: services/central/Dockerfile |  | central, redis | AKUH_URL, ANTHROPIC_API_KEY, CHUGHTAI_URL, DATABASE_URL, DOCUMENT_RETENTION_DAYS, DRALI_URL, EXTRACTION_MODE, GOOGLE_VISION_API_KEY, INTROSPECT_TOKENS, KEYCLOAK_INTERNAL_URL, KEYCLOAK_PUBLIC_URL, KEYCLOAK_REALM, KEYSTORE_SECRET, LLM_API_KEY, LLM_BASE_URL, LLM_CONTEXT_TOKENS, LLM_EXTERNAL_ALLOWED, LLM_MODEL, LLM_PROVIDER, LLM_REASONING_EFFORT, LLM_TIMEOUT_SECONDS, OCR_ENGINE, OLLAMA_API_KEY, OLLAMA_HOST, REDIS_URL, SERVICE_CLIENT_ID, SERVICE_CLIENT_SECRET, STORAGE_ROOT, ZIAUDDIN_URL | documents:/data/documents, ./infra/participants:/etc/refx/participants:ro | `celery -A app.tasks worker -B --loglevel=info --concurrency=2 -Q referral` |  |
+| `web` | build: Dockerfile | 3000:80 | central |  | ./infra/participants:/etc/refx/participants:ro |  |  |
 
 Named volumes: `documents`, `pgdata`
 
@@ -5593,13 +6512,14 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 | `*` | `SignIn` |
 | `/` | `Home` |
 | `/accessibility` | `AccessibilityStatement` |
-| `/admin/access` | `SourceAccess` |
 | `/admin/audit` | `AuditLog` |
+| `/admin/keys` | `DoctorKeys` |
 | `/admin/users` | `AdminUsers` |
 | `/callback` | `Home` |
 | `/documents/:id` | `DocumentReview` |
 | `/incoming` | `IncomingList` |
 | `/incoming/:id` | `IncomingCase` |
+| `/keys` | `KeysPage` |
 | `/medicine-names` | `MedicineNames` |
 | `/orders` | `OrderList` |
 | `/orders/:id` | `OrderView` |
@@ -5608,6 +6528,7 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 | `/referrals` | `ReferralList` |
 | `/referrals/:id` | `ReferralWorkspace` |
 | `/referrals/new` | `NewReferral` |
+| `/release-requests` | `ReleaseRequests` |
 | `/rules` | `RulesPage` |
 | `/terms` | `TermsOfUse` |
 | `/work-queue` | `WorkQueue` |
@@ -5616,19 +6537,22 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 
 | Feature | Files |
 |---|---|
-| `admin` | AdminUsers.tsx, AuditLog.tsx, SourceAccess.tsx |
+| `admin` | AdminUsers.tsx, AuditLog.tsx, DoctorKeys.tsx |
 | `auth` | NotFound.tsx, SignIn.tsx |
 | `documents` | DocumentReview.tsx, DocumentsTab.tsx |
+| `e2e` | AiSuggest.tsx, FlagViews.tsx, Papers.tsx, ReceivedPackage.tsx, ai.ts, approve.ts, bundle.ts, deidentify.ts, flags.ts, ocr.ts, records.ts, selection.ts, upload.ts |
 | `identity` | ConfirmPatient.tsx, PatientLinks.tsx |
 | `incoming` | Incoming.tsx |
+| `keys` | DeviceKey.tsx |
 | `legal` | LegalPages.tsx |
 | `orders` | Orders.tsx |
-| `patient` | PatientApp.tsx |
-| `referrals` | AuditTab.tsx, HoldNotice.tsx, Journey.tsx, LinksTab.tsx, MedicinesTab.tsx, NewReferral.tsx, RecordsTab.tsx, ReferralForm.tsx, ReferralList.tsx, ReferralWorkspace.tsx, RequestTab.tsx, ResponseTab.tsx, SendTab.tsx, TestsTab.tsx, steps.ts |
+| `patient` | Consent.tsx, MyCopy.tsx, PatientApp.tsx |
+| `referrals` | AuditTab.tsx, HoldNotice.tsx, Journey.tsx, LinksTab.tsx, MedicinesTab.tsx, NewReferral.tsx, Records.tsx, ReferralForm.tsx, ReferralList.tsx, ReferralWorkspace.tsx, RequestTab.tsx, ResponseTab.tsx, SendTab.tsx, TestsTab.tsx, steps.ts |
+| `release` | ReleaseRequests.tsx |
 | `rules` | MedicineNames.tsx, RulesPage.tsx |
 | `workqueue` | WorkQueue.tsx, queue.ts |
 
-#### Role templates and menus (`rules/roles/templates.v1.json`)
+#### Role templates and menus (`rules/roles/templates.v2.json`)
 
 The menu is built from `GET /me`; it only hides screens. The API checks are the enforcement.
 
@@ -5638,27 +6562,30 @@ The menu is built from `GET /me`; it only hides screens. The API checks are the 
 | `requests` | `/referrals` | Work | clinician, clinic_staff |
 | `incoming` | `/incoming` | Work | clinician, clinic_staff, institution_admin |
 | `records_requests` | `/patient-links` | Work | clinic_staff, institution_admin |
+| `release_requests` | `/release-requests` | Work | clinic_staff, institution_admin, diagnostics_staff |
 | `orders` | `/orders` | Work | diagnostics_staff |
 | `rules` | `/rules` | Rules | rule_reviewer |
 | `medicine_names` | `/medicine-names` | Rules | rule_reviewer |
 | `accounts` | `/admin/users` | Administration | institution_admin |
-| `source_access` | `/admin/access` | Administration | institution_admin |
+| `doctor_keys` | `/admin/keys` | Administration | institution_admin |
 | `audit` | `/admin/audit` | Administration | institution_admin |
+| `device_key` | `/keys` | Security | clinician |
 
-| Template | Name | Realm roles | Institution kinds | Default grant days | Home | Menu |
-|---|---|---|---|---|---|---|
-| `front_desk` | Staff (referral coordinator) | clinic_staff | clinic, hospital | 7 | work_queue | work_queue, requests, incoming, records_requests |
-| `doctor` | Doctor | clinician | clinic, hospital | 14 | work_queue | work_queue, requests, incoming |
-| `lab_radiology` | Laboratory, radiology or ECG staff | diagnostics_staff | laboratory, hospital, clinic | 7 | orders | orders |
-| `institution_administrator` | Institution administrator | institution_admin | clinic, hospital, laboratory | 14 | accounts | accounts, source_access, audit, incoming, records_requests |
-| `rule_reviewer` | Clinical rule reviewer | rule_reviewer | clinic, hospital | 14 | rules | rules, medicine_names |
+| Template | Name | Realm roles | Institution kinds | Record visibility | Holds keys | Home | Menu |
+|---|---|---|---|---|---|---|---|
+| `front_desk` | Staff (referral coordinator) | clinic_staff | clinic, hospital | titles_only | no | work_queue | work_queue, requests, incoming, records_requests, release_requests |
+| `doctor` | Doctor | clinician | clinic, hospital | content | yes | work_queue | work_queue, requests, incoming, device_key |
+| `lab_radiology` | Laboratory, radiology or ECG staff | diagnostics_staff | laboratory, hospital, clinic | titles_only | no | orders | orders, release_requests |
+| `institution_administrator` | Institution administrator | institution_admin | clinic, hospital, laboratory | titles_only | no | accounts | accounts, doctor_keys, release_requests, audit, incoming, records_requests |
+| `rule_reviewer` | Medicine-name reviewer | rule_reviewer | clinic, hospital | none | no | rules | rules, medicine_names |
+| `patient` | Patient | patient |  | content | yes |  |  |
 
 #### npm scripts
 
 | Script | Command |
 |---|---|
-| `dev` | `vite` |
-| `build` | `tsc -b && vite build` |
+| `dev` | `node scripts/copy-ocr-assets.mjs && vite` |
+| `build` | `node scripts/copy-ocr-assets.mjs && tsc -b && vite build` |
 | `typecheck` | `tsc -b --noEmit` |
 | `preview` | `vite preview` |
 | `test:e2e` | `playwright test` |
@@ -5760,6 +6687,10 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 | 6 | `50cb02ecd52d` | `97915d386e71` | receiver completion | `services/central/migrations/versions/50cb02ecd52d_receiver_completion.py` |
 | 7 | `fec095fdc2b0` | `50cb02ecd52d` | ambiguous brand choices | `services/central/migrations/versions/fec095fdc2b0_ambiguous_brand_choices.py` |
 | 8 | `a1c3e5f7b9d2` | `fec095fdc2b0` | consultation notes and the doctor's packet review | `services/central/migrations/versions/a1c3e5f7b9d2_consultation_notes_and_packet_review.py` |
+| 9 | `c3e5a7b9d1f2` | `a1c3e5f7b9d2` | end-to-end key directory, group-key wraps, platform key, seen assertions (spec v4 WP1, approval A1) | `services/central/migrations/versions/c3e5a7b9d1f2_e2e_key_directory.py` |
+| 10 | `d4f6b8c0e2a3` | `c3e5a7b9d1f2` | consent, records requests and encrypted referral content (spec v4 WP2/WP3, approvals A1, A3 and A4) | `services/central/migrations/versions/d4f6b8c0e2a3_consent_and_encrypted_records.py` |
+| 11 | `e5a7c9d1f3b4` | `d4f6b8c0e2a3` | close reminders and escalation (spec v4 WP9, approval A1) | `services/central/migrations/versions/e5a7c9d1f3b4_close_reminders.py` |
+| 12 | `f6b8d0e2a4c5` | `e5a7c9d1f3b4` | audit hash chain and append-only trigger (spec v4 11.5, WP11) | `services/central/migrations/versions/f6b8d0e2a4c5_audit_hash_chain.py` |
 
 #### `services/provider/migrations`
 
@@ -5769,6 +6700,9 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 | 2 | `f90a83a36cf0` | `64628844a0ce` | round two: intake, assignment, report images | `services/provider/migrations/versions/f90a83a36cf0_round_two_intake_assignment_report_.py` |
 | 3 | `6608cba6436e` | `f90a83a36cf0` | grant expiry and sent copies | `services/provider/migrations/versions/6608cba6436e_grant_expiry_and_sent_copies.py` |
 | 4 | `eb77d5fffde7` | `6608cba6436e` | case completion and hold | `services/provider/migrations/versions/eb77d5fffde7_case_completion_and_hold.py` |
+| 5 | `b2d4f6a8c0e1` | `eb77d5fffde7` | end-to-end keys: key store, doctors' signed keys, group-key wraps, seen assertions (spec v4 WP1, approval A1) | `services/provider/migrations/versions/b2d4f6a8c0e1_e2e_keys.py` |
+| 6 | `c4e6a8b0d2f3` | `b2d4f6a8c0e1` | records requests under consent and policy; sensitive-category markers (spec v4 WP2, approvals A1 and A3) | `services/provider/migrations/versions/c4e6a8b0d2f3_consent_policy_requests.py` |
+| 7 | `d5f7b9c1e3a4` | `c4e6a8b0d2f3` | remove per-patient sharing grants: consent and this institution's policy replace them (spec v4 6.2, approval A3) | `services/provider/migrations/versions/d5f7b9c1e3a4_drop_sharing_grants.py` |
 
 
 # Appendix M. Dependencies
@@ -5788,6 +6722,7 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 | `alembic==1.14.0` |
 | `httpx==0.28.1` |
 | `pyjwt[crypto]==2.10.1` |
+| `cryptography==50.0.2` |
 | `pydantic==2.10.3` |
 | `python-multipart==0.0.19` |
 | `celery[redis]==5.4.0` |
@@ -5809,6 +6744,7 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 | `alembic==1.14.0` |
 | `httpx==0.28.1` |
 | `pyjwt[crypto]==2.10.1` |
+| `cryptography==50.0.2` |
 | `pydantic==2.10.3` |
 
 #### `libs/common/pyproject.toml`
@@ -5827,11 +6763,13 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 | `@mui/icons-material` | `^6.1.9` |
 | `@mui/material` | `^6.1.9` |
 | `@tanstack/react-query` | `^5.62.0` |
+| `@tesseract.js-data/eng` | `1.0.0` |
 | `oidc-client-ts` | `^3.1.0` |
 | `react` | `^18.3.1` |
 | `react-dom` | `^18.3.1` |
 | `react-hook-form` | `^7.53.2` |
 | `react-router-dom` | `^6.28.0` |
+| `tesseract.js` | `5.1.1` |
 | `@playwright/test` | `^1.49.0` |
 | `@types/react` | `^18.3.12` |
 | `@types/react-dom` | `^18.3.1` |
@@ -5859,9 +6797,8 @@ Data files loaded at seed time or read by the services. Large data sets are summ
 | `rules/interactions/ddinter-import-report.json` | 1 KB | imported, files: 8, files_sha256, ddinter_rows, ddinter_drugs, ddinter_drugs_not_mapped_to_our_ingredients |
 | `rules/interactions/ddinter-subset.csv` | 28 KB | 342 rows |
 | `rules/labels/interaction-quotes.json` | 20 KB | version, extractor_version, content_sha256, status, stats: 4, quotes: 37 |
-| `rules/labels/label-rules.json` | 88 KB | version, extractor_version, vocabulary, content_sha256, status, stats: 7 |
-| `rules/medication/seed-rules.json` | 6 KB | version, note, rules: 11 |
-| `rules/roles/templates.v1.json` | 4 KB | template_set_id, version, note, screens: 10, templates: 5 |
+| `rules/labels/label-rules.json` | 66 KB | version, extractor_version, vocabulary, content_sha256, status, stats: 8 |
+| `rules/roles/templates.v2.json` | 7 KB | template_set_id, version, approved, note, screens: 12, scopes: 16 |
 | `rules/sources.json` | 3 KB | note, ddinter: 13, openfda_labels: 6, rxnav: 5, brand_names: 4 |
 | `rules/terminology/brand-import-template.csv` | 0 KB | 2 rows |
 | `rules/terminology/brand-sources.csv` | 965 KB | 5433 rows |
@@ -5880,7 +6817,7 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 
 ### Automated tests
 
-116 tests in 22 files.
+124 tests in 27 files.
 
 #### `services/central/tests/test_ai_suggestions.py` (unit (no services), 4)
 
@@ -5891,31 +6828,23 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 | `test_suggestions_only_for_current_medicines_and_carry_versions` |  |
 | `test_committed_suggestions_exclude_ddinter_pairs_and_are_labelled` |  |
 
-#### `services/central/tests/test_evaluator.py` (unit (no services), 11)
+#### `services/central/tests/test_evaluator.py` (unit (no services), 5)
 
 | Test | What it checks |
 |---|---|
-| `test_seed_scenarios` |  |
-| `test_procedure_not_known_is_never_guessed` |  |
-| `test_planned_procedure_without_features_is_not_guessed` |  |
-| `test_name_hints_cover_the_seed_procedures` | Words in the procedure name pre-tick the features the seed scenarios need. |
-| `test_consultation_only_has_no_procedure_flags` |  |
+| `test_name_hints_cover_the_seed_procedures` | Words in the procedure name pre-tick the features the doctor confirms (features, not medicines). |
 | `test_unrecognised_medicine_is_reported_not_ignored` |  |
 | `test_unavailable_source_is_a_limitation_not_none` |  |
 | `test_no_rules_is_not_a_negative_result` |  |
-| `test_one_flag_per_medicine_and_rule_however_many_sources` |  |
 | `test_deterministic` |  |
-| `test_messages_never_advise_changing_a_medicine` |  |
 
-#### `services/central/tests/test_flagging.py` (unit (no services), 19)
+#### `services/central/tests/test_flagging.py` (unit (no services), 17)
 
 | Test | What it checks |
 |---|---|
-| `test_p1_alendronate_dental_label_flag_with_quote` |  |
-| `test_p2_metformin_contrast_label_flag` |  |
 | `test_p3_aspirin_and_diclofenac_interaction` |  |
 | `test_p4_ibuprofen_with_liver_disease_condition_flag` |  |
-| `test_p5_antiplatelets_before_surgery_and_no_invented_insulin_advice` |  |
+| `test_p5_antiplatelets_interact_and_no_invented_insulin_advice` |  |
 | `test_deterministic_byte_identical` |  |
 | `test_unmapped_brand_could_not_be_checked_not_safe` |  |
 | `test_ambiguous_brand_returns_ambiguous` |  |
@@ -5927,33 +6856,21 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 | `test_no_match_says_no_rule_on_file_never_safe` |  |
 | `test_flag_text_never_advises_changing_medication` |  |
 | `test_only_serious_imported_flags_require_a_decision` |  |
-| `test_procedure_unknown_does_not_guess_label_rules` |  |
+| `test_procedure_unknown_gives_only_condition_label_rules` |  |
 | `test_validator_rejects` |  |
 | `test_validator_accepts_and_every_stored_label_rule_passes` |  |
 
-#### `services/central/tests/test_grant_closeout.py` (unit (no services), 2)
+#### `services/central/tests/test_lifecycle.py` (unit (no services), 10)
 
 | Test | What it checks |
 |---|---|
-| `test_calls_every_source_with_the_referral_reference` |  |
-| `test_one_failing_source_is_reported_and_others_still_run` |  |
-
-#### `services/central/tests/test_lifecycle.py` (unit (no services), 15)
-
-| Test | What it checks |
-|---|---|
-| `test_grant_states` |  |
-| `test_grant_duration_bounds` |  |
-| `test_grant_expiry_default_and_max` |  |
-| `test_no_limit_until_accepted_then_safety_limit` |  |
-| `test_receiver_extends_and_completes` |  |
-| `test_decline_removes_now_and_cancel_after_grace` |  |
+| `test_no_limit_until_accepted_then_a_reminder_not_a_purge` |  |
+| `test_extension_moves_the_reminder_and_stops_at_the_maximum` |  |
+| `test_close_purges_after_the_grace_period` |  |
+| `test_decline_and_cancel_purge_after_a_short_grace` |  |
 | `test_test_requests_end_after_results` |  |
-| `test_working_set_restarts_after_purge` |  |
-| `test_manifest_holds_references_not_values` |  |
-| `test_purged_envelope_keeps_identity_only` |  |
-| `test_verify_copy` |  |
 | `test_every_template_is_valid` |  |
+| `test_templates_give_visibility_keys_and_scopes` | Spec v4 4.1: staff see titles only and hold no keys; doctors open content on their device and hold keys. |
 | `test_menu_only_offers_screens_the_roles_allow` |  |
 | `test_front_desk_does_not_get_reviewer_screens` |  |
 | `test_plan_change_only_removes_managed_roles` |  |
@@ -6034,7 +6951,7 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 |---|---|
 | `test_record_titles_name_the_chart_never_the_content` |  |
 | `test_staff_evidence_view_has_no_values_or_ai_reasoning` |  |
-| `test_staff_referral_view_hides_reason_notes_and_procedure` |  |
+| `test_staff_referral_view_hides_notes_and_procedure_but_shows_the_reason` | Spec v4 4: staff see referral metadata including the reason; the doctor's notes and procedure stay hidden. |
 | `test_staff_test_view_hides_question_and_result` |  |
 | `test_consultation_notes_are_hashed_without_changing_older_packages` |  |
 | `test_interaction_flag_quotes_the_label_when_a_sentence_exists` |  |
@@ -6047,11 +6964,85 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 | `test_vision_failure_falls_back_to_tesseract_and_says_so` |  |
 | `test_no_key_never_calls_google` |  |
 
-#### `tests/test_drap_brands.py` (integration (full stack), 1)
+#### `tests/test_e2e_ai.py` (integration (full stack), 3)
 
 | Test | What it checks |
 |---|---|
-| `test_register_brand_and_choosing_an_ambiguous_one_by_company` |  |
+| `test_identifiers_are_refused_and_never_logged` |  |
+| `test_only_the_referring_doctor_may_ask` |  |
+| `test_answer_is_checked_or_unavailable_is_said` |  |
+
+#### `tests/test_e2e_audit.py` (integration (full stack), 3)
+
+| Test | What it checks |
+|---|---|
+| `test_chain_verifies_and_the_table_is_append_only` |  |
+| `test_tampering_behind_the_trigger_is_detected` |  |
+| `test_audit_holds_no_content` |  |
+
+#### `tests/test_e2e_consent.py` (integration (full stack), 5)
+
+| Test | What it checks |
+|---|---|
+| `test_adapter_rejects_bad_request_assertions` | T-TOKEN-1: bad signature, wrong audience, expired, over-long, replayed jti, non-participant organisation, a purpose the agreement does not allow, a missing consent link. A request with a well-formed assertion but a consent link that leads nowhere is refused with a reason code (never an empty answer). |
+| `test_staff_request_consent_but_cannot_grant_it` | T-CONSENT-1: staff create a request; only the patient can grant, decline or revoke, in the portal. |
+| `test_patient_grants_consent_and_records_arrive_encrypted` |  |
+| `test_sensitive_lab_result_needs_specific_consent_and_staff_review` | T-POLICY-1 at the laboratory: without specific consent the HIV result is refused with a reason code; with it, the request waits for the lab's staff (pending_manual_review) and is released after their approval. |
+| `test_revoked_consent_blocks_further_requests` |  |
+
+#### `tests/test_e2e_flags.py` (integration (full stack), 4)
+
+| Test | What it checks |
+|---|---|
+| `test_bundle_is_hash_checked_and_has_the_brand_and_interaction_data` |  |
+| `test_browser_library_on_the_real_bundle` |  |
+| `test_ignore_and_research_are_audited_without_names` |  |
+| `test_layer2_gets_generic_names_only` |  |
+
+#### `tests/test_e2e_keys.py` (integration (full stack), 6)
+
+| Test | What it checks |
+|---|---|
+| `test_doctor_key_is_signed_by_the_hospital_and_gets_the_department_key` |  |
+| `test_registration_needs_proof_of_possession_and_a_doctor` |  |
+| `test_platform_refuses_entries_not_signed_by_the_hospital_and_bad_assertions` | T-DIR-1 (platform side) and the platform's half of T-TOKEN-1. |
+| `test_revoking_a_doctor_rotates_the_department_key` | T-GROUP-1: the leaver keeps only the old version; the department key moves on; a re-joined key gets the new version. |
+| `test_staff_and_patients_cannot_manage_doctor_keys` |  |
+| `test_patient_key_is_signed_by_the_platform` |  |
+
+#### `tests/test_e2e_lifecycle.py` (integration (full stack), 3)
+
+| Test | What it checks |
+|---|---|
+| `test_reminders_escalate_extension_moves_them_and_close_purges` |  |
+| `test_extension_stops_at_the_maximum` |  |
+| `test_decline_purges_after_a_short_grace` |  |
+
+#### `tests/test_e2e_package.py` (integration (full stack), 4)
+
+| Test | What it checks |
+|---|---|
+| `test_approve_send_and_the_receiving_doctor_opens_it` |  |
+| `test_tampered_or_foreign_signatures_are_refused_and_versions_stay_verifiable` | T-APPROVE-1: a ciphertext hash that does not match, or a manifest signed with another key, is refused; a second version needs its own signature, and the first still verifies for its own version. |
+| `test_receiving_hospital_adds_its_own_records_for_its_doctors` | Spec v4 step 8: receiving staff add their hospital's records; they are encrypted to the department's key, so the department's doctors open them and nobody on the referring side gets a key (or even the titles). |
+| `test_only_the_referring_doctor_approves` |  |
+
+#### `tests/test_e2e_patient.py` (integration (full stack), 2)
+
+| Test | What it checks |
+|---|---|
+| `test_patient_adds_a_paper_only_the_doctor_and_patient_can_read` |  |
+| `test_patient_copy_survives_the_purge_and_verifies` |  |
+
+#### `tests/test_e2e_retrieval.py` (integration (full stack), 5)
+
+| Test | What it checks |
+|---|---|
+| `test_doctor_opens_records_staff_see_titles_and_the_database_holds_no_plaintext` |  |
+| `test_other_doctors_cannot_open_the_referral` | T-DOC-1: a doctor at another hospital is refused; ciphertext is only ever wrapped to the referring doctor. |
+| `test_doctor_uploads_own_items_wrapped_only_to_allowed_keys` |  |
+| `test_lost_key_records_are_fetched_again_but_platform_only_items_are_lost` | T-REC-1: a replacement key is signed, the old one revoked and the administrators told; records from the institutions come again for the new key; the doctor's own platform-only item has no wrap for the new key. |
+| `test_records_requests_from_others_are_listed_for_the_source_staff_without_content` |  |
 
 #### `tests/test_patient_access.py` (integration (full stack), 3)
 
@@ -6061,39 +7052,18 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 | `test_patient_reads_own_records_from_each_institution` |  |
 | `test_patient_endpoints_refuse_everyone_else_and_staff_endpoints_refuse_patients` |  |
 
-#### `tests/test_referral_expiry.py` (integration (full stack), 2)
+#### `tests/test_roles.py` (integration (full stack), 2)
 
 | Test | What it checks |
 |---|---|
-| `test_accept_extend_complete_then_expire` |  |
-| `test_decline_removes_the_shared_records_straight_away` |  |
-
-#### `tests/test_v2_flow.py` (integration (full stack), 2)
-
-| Test | What it checks |
-|---|---|
-| `test_p5_referral_flow` |  |
-| `test_p3_test_request_flow` | P3 (Abdul Rehman Gondal): MRI knee at AKUH radiology (never seen there) and blood tests at Chughtai Lab (known there). |
-
-#### `tests/test_v2_scenarios.py` (integration (full stack), 5)
-
-| Test | What it checks |
-|---|---|
-| `test_scenario_flags` |  |
-| `test_imported_flags_show_source_and_decisions_are_logged` | P3: DDInter interactions and drug-label flags carry their source; Ignore and Research are logged with the rule-set version, and an ignored flag stays in the record. |
-| `test_procedure_without_features_is_not_checked` | A procedure written without saying what it involves: procedure rules are not run, and say so. |
-| `test_p2_every_linked_hospital_and_stopped_medicine` | P2 was seen at AKUH (Aug 2026) and at Ziauddin radiology (Oct 2026): both are read, so his history is not cut to the last hospital visited. Diclofenac was stopped and must not appear as a current medicine. |
-| `test_uploaded_prescription_merges_with_recorded_medicines` | P5's cardiology prescription (photo) lists the same medicines as the clinic record: after staff check the read fields, each medicine is shown once. |
-
-#### `tests/test_v3_lifecycle.py` (integration (full stack), 5)
-
-| Test | What it checks |
-|---|---|
-| `test_grants_are_temporary` |  |
 | `test_role_menus` |  |
 | `test_admin_assigns_a_role_by_template` | An institution administrator turns a lab account into front-desk staff and back. The change is made in Keycloak, so it applies on the user's next sign-in, and it is audited. |
-| `test_selection_manifest_own_copy_and_purge` |  |
-| `test_default_selection_matches_seed_expected_view` | The rule-based default (no model) selects exactly the visits from the last 6 months listed in the seed's expected_retrieval_view; older visits are retrieved but start unselected. |
+
+#### `tests/test_test_requests.py` (integration (full stack), 1)
+
+| Test | What it checks |
+|---|---|
+| `test_p3_test_request_flow` | P3 (Abdul Rehman Gondal): MRI knee at AKUH radiology (never seen there) and blood tests at Chughtai Lab (known there). |
 
 #### `web/e2e/admin.spec.ts` (browser end-to-end (Playwright), 1)
 
@@ -6105,7 +7075,7 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 
 | Test | What it checks |
 |---|---|
-| `referral: doctor requests, staff prepare, doctor reviews flags, staff send, hospital accepts and completes, doctor closes` |  |
+| `v4 referral: keys, consent in the portal, decrypt, sign, send, the receiver verifies, the patient keeps a copy` |  |
 | `test request: MRI at Aga Khan radiology with images, result back to the doctor` |  |
 
 
@@ -6134,27 +7104,34 @@ Design decisions taken after the SRS, newest last. Each record states what was d
 ### Non-negotiable invariants (from `AGENTS.md`)
 
 1. **Database boundaries.** The central platform never connects to `clinic_db`, `lab_db` or `specialist_db`. It calls their APIs only. Do not add source DB credentials to `central`.
-2. **Source authorization.** Every source endpoint decides access itself: own institution and role, or an active access grant. Forward the user's verified token; never trust identity headers.
-3. **Patient linking.** Never link records on matching local IDs or names. Only `verified` links are used for retrieval. Invalidation must keep history and flag affected referrals.
-4. **Approval.**
-   - Only a clinician approves. Only an approved, non-superseded package version is sent.
-   - Any clinical change after approval calls `mark_clinical_change()`, which means a new version and renewed approval.
-   - Packages are immutable once written.
-5. **Medication flags.**
-   - Flags come only from `evaluate_medications()`: deterministic, with approved rules and verified mappings.
-   - The language model must never create, suppress, reword or restate flags.
-   - "Reviewed" is acknowledgment, never treatment clearance.
+2. **Source authorization** (spec v4 6, approval A3). Every institution's adapter decides access itself: its own staff and doctors by institution and role, and records requests from the platform only with a valid signed request assertion, the patient's signed consent (fetched and checked by the adapter) and the institution's own policy file. A refusal carries a reason code. Forward the user's verified token; never trust identity headers.
+3. **Patient linking.** Never link records on matching local IDs or names alone; staff confirm a match by ID number and name. Only `verified` links are used for retrieval. Invalidation must keep history and flag affected referrals.
+4. **Approval** (clarified by A8).
+   - Only the referring doctor approves, by signing the package manifest with their device key. Only a signed, non-superseded version is sent.
+   - Any clinical change after approval means a new version and a new signature (`mark_clinical_change()` clears the review).
+   - Signed manifests are immutable once written.
+5. **Medication flags** (changed by A6).
+   - Layer 1 flags come only from the deterministic, data-backed evaluator (`web/src/features/e2e/flags.ts`, run on the device over the hash-checked bundle): verified name mappings and the interaction dataset.
+   - Layer 2 AI suggestions are allowed, are labelled "AI suggestion, not verified", and can never remove, downgrade or reword a Layer 1 flag.
+   - No hardcoded drug-procedure table, in code, rule files or tests (`libs/common/tests/test_browser_flags.py`).
+   - Ignore and Research are logged acknowledgments, never treatment clearance.
    - Flags never advise medication changes or assign urgency.
-6. **AI output.**
-   - Language-model output is a draft.
-   - Every record-derived statement cites evidence IDs from the supplied set; validate and reject otherwise.
+6. **AI output** (A7 added the second and third points).
+   - Language-model output is a draft. Every record-derived statement cites ids from the supplied set; validate and drop or reject otherwise.
+   - The AI receives only de-identified text, only when a doctor asks, after the doctor has seen exactly what is sent.
+   - The relay logs no content: ids, counts, hashes, the model and the outcome only.
    - Treat document text as untrusted data. Do not give the model tools.
 7. **Unavailable is not "none."** An unavailable, denied or not-retrieved source must never be turned into "no history", "not performed" or "safe".
 8. **Never overwrite original data.** Corrections create revisions. Lab corrections create new source record versions.
 9. **Idempotency.** Delivery keys and event keys make retries safe. Keep the outbox write in the same transaction as the decision to send.
 10. **Audit.** Every access, retrieval, link change, correction, approval, submission and status change writes an audit event with actor, institution, action, target, time and outcome.
 11. **Synthetic data only.** Do not commit patient data, credentials, `.env`, model weights or uploaded files.
-12. **Only doctors see clinical content** (decision 2026-10-29).
-   - Staff and administrators get titles, statuses and counts only, through the serializers' staff views (`clinical=False`). They never see record values, diagnoses, medicines, flags, papers, notes, the letter or the package.
+12. **Only doctors see clinical content** (decision 2026-10-29; spec v4 D3, D14).
+   - Staff and administrators get titles, statuses and counts only. The server never sends them content: not hidden in the UI, absent from the response. They never see record values, diagnoses, medicines, flags, papers, notes or the package.
    - Clinical endpoints are doctor-only on the server.
-   - The doctor reviews the packet before staff send, and a later clinical change clears that review.
+   - The doctor reviews and signs the package before staff send, and a later clinical change clears that review.
+13. **The platform holds no readable record content** (spec v4, approval A5).
+   - The central platform stores record content only as ciphertext, only while the referral is open, and never holds a data key or anyone's private key (its own signing key is the only private key it keeps).
+   - It never reads a scanned paper or the text read from it: papers are read and encrypted on the device.
+   - Purge is crypto-shredding: ciphertext and wrapped keys are deleted, and a receipt keeps the manifest hash and counts.
+   - Audit entries hold ids, actors, reason codes and hashes; never content, keys or de-identified text.

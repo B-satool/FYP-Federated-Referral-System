@@ -1,5 +1,7 @@
 # 10. Medication flagging design
 
+> **Superseded in part by section 18 (spec v4, 2026-10-30).** Flags are computed on the device from the hash-checked bundle (Layer 1) with AI suggestions (Layer 2); the hand-written drug-class rules and the drug-procedure label rules were removed (section 18.6).
+
 ## 10.1 Principles
 
 - Flags come **only** from `evaluate_medications()`, a pure, deterministic function. The same medicines, procedure, conditions and rule set always give the same flags (invariant 5).

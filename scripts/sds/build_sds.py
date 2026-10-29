@@ -752,7 +752,7 @@ def web_inventory() -> dict:
         if d.is_dir():
             features[d.name] = sorted(p.name for p in d.iterdir() if p.is_file())
     pkg = json.loads(read(ROOT / "web" / "package.json"))
-    templates = json.loads(read(ROOT / "rules" / "roles" / "templates.v1.json"))
+    templates = json.loads(read(ROOT / "rules" / "roles" / "templates.v2.json"))
     return {"routes": routes, "features": features, "scripts": pkg.get("scripts", {}),
             "dependencies": {**pkg.get("dependencies", {}), **pkg.get("devDependencies", {})},
             "screens": templates["screens"], "templates": templates["templates"]}
@@ -781,13 +781,14 @@ def gen_web_and_roles(web: dict, realm: dict) -> str:
            table(["Path", "Screen component"], [[code(p), code(c)] for p, c in web["routes"]]),
            "### Feature modules (`web/src/features`)\n",
            table(["Feature", "Files"], [[code(k), ", ".join(v)] for k, v in web["features"].items()]),
-           "### Role templates and menus (`rules/roles/templates.v1.json`)\n",
+           "### Role templates and menus (`rules/roles/templates.v2.json`)\n",
            "The menu is built from `GET /me`; it only hides screens. The API checks are the enforcement.\n",
            table(["Screen", "Route", "Menu group", "Roles that see it"],
                  [[code(k), code(v["route"]), v["group"], ", ".join(v["roles"])] for k, v in web["screens"].items()]),
-           table(["Template", "Name", "Realm roles", "Institution kinds", "Default grant days", "Home", "Menu"],
+           table(["Template", "Name", "Realm roles", "Institution kinds", "Record visibility", "Holds keys", "Home", "Menu"],
                  [[code(t["template_id"]), t["name"], ", ".join(t["roles"]), ", ".join(t["institution_kinds"]),
-                   t.get("default_grant_days", ""), t["home"], ", ".join(t["menu"])] for t in web["templates"]]),
+                   t.get("record_visibility", ""), "yes" if t.get("holds_keys") else "no", t.get("home") or "",
+                   ", ".join(t["menu"])] for t in web["templates"]]),
            "### npm scripts\n", table(["Script", "Command"], [[code(k), code(v)] for k, v in web["scripts"].items()]),
            f"## Identity provider (Keycloak realm `{realm['realm']}`, `infra/keycloak/import/referral-realm.json`)\n",
            "### Realm roles\n", table(["Role", "Meaning"], [[code(a), b] for a, b in realm["roles"]]),

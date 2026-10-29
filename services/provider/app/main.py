@@ -736,6 +736,42 @@ def assign(case_id: int, body: AssignIn, db: Session = Depends(get_db), principa
     return _case_out(case, db)
 
 
+@app.post("/cases/{case_id}/own-records", tags=["incoming referrals"])
+def add_own_records(case_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Staff add this hospital's own records for the patient to the referral (spec v4 step 8). This system collects
+    them and encrypts them to the receiving department's group key, so only its doctors open them; staff never see
+    the content. Sensitive categories are left out. The referring side gets no key for them."""
+    from datetime import date as _date
+
+    from . import keys as group_keys, release
+    from .policy import Decision
+
+    require_own(principal, *INTAKE_ROLES, what="add this hospital's records")
+    case = _get_case(db, case_id, principal)
+    if not case.local_patient_id:
+        raise _conflict("patient_not_confirmed", "Confirm the patient first")
+    if case.decision == "declined" or case.completed_at or case.shared_removed_at:
+        raise _conflict("not_open", "This referral is declined, closed or purged")
+    since = (_date.today() - timedelta(days=3 * 365)).isoformat()
+    decision = Decision(status="answer", categories={"conditions", "surgeries", "visits", "medications", "labs", "imaging"},
+                        sensitive=set(), since=since)
+    records, held_back = release.collect(db, case.local_patient_id, decision)
+    if not records:
+        return {"items": 0, "held_back": held_back}
+    entry = group_keys.group_key_row(db, case.department).entry
+    batch = release.build_batch(case.central_referral_id, records, [("department", entry)])
+    for it in batch["items"]:
+        it.pop("order", None)
+    resp = m2m.hub_call(db, "POST", "/e2e/adapter/receiving-batches", json={"referral": case.central_referral_id, "batch": batch},
+                        claims={"refx": {"referral": case.central_referral_id, "purpose": "TREAT"}})
+    if resp.status_code >= 300:
+        raise HTTPException(502, {"code": "platform_refused", "message": f"The platform did not accept it ({resp.status_code})"})
+    record_audit(db, AuditEvent, principal, "case.own_records_added", "referral", case.central_referral_id, "success",
+                 detail={"items": len(records), "held_back": held_back, "batch": batch["batch_id"]})
+    db.commit()
+    return {"items": len(records), "held_back": held_back}
+
+
 def _record_titles(envelope: dict | None) -> list[dict]:
     """The records in a received notice by title only (spec v4 4.2). A sensitive item shows a generic label to staff;
     its real label is only inside the ciphertext the department's doctors open."""

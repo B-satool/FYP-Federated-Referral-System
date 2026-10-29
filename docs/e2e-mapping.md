@@ -10,6 +10,27 @@ How each work package of `e2e-architecture-spec-v4.md` lands in this repository:
 | Integration tests (`tests/`) | 21 passed, 4 failed (25 tests, 8 min 22 s, run on 2026-10-29 against the running stack) | Every failure is from the local setup, not the code. **3 tests in `test_patient_access.py`:** the local Keycloak realm has no patient accounts, and the running images predate the patient-view merge. **`test_admin_assigns_a_role_by_template`:** the realm's central service account lacks `view-realm`. Refresh the realm with `scripts/refresh-keycloak-realm.ps1 -Force`. |
 | Browser journeys (`web/e2e`) | Not run before v4 | Playwright 1.63 and Chromium are installed |
 
+## Status (2026-10-30)
+
+| WP | Status | Checked by |
+|---|---|---|
+| WP0 to WP4 | Done (Sumaiya, 2026-10-29) | `tests/test_e2e_keys.py`, `test_e2e_consent.py`, `test_e2e_retrieval.py`, `libs/common/tests`, `services/provider/tests` |
+| WP5 Approval | Done: the doctor signs on the device; the data keys are re-wrapped to the department and the patient; staff send a titles-only notice; the department's doctors open and verify it (`GET /e2e/received/{reference}/package`) | `tests/test_e2e_package.py`, browser journey |
+| WP6 AI suggestions | Done: the browser de-identifier, the "What is sent to the AI" preview, the relay (`POST /ai/relay/selection`) with no content logging, an identifier safety net, and unknown ids dropped | `tests/test_e2e_ai.py` |
+| WP7 Flags | Done: the hash-checked bundle (`GET /med-bundle`), the browser Layer 1 library, the Layer 2 relay (`POST /ai/relay/flags`), and Ignore/Research audited by hash. The drug-procedure rules were removed. | `libs/common/tests/test_browser_flags.py`, `tests/test_e2e_flags.py` |
+| WP8 Scans | Done: Tesseract.js runs on the device (self-hosted); the doctor corrects each medicine; the image and the reading are encrypted together; the server's plaintext upload refuses referrals | `tests/test_e2e_patient.py` |
+| WP9 Lifecycle | Done: reminders, escalation, capped extension, the specialist closes, grace period, crypto-shred with a receipt | `tests/test_e2e_lifecycle.py`, unit `test_lifecycle.py` |
+| WP10 Patient app | Done: the patient adds papers, saves a copy on the phone, and opens and verifies it after the purge | `tests/test_e2e_patient.py`, browser journey |
+| WP11 Evaluation and docs | Done, except as listed below. Written: `security-model.md`, `data-lifecycle.md`, `data-sources.md`, the AGENTS.md invariants, `evaluation.md` (RQ3 brand mapping and T-PERF-1 run; RQ1, RQ2, RQ4 and handwriting planned) and the SDS. | |
+
+**Also built:**
+- **The receiving hospital adds its own records** (step 8, 5.6 step 6): `POST /cases/{id}/own-records` at its adapter, then `POST /e2e/adapter/receiving-batches`. They are encrypted to the department's group key and the referring side gets no key or titles. Checked in `tests/test_e2e_package.py`.
+- **The append-only, hash-chained audit trail** (11.5): `lifecycle/audit_chain.py`, `GET /admin/audit/chain`, and a trigger. Checked in `tests/test_e2e_audit.py`.
+
+**Not done:**
+- RQ1, RQ2, RQ4 and the handwriting benchmark (planned, not run);
+- T-PERF-1 on a phone.
+
 ## Where each package lands
 
 | WP | Spec | Code |

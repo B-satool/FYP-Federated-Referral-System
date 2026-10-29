@@ -1,46 +1,66 @@
-# Data lifecycle: temporary access, temporary working set, minimal storage
-
-This page covers the supervisor's suggestions (`data-lifecycle.patch`) and spec v3, both ported onto v2, with the expiry rules of [decisions/2026-10-28-referral-expiry.md](decisions/2026-10-28-referral-expiry.md). The decision and its approval status are in [decisions/2026-10-27-data-lifecycle-and-v3.md](decisions/2026-10-27-data-lifecycle-and-v3.md). For each kind of content, [data-inventory.md](data-inventory.md) says where it is held and for how long.
+# Data lifecycle (architecture spec v4, sections 7 and 11)
 
 ## In one paragraph
 
-Each institution keeps its own database. For a referral, the platform asks each linked institution's API for the patient's records, using the user's own token and an access grant. The institution decides whether to answer. The records become a temporary **working set** for that referral. A rule-based default, plus an AI recommendation when a model is configured, proposes which records go in the packet, and staff decide. The packet goes to the specialist, who keeps it as part of their own record, and the sending clinic's system keeps its own copy. When the working set ends, the platform deletes the clinical content. It keeps the reference, the status, the audit trail, a manifest (which record and version, from where, and which flags and rules) and the SHA-256 fingerprint.
+The source institutions keep their records in their own databases. For a referral, a records request carries the
+patient's signed consent, and each institution's adapter answers under its own policy with titles and ciphertext
+encrypted for the referring doctor. The platform stores that ciphertext only while the referral is open. The doctor
+decrypts on their device, chooses what goes in, and signs the package; the data keys are re-wrapped for the receiving
+department and the patient. When the specialist closes the referral (or it is declined, denied, cancelled, or reaches
+its maximum lifetime), the platform deletes the ciphertext and the wrapped keys and keeps a receipt. The patient's
+copy on their phone is the only copy of the referral that lasts (D16).
 
-## Temporary access (grants)
+## What is stored where (spec v4 11.1)
 
-- Every grant has `expires_at` (14 days by default, at most 30) and optionally `referral_ref`. An expired grant is refused with "access grant expired", and the referral shows that source as **expired**, never as "no records".
-- An institution's administrator chooses the duration, can extend it with a reason (counted from now, up to 30 days), revokes it, and can filter for "ending within 3 days" (**Source access** screen).
-- When a referral is finished, the worker asks every institution to revoke the grants opened for it (`close_referral_grants`, every minute, central service token, `POST /grants/revoke-by-referral`). The institution revokes its own grants: central never writes to an institution's database. If the call fails, the expiry date is the backstop.
-- Seed grants and grants made before expiry existed show as `legacy_no_expiry`.
+| Data | Central platform | Institutions | Patient's phone |
+|---|---|---|---|
+| Referral metadata, status, reason, timestamps | Kept | The receiving hospital's own case (its decision and questions) | Summary |
+| Record titles | Only while open (deleted with the ciphertext, O6) | The receiving hospital keeps the notice's titles until the purge notice | Yes |
+| Record content | Ciphertext, only while open | The original stays in the source institution's database; never copied to another | Yes, kept, encrypted with the patient's key |
+| Wrapped data keys | Only while open | None | The patient's own |
+| Signed package manifest | Kept (no plaintext) | The notice holds its hash | Yes |
+| Consent | Kept | Each adapter checks it when asked | Yes |
+| Audit | Kept: ids, actors, reason codes, hashes | Each institution's own audit | None |
 
-## Temporary working set
+## Lifecycle (spec v4 7)
 
 | When | What happens |
-| --- | --- |
-| Referral sent, not yet accepted | No time limit |
-| Receiving doctor accepts | Kept 30 days after acceptance; they can extend it (30 days from then, with a reason) |
-| Receiving doctor marks it complete (after sending their response) | Removed 72 hours later |
-| Receiving doctor declines | Removed straight away |
-| Referring doctor cancels | Removed 72 hours later |
-| Test request: all results back, closed or cancelled | Removed 72 hours later |
-| End reached (worker `purge_working_sets`, every 10 minutes; at once after a decline) | If every package, order and the clinic's own copy has been delivered, the content is removed (see the inventory), and the receiving hospital is told to remove its copy of the shared records (`POST /inbound/referral-expired`). Otherwise the purge waits, and each wait is audited as `deferred`. |
-| Retrieved again later (an amendment) | A new working set begins and fresh copies are fetched. Removed content is never reused. |
+|---|---|
+| Open, not yet accepted | No time limit |
+| Accepted by the specialist | A close reminder to the receiving department's doctors after `ACCEPTED_HOLD_DAYS` (30), then every `REMINDER_INTERVAL_DAYS` (7). After `ESCALATE_AFTER_REMINDERS` (3) reminders, the receiving staff are told too. Never closed silently (O4). |
+| The specialist extends | 30 more days, with a reason, at most `MAX_REFERRAL_DAYS` (180) after acceptance. The reminder moves with it. |
+| The specialist closes | Purged after `CLOSE_GRACE_DAYS` (7). The patient is told to save their copy. |
+| Declined, denied or cancelled | Purged after `DECLINE_GRACE_DAYS` (1) |
+| Maximum lifetime reached, after escalation | Everyone is told (both hospitals' doctors and staff, and the referring side); purged after the close grace period |
+| Test and scan orders | Unchanged from v2 (out of scope for v4): results are kept `WORKING_SET_GRACE_HOURS` (72) after they are back |
 
-The screens show "Held for this referral until …". After removal they show "Content has been removed. Reference and fingerprint kept." and "These records are no longer held", never an empty list read as "no history".
+## Purge by crypto-shredding (spec v4 5.9, 11.2)
 
-## Copies that outlive the working set
+`lifecycle/working_set.py`, run every 10 minutes by the worker. It is idempotent and resumable:
 
-- **Receiving institution:** keeps its own decision, questions and response. Its copy of the shared records (packages, forwarded results) is removed when the referral expires (2026-10-28 decision).
-- **Sending clinic:** each sent package and each response it receives is also delivered to the clinic's own system (`POST /outbound-copies`, outbox kind `sender_copy`). The purge waits until that delivery is confirmed.
-- **Checking a copy:** `POST /referrals/{id}/packages/{v}/verify` checks any copy against the kept fingerprint, and `.../verify-own-copy` fetches the clinic's copy from its own system and checks it. The sent letter offers this as a button, and shows the copy once it matches.
+1. It waits until every delivery carrying the referral is confirmed (or failed for good).
+2. It deletes the referral's ciphertext items, their titles, the batches and every wrapped data key.
+3. It writes a purge receipt: when, how many items and wrapped keys, the latest signed manifest's hash, and the
+   trigger (closed by the specialist, declined, cancelled, maximum lifetime).
+4. It tells the receiving hospital, whose system drops its notice and keeps only identifiers and the hash.
 
-## Role templates
+A second run finds nothing to delete and keeps the first receipt. After the purge the platform answers "purged" (HTTP
+410), never "no records", and `POST /e2e/verify-manifest` still confirms a holder's copy against the recorded hash.
 
-`rules/roles/templates.v1.json` defines named bundles of the existing realm roles (front desk, doctor, laboratory and radiology, institution administrator, rule reviewer), with each one's home screen and menu. `GET /me` returns the user's templates, home and menu. The web app builds its navigation from that and opens the home screen after sign-in. Hiding a screen is only a convenience: every API still checks the role itself. An administrator can change a user's role by applying a template (**Accounts** screen). This replaces only the template-managed roles, never service roles, never on oneself, and is audited as `role.assign` (a refused change is audited as `failed`). The change is made in Keycloak, so it reaches the user at their next sign-in, or within about 5 minutes when their token renews. The platform's Keycloak service account needs `view-realm` for this (in the realm file since 2026-10-28; older installs: see the README troubleshooting table).
+**Backups:** a backup taken while the referral was open holds ciphertext and wrapped keys. It becomes unreadable once
+no backup still holding the wrapped keys is kept, so the backup retention window must not exceed what the institution
+accepts for referral data. See `operations.md`.
 
-## Not built (and why)
+## The patient's copy (spec v4 11.3)
 
-- **Receiver-side retention settings and export** (the missing `data-lifecycle-and-roles-spec.md` section 4) need a schema change in the receiving institution's module.
-- **Refetching the exact record version to verify after purge.** The manifest has what is needed, but sources only serve the current version through the referral API.
-- **Refetch blocked by an expired grant** shows the source as "expired" with the reason. There is no separate "amendment blocked" message.
-- The placeholder numbers need an institutional or legal source (not verified for Pakistan).
+The patient saves the signed package on their phone (`GET /patient-access/referrals/{reference}/copy`): ciphertext, the
+data keys wrapped to their key, the manifest and the signer's directory entry. The app opens it with the patient's
+device key and checks it against the referring doctor's signature, also after the purge. The download is the same
+encrypted copy. The doctor's notes for the specialist are in it only if the doctor chose to share them. If the phone
+is lost, so is the copy; the institutions still hold the originals.
+
+## No sender-side copy (D16)
+
+Nothing is written back to the sending hospital's system. The v2 "sender's own copy" and the receiving hospital's
+stored package were removed: the receiving hospital gets a titles-only notice, and its doctors open the ciphertext from
+the platform.

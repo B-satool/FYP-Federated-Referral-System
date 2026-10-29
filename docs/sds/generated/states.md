@@ -48,6 +48,10 @@ Status groups: **PRE_SUBMISSION** = `draft`, `requested`; **IN_FLIGHT** = `accep
 
 | Database | Column | Values | Default |
 |---|---|---|---|
+| central | `consents.status` | requested \| granted \| declined \| revoked \| expired \| withdrawn | `'requested'` |
+| central | `record_requests.status` | sent \| answered \| partial \| refused \| pending_manual_review \| no_records \| unavailable \| failed |  |
+| central | `encrypted_batches.origin` | custodian (a source institution's answer) \| doctor (the referring doctor's own items) \| patient (patient's scans) \| receiving (records the receiving hospital added) |  |
+| central | `encrypted_items.kind` | lab \| imaging \| note \| prescription \| scan \| other |  |
 | central | `documents.status` | uploaded \| queued \| processing \| extracted \| failed | `'uploaded'` |
 | central | `evidence_items.origin` | source \| document \| manual |  |
 | central | `evidence_items.review_state` | imported \| proposed \| corrected \| unresolved \| excluded \| manual |  |
@@ -79,7 +83,9 @@ Status groups: **PRE_SUBMISSION** = `draft`, `requested`; **IN_FLIGHT** = `accep
 | central | `referrals.status` | Workflow | `'draft'` |
 | institution | `cases.status` | received -> acknowledged (staff) -> assigned (staff) -> accepted \| declined (doctor) -> responded -> completed | `'received'` |
 | institution | `consultation_responses.status` | draft \| returned | `'draft'` |
+| institution | `doctor_keys.status` | pending (waits for an administrator) \| active \| revoked \| rejected | `'pending'` |
 | institution | `info_requests.status` | open \| answered | `'open'` |
 | institution | `medications.status` | active \| stopped \| completed |  |
 | institution | `orders.status` | requested \| accepted \| rejected \| scheduled \| done \| reported | `'requested'` |
+| institution | `record_requests.status` | answered \| partial \| refused \| pending_manual_review \| declined |  |
 | institution | `sent_copies.kind` | package \| response |  |

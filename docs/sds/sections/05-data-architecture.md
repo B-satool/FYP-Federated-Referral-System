@@ -1,5 +1,7 @@
 # 5. Data architecture
 
+> **Superseded in part by section 18 (spec v4, 2026-10-30).** Retrieved records are no longer stored as plaintext `evidence_items`: the platform keeps `encrypted_batches`, `encrypted_items`, `wrapped_keys`, `package_manifests` and `purge_receipts` (section 18.1, 18.8). The sender's copy and the receiver's stored package were removed.
+
 ## 5.1 Databases and ownership
 
 ```mermaid

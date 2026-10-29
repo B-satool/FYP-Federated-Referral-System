@@ -1,6 +1,11 @@
 # Architecture (version 2, as of 2026-10-29)
 
 > **The full, versioned design is the [Software Design Specification](sds/SDS.md).** This page is a shorter overview.
+>
+> **Spec v4 (2026-10-30): referral content is now end-to-end encrypted.** Where this page describes plaintext
+> retrieval, sharing grants, server-side AI, server-side flags or OCR, or a sender's copy, it is out of date. See SDS
+> section 18, [security-model.md](security-model.md), [data-lifecycle.md](data-lifecycle.md) and
+> [e2e-mapping.md](e2e-mapping.md).
 
 How the platform is built and the rules it keeps. Why things changed since v1 is in [v2-changes.md](v2-changes.md),
 and each decision is recorded in [decisions/](decisions/). Items marked **(provisional)** are defaults chosen so the

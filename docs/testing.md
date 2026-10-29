@@ -1,16 +1,21 @@
-# Testing (version 2, as of 2026-10-29)
+# Testing (architecture spec v4, as of 2026-10-30)
 
 ## How to run
 
 ```powershell
 docker compose up -d --build
-python -m venv .venv; .\.venv\Scripts\pip install httpx pytest
+python scripts/onboard_participants.py          # once per installation: pins every institution's signing key
+python scripts/sync_keycloak_realm.py           # adds demo and patient accounts a local realm is missing
+.\scripts\reset-and-seed.ps1 -Force
+python -m venv .venv; .\.venv\Scripts\pip install httpx pytest "pyjwt[crypto]" cryptography
 
-# API tests against the running stack (reseed first; SKIP_RESET=1 keeps the data)
+# Integration tests against the running stack (reseeds first; SKIP_RESET=1 keeps the data)
 .\.venv\Scripts\python -m pytest tests -q
 
-# Unit tests inside the central image (no network, no keys, no cost)
+# Unit tests: the central image, the institution adapter, the shared library (Python and browser crypto, Layer 1 flags)
 docker compose run --rm --no-deps -v ${PWD}/services/central/tests:/srv/tests central python -m pytest tests -q
+docker compose run --rm --no-deps -v ${PWD}/services/provider:/prov -w /prov -e INSTITUTION_ID=chughtai central python -m pytest tests -q
+.\.venv\Scripts\python -m pytest libs/common/tests -q          # needs Node.js for the browser checks
 
 # Browser journeys (reseed first)
 cd web; npx playwright install chromium; npx playwright test; cd ..
@@ -19,44 +24,51 @@ cd web; npx playwright install chromium; npx playwright test; cd ..
 cd web; npm run typecheck; npm run build; cd ..
 ```
 
-**With a cloud model configured**, every test referral queues an AI recommendation. The tests pass either way, but
-for quick runs switch the model off: `$env:LLM_PROVIDER="anthropic"; docker compose up -d central worker`.
-
-**Test order matters a little:** API tests run in alphabetical file order. `test_referral_expiry.py` uses Rubina and
-Dr Salman, so that the patients and doctor `test_v2_flow.py` expects to be new at Aga Khan (Imtiaz, Gondal,
-Dr Naveed) stay untouched.
+**With a model configured** (`LLM_PROVIDER` and its key in `.env`), `test_e2e_ai.py` and `test_e2e_flags.py` call it
+once each. Without one, they check that "AI check not available" is said instead. The Groq free tier allows about two
+calls a minute; a rate-limited call is skipped, not failed.
 
 ## What is covered
 
-| Suite | Covers |
+| Suite | Covers (spec v4 acceptance tests in brackets) |
 |---|---|
-| `tests/test_v2_flow.py` | P5 referral end to end: roles, linking on arrival, accept, the doctor closes. P3 test request with an image. |
-| `tests/test_v2_scenarios.py` | Each seed patient's expected flags; DDInter and label flags with sources; Ignore and Research logged; a procedure without features is not checked; every linked hospital and a stopped medicine; a paper merging with the recorded medicines |
-| `tests/test_v3_lifecycle.py` | Temporary grants; role menus; an admin assigning a role in Keycloak; packet selection, manifest, the clinic's own copy, removal and refetch; the default selection matching each seed patient's expected view |
-| `tests/test_referral_expiry.py` | Accept → 30-day limit → extend → mark complete → 72 h → removal on the platform and at the hospital; decline removes straight away |
-| `tests/test_drap_brands.py` | A DRAP brand maps and is checked against DDInter; an ambiguous name is chosen by company (staff and doctor); a wrong choice is refused |
-| `services/central/tests` (unit) | Evaluator and flags; mapping and DRAP register names; AI suggestions never change flags; AI selection validation and application; model providers (Anthropic, Ollama local and cloud, OpenAI-compatible) against fake servers; de-identification and the external-model switch; Google Vision against a fake server; grant expiry and close-out; working-set timing; manifests; role templates |
-| `web/e2e/smoke.spec.ts` | Referral across seven accounts (staff retrieve and upload, the doctor confirms medicines, decides flags and marks the packet reviewed, staff send, intake, accept, mark complete, tell the patient, the doctor closes); test request with an MRI image |
+| `tests/test_e2e_keys.py` | Doctor and patient keys, hospital signatures, a forged or unsigned entry refused (T-DIR-1), group join, leave and rotation (T-GROUP-1) |
+| `tests/test_e2e_consent.py` | Consent signed by the patient only (T-CONSENT-1); request assertions (T-TOKEN-1); each institution's policy and refusal codes (T-POLICY-1, T-REFUSAL-1) |
+| `tests/test_e2e_retrieval.py` | Records arrive encrypted; staff see titles; the database holds no plaintext, data key or private key (T-STAFF-1, T-DOC-1, T-DB-1); lost-key recovery (T-REC-1) |
+| `tests/test_e2e_package.py` | Approve and sign on the device, send a titles-only notice, the department's doctor decrypts and verifies; tampered or foreign signatures refused; versions (T-APPROVE-1); the receiving hospital adds its own records (step 8) |
+| `tests/test_e2e_ai.py` | The relay refuses identifiers, logs no text, only the referring doctor may ask, answers are checked (T-AI-1, T-AI-2) |
+| `tests/test_e2e_flags.py` | The hash-checked bundle with DRAP brands and DDInter pairs; the browser library on the real bundle; Ignore/Research audited by hash; Layer 2 names only (T-FLAG-1 to 3) |
+| `tests/test_e2e_patient.py` | Papers from the patient app, readable only by the doctor and the patient; the plaintext upload path refuses referrals (T-OCR-1); the patient's copy opens and verifies after the purge (T-LIFE-2) |
+| `tests/test_e2e_lifecycle.py` | Reminders, escalation, capped extension, the specialist closes, grace period, purge with a receipt, idempotent; decline purges after a day (T-LIFE-1, T-NOCOPY-1) |
+| `tests/test_e2e_audit.py` | The audit table is append-only; the hash chain verifies and finds an altered entry; no content in audit (T-AUDIT-1) |
+| `tests/test_patient_access.py`, `test_roles.py`, `test_test_requests.py` | The patient view; role menus and template assignment; test and scan orders (unchanged by v4) |
+| `libs/common/tests` | The crypto suite; Python and browser interoperability; the Layer 1 library under Node; no drug-procedure table anywhere (T-FLAG-2) |
+| `services/provider/tests` | Each institution's release policy |
+| `services/central/tests` | Unit tests of the central modules (lifecycle timing, role templates, selection validation, privacy, the server evaluator kept for tests) |
+| `web/e2e/smoke.spec.ts` | The full v4 referral in a real browser across six sessions (two doctors, two staff, the patient), and a test request |
 | `web/e2e/admin.spec.ts` | An administrator changes a role; the menu follows on the next sign-in |
+| `web/scripts/perf-decrypt.ts` | T-PERF-1 measurement |
 
-## Latest results (2026-10-29, after merging the doctor-only change and the patient view)
+## Latest results (2026-10-30, branch `e2e-v4/wp5-approval`, fresh seed)
 
-- Unit: **136 passed**
-- API: **25 passed** (including `test_patient_access.py`)
-- Browser: **3 passed**
-- Type check and build: clean
+| Suite | Result |
+|---|---|
+| Integration (`tests/`) | **41 passed** (4 min 31 s), with the Groq model configured |
+| Central unit (`services/central/tests`) | **120 passed** |
+| Institution adapter unit (`services/provider/tests`) | **6 passed** |
+| Shared library (`libs/common/tests`, including the Node checks) | **13 passed** |
+| Web type check | Clean |
+| Browser journeys (`web/e2e`) | **3 passed**: the v4 referral across six sessions (37 s), the test request, and the role change |
 
-**If browser or API tests fail with `ERR_CONNECTION_RESET` or "connection aborted" on Windows:** Docker Desktop's
-port forwarding can get stuck, especially when memory is low. Check from inside Docker
-(`docker compose exec central python -c "import httpx; print(httpx.get('http://web:80/').status_code)"`). If that
-works, recreate the affected containers (`docker compose up -d --force-recreate web keycloak`); if not, restart WSL
-(`wsl --shutdown`) and Docker Desktop.
+Test order matters in one way: the integration tests run in file order, and `test_patient_access.py` and
+`test_test_requests.py` expect Rubina and Gondal never to have been registered at Aga Khan. So the e2e tests that take
+a referral in send Rubina's referrals to Ziauddin (where she is already a patient), and step 8 uses Tariq (already an
+Aga Khan patient).
 
 ## Not covered by automatic tests
 
-- **Live model and live Vision calls:** these need Ollama credits and a Vision key. The request shapes and failure
-  handling are tested against fake servers.
-- **Some v1 tests were not ported:** disabled-account revocation at the sources, link invalidation, load test and
-  backup/restore check. The scripts still exist (`scripts/loadtest.py`, `scripts/restore-check.ps1`) but have not
-  been re-run on v2.
-- **OCR accuracy on real handwriting:** not measured. `evaluation/` covers machine-rendered samples only.
+- RQ1, RQ2, RQ4 and the handwriting benchmark (planned; see `evaluation.md`).
+- T-PERF-1 on a phone.
+- **If browser or API tests fail with `ERR_CONNECTION_RESET` on Windows:** Docker Desktop's port forwarding can get
+  stuck. Recreate the affected containers (`docker compose up -d --force-recreate web keycloak`), or restart WSL
+  (`wsl --shutdown`) and Docker Desktop.

@@ -2,11 +2,32 @@
 
 Generated from the SQLAlchemy models. Solid lines are database foreign keys; dotted lines are logical references held as plain columns (no constraint). PK primary key, FK foreign key, UK unique.
 
-### Overview: all 34 tables and their relationships
+### Overview: all 45 tables and their relationships
 
 ```mermaid
 erDiagram
     audit_events {
+        int id PK "not null"
+    }
+    consents {
+        int id PK "not null"
+    }
+    record_requests {
+        int id PK "not null"
+    }
+    encrypted_batches {
+        int id PK "not null"
+    }
+    encrypted_items {
+        int id PK "not null"
+    }
+    package_manifests {
+        int id PK "not null"
+    }
+    purge_receipts {
+        int id PK "not null"
+    }
+    wrapped_keys {
         int id PK "not null"
     }
     documents {
@@ -38,6 +59,18 @@ erDiagram
     }
     users {
         string id PK "not null, String(64)"
+    }
+    group_key_wraps {
+        int id PK "not null"
+    }
+    key_directory {
+        int id PK "not null"
+    }
+    platform_keys {
+        string kid PK "not null, String(16)"
+    }
+    seen_assertions {
+        string jti PK "not null, String(80)"
     }
     ai_suggestions {
         string pair_key PK "not null, String(210)"
@@ -110,6 +143,7 @@ erDiagram
     }
     ai_suggestions |o..o{ suggestion_reviews : "pair_key (logical)"
     briefs ||--o{ referral_packages : "brief_id"
+    consents ||--o{ record_requests : "consent_id"
     documents |o--o{ evidence_items : "document_id"
     documents |o--o{ jobs : "document_id"
     documents ||--o{ extraction_runs : "document_id"
@@ -135,9 +169,12 @@ erDiagram
     referrals |o--o{ patient_links : "referral_id"
     referrals ||--o{ briefs : "referral_id"
     referrals ||--o{ clarifications : "referral_id"
+    referrals ||--o{ consents : "referral_id"
     referrals ||--o{ consultation_responses : "referral_id"
     referrals ||--o{ diagnostic_requests : "referral_id"
     referrals ||--o{ documents : "referral_id"
+    referrals ||--o{ encrypted_batches : "referral_id"
+    referrals ||--o{ encrypted_items : "referral_id"
     referrals ||--o{ evaluation_runs : "referral_id"
     referrals ||--o{ evidence_items : "referral_id"
     referrals ||--o{ flag_reviews : "referral_id"
@@ -145,11 +182,15 @@ erDiagram
     referrals ||--o{ medication_entries : "referral_id"
     referrals ||--o{ medication_flags : "referral_id"
     referrals ||--o{ outbox : "referral_id"
+    referrals ||--o{ package_manifests : "referral_id"
+    referrals ||--o{ purge_receipts : "referral_id"
+    referrals ||--o{ record_requests : "referral_id"
     referrals ||--o{ referral_events : "referral_id"
     referrals ||--o{ referral_packages : "referral_id"
     referrals ||--o{ selection_runs : "referral_id"
     referrals ||--o{ source_retrievals : "referral_id"
     referrals ||--o{ suggestion_reviews : "referral_id"
+    referrals ||--o{ wrapped_keys : "referral_id"
     selection_runs |o..o{ evidence_items : "ai_run_id (logical)"
     users |o..o{ notifications : "recipient_id (logical)"
     users |o..o{ patient_links : "requested_by_id (logical)"
@@ -172,7 +213,139 @@ erDiagram
         string outcome "not null, String(20)"
         json detail "not null"
         datetime created_at "not null, DateTime(timezone=True)"
+        int chain_seq UK "nullable"
+        string prev_hash "nullable, String(64)"
+        string chain_hash "nullable, String(64)"
     }
+```
+
+### ERD: `consent` domain (2 tables, `services/central/app/models/consent.py`)
+
+```mermaid
+erDiagram
+    consents {
+        int id PK "not null"
+        string reference UK "not null, String(30)"
+        int referral_id FK "not null"
+        string patient_cnic "not null, String(15)"
+        string patient_name "not null, String(200)"
+        string purpose "not null, String(20)"
+        string requesting_org "not null, String(50)"
+        string requesting_practitioner_id "nullable, String(64)"
+        string requesting_practitioner_name "not null, String(200)"
+        string destination_org "nullable, String(50)"
+        json custodians_requested "not null"
+        json categories "not null"
+        json sensitive_offered "not null"
+        string data_period_start "nullable, String(20)"
+        string requested_by_id "not null, String(64)"
+        string requested_by_name "not null, String(200)"
+        datetime requested_at "not null, DateTime(timezone=True)"
+        string status "not null, String(20)"
+        json custodians_granted "not null"
+        json sensitive_specific "not null"
+        datetime period_start "nullable, DateTime(timezone=True)"
+        datetime period_end "nullable, DateTime(timezone=True)"
+        json document "nullable"
+        string patient_key_id "nullable, String(16)"
+        datetime decided_at "nullable, DateTime(timezone=True)"
+        text decline_reason "nullable"
+        json revocation "nullable"
+        datetime revoked_at "nullable, DateTime(timezone=True)"
+    }
+    record_requests {
+        int id PK "not null"
+        int referral_id FK "not null"
+        int consent_id FK "not null"
+        string custodian "not null, String(50)"
+        string request_key UK "not null, String(200)"
+        string local_patient_id "nullable, String(50)"
+        string practitioner_id "not null, String(64)"
+        string status "not null, String(30)"
+        json refusals "not null"
+        int item_count "not null"
+        string batch_id "nullable, String(60)"
+        string policy_version "nullable, String(60)"
+        text message "not null"
+        string requested_by "not null, String(200)"
+        datetime requested_at "not null, DateTime(timezone=True)"
+        datetime answered_at "nullable, DateTime(timezone=True)"
+    }
+    consents ||--o{ record_requests : "consent_id"
+    referrals ||--o{ consents : "referral_id"
+    referrals ||--o{ record_requests : "referral_id"
+```
+
+### ERD: `encrypted` domain (5 tables, `services/central/app/models/encrypted.py`)
+
+```mermaid
+erDiagram
+    encrypted_batches {
+        int id PK "not null"
+        int referral_id FK "not null"
+        string batch_id UK "not null, String(60)"
+        string origin "not null, String(20)"
+        string source_institution "nullable, String(50)"
+        int record_request_id "nullable"
+        string created_by "not null, String(200)"
+        datetime created_at "not null, DateTime(timezone=True)"
+    }
+    encrypted_items {
+        int id PK "not null"
+        int referral_id FK "not null"
+        string batch_id "not null, String(60)"
+        string item_id "not null, String(120)"
+        string kind "not null, String(20)"
+        string category "nullable, String(30)"
+        string label "not null, String(300)"
+        string item_date "nullable, String(30)"
+        string source_institution "nullable, String(50)"
+        bool sensitive "not null"
+        json sealed "not null"
+        string size "not null"
+        string ciphertext_sha256 "not null, String(64)"
+        datetime created_at "not null, DateTime(timezone=True)"
+    }
+    package_manifests {
+        int id PK "not null"
+        int referral_id FK "not null"
+        int version "not null"
+        json manifest "not null"
+        string manifest_sha256 "not null, String(64)"
+        string signer_subject "not null, String(64)"
+        string signer_key_id "not null, String(16)"
+        int item_count "not null"
+        bool superseded "not null"
+        datetime created_at "not null, DateTime(timezone=True)"
+    }
+    purge_receipts {
+        int id PK "not null"
+        int referral_id FK,UK "not null"
+        datetime purged_at "not null, DateTime(timezone=True)"
+        int items_count "not null"
+        int wrapped_keys_count "not null"
+        string manifest_hash "nullable, String(64)"
+        string trigger "not null, String(40)"
+        json detail "not null"
+        text note "not null"
+    }
+    wrapped_keys {
+        int id PK "not null"
+        int referral_id FK "not null"
+        string batch_id "not null, String(60)"
+        string recipient_type "not null, String(20)"
+        string recipient_subject "not null, String(100)"
+        string recipient_key_id "not null, String(16)"
+        int key_version "nullable"
+        json wrapped "not null"
+        string created_by "not null, String(200)"
+        datetime created_at "not null, DateTime(timezone=True)"
+    }
+    referrals ||--o{ encrypted_batches : "referral_id"
+    referrals ||--o{ encrypted_items : "referral_id"
+    referrals ||--o{ package_manifests : "referral_id"
+    referrals ||--o{ purge_receipts : "referral_id"
+    referrals ||--o{ wrapped_keys : "referral_id"
 ```
 
 ### ERD: `evidence` domain (7 tables, `services/central/app/models/evidence.py`)
@@ -403,6 +576,48 @@ erDiagram
     users |o..o{ notifications : "recipient_id (logical)"
     users |o..o{ patient_links : "requested_by_id (logical)"
     users |o..o{ referrals : "requesting_doctor_id (logical)"
+```
+
+### ERD: `keys` domain (4 tables, `services/central/app/models/keys.py`)
+
+```mermaid
+erDiagram
+    group_key_wraps {
+        int id PK "not null"
+        string hospital_id "not null, String(50)"
+        string department "not null, String(60)"
+        int group_version "not null"
+        string member_subject_id "not null, String(64)"
+        string member_key_id "not null, String(16)"
+        json wrapped "not null"
+        datetime created_at "not null, DateTime(timezone=True)"
+    }
+    key_directory {
+        int id PK "not null"
+        string subject_id "not null, String(100)"
+        string subject_type "not null, String(20)"
+        string hospital_id "nullable, String(50)"
+        string department "nullable, String(60)"
+        string enc_key_id UK "not null, String(16)"
+        int key_version "not null"
+        string issued_by "not null, String(50)"
+        json entry "not null"
+        json revocation "nullable"
+        datetime revoked_at "nullable, DateTime(timezone=True)"
+        datetime created_at "not null, DateTime(timezone=True)"
+    }
+    platform_keys {
+        string kid PK "not null, String(16)"
+        text public_spki "not null"
+        json private_sealed "not null"
+        datetime created_at "not null, DateTime(timezone=True)"
+        datetime retired_at "nullable, DateTime(timezone=True)"
+    }
+    seen_assertions {
+        string jti PK "not null, String(80)"
+        string issuer "not null, String(50)"
+        datetime expires_at "not null, DateTime(timezone=True)"
+    }
 ```
 
 ### ERD: `medications` domain (12 tables, `services/central/app/models/medications.py`)
@@ -818,6 +1033,10 @@ erDiagram
         datetime working_set_purged_at "nullable, DateTime(timezone=True)"
         datetime receiver_completed_at "nullable, DateTime(timezone=True)"
         string receiver_completed_by "nullable, String(200)"
+        datetime close_reminder_due_at "nullable, DateTime(timezone=True)"
+        int reminders_sent "not null"
+        datetime last_reminder_at "nullable, DateTime(timezone=True)"
+        datetime escalated_at "nullable, DateTime(timezone=True)"
         datetime created_at "not null, DateTime(timezone=True)"
         datetime updated_at "not null, DateTime(timezone=True)"
     }
@@ -828,9 +1047,12 @@ erDiagram
     referrals |o--o{ patient_links : "referral_id"
     referrals ||--o{ briefs : "referral_id"
     referrals ||--o{ clarifications : "referral_id"
+    referrals ||--o{ consents : "referral_id"
     referrals ||--o{ consultation_responses : "referral_id"
     referrals ||--o{ diagnostic_requests : "referral_id"
     referrals ||--o{ documents : "referral_id"
+    referrals ||--o{ encrypted_batches : "referral_id"
+    referrals ||--o{ encrypted_items : "referral_id"
     referrals ||--o{ evaluation_runs : "referral_id"
     referrals ||--o{ evidence_items : "referral_id"
     referrals ||--o{ flag_reviews : "referral_id"
@@ -838,11 +1060,15 @@ erDiagram
     referrals ||--o{ medication_entries : "referral_id"
     referrals ||--o{ medication_flags : "referral_id"
     referrals ||--o{ outbox : "referral_id"
+    referrals ||--o{ package_manifests : "referral_id"
+    referrals ||--o{ purge_receipts : "referral_id"
+    referrals ||--o{ record_requests : "referral_id"
     referrals ||--o{ referral_events : "referral_id"
     referrals ||--o{ referral_packages : "referral_id"
     referrals ||--o{ selection_runs : "referral_id"
     referrals ||--o{ source_retrievals : "referral_id"
     referrals ||--o{ suggestion_reviews : "referral_id"
+    referrals ||--o{ wrapped_keys : "referral_id"
     users |o..o{ notifications : "recipient_id (logical)"
     users |o..o{ referrals : "requesting_doctor_id (logical)"
 ```

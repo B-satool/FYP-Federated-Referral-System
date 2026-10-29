@@ -293,3 +293,68 @@ class Outbox(Base):
     next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+# --------------------------------------------------------------------------- end-to-end encryption keys (spec v4 WP1)
+class KeyStore(Base):
+    """This institution's own private keys: the hospital signing key and each department's group key. The private
+    part is sealed with the service's key-store secret (AES-256-GCM); it never leaves this service."""
+    __tablename__ = "key_store"
+    __table_args__ = (UniqueConstraint("purpose", "version"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # hospital_signing | group:<department>
+    purpose: Mapped[str] = mapped_column(String(80), index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    public_spki: Mapped[str] = mapped_column(Text)
+    private_sealed: Mapped[dict] = mapped_column(JSON)
+    # the signed directory entry for a department group key (published to the platform)
+    entry: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class DoctorKey(Base):
+    """A doctor's public keys, signed by this hospital once it accepts them (spec v4 5.4). The doctor's private
+    keys stay on the doctor's device."""
+    __tablename__ = "doctor_keys"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    subject_id: Mapped[str] = mapped_column(String(64), index=True)
+    username: Mapped[str] = mapped_column(String(100))
+    display_name: Mapped[str] = mapped_column(String(200))
+    department: Mapped[str | None] = mapped_column(String(60), nullable=True, index=True)
+    enc_key_id: Mapped[str] = mapped_column(String(16), index=True)
+    key_version: Mapped[int] = mapped_column(Integer)
+    request: Mapped[dict] = mapped_column(JSON)  # the doctor's signed registration (proof of possession)
+    entry: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # the hospital-signed directory entry
+    # pending (waits for an administrator) | active | revoked | rejected
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    recovery: Mapped[bool] = mapped_column(default=False)  # replaces a key the doctor lost
+    approved_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    revocation: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    revoked_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class GroupKeyWrap(Base):
+    """A department group private key, wrapped to one member doctor's encryption key (ciphertext only)."""
+    __tablename__ = "group_key_wraps"
+    __table_args__ = (UniqueConstraint("department", "group_version", "member_key_id"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    department: Mapped[str] = mapped_column(String(60), index=True)
+    group_version: Mapped[int] = mapped_column(Integer)
+    member_subject_id: Mapped[str] = mapped_column(String(64), index=True)
+    member_key_id: Mapped[str] = mapped_column(String(16))
+    wrapped: Mapped[dict] = mapped_column(JSON)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class SeenAssertion(Base):
+    """Request assertions already accepted (jti), kept until they expire, so a replay is refused."""
+    __tablename__ = "seen_assertions"
+    jti: Mapped[str] = mapped_column(String(80), primary_key=True)
+    issuer: Mapped[str] = mapped_column(String(50))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)

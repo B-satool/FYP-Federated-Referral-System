@@ -16,3 +16,9 @@ DEFAULT_WINDOW_DAYS = int(os.environ.get("REFERRAL_WINDOW_DAYS", "183"))
 # doctor), and removed GRACE_HOURS after they mark it complete (the platform applies the same rules)
 ACCEPTED_HOLD_DAYS = int(os.environ.get("ACCEPTED_HOLD_DAYS", "30"))
 GRACE_HOURS = int(os.environ.get("WORKING_SET_GRACE_HOURS", "72"))
+
+# End-to-end encryption (spec v4): this service's key store is sealed with KEYSTORE_SECRET; the platform ("hub")
+# is called with signed request assertions. The participant registry (pinned keys) is a read-only file.
+KEYSTORE_SECRET = os.environ.get("KEYSTORE_SECRET", "")
+HUB_URL = os.environ.get("HUB_URL", CENTRAL_URL).rstrip("/")
+DOCTOR_KEY_VALID_DAYS = int(os.environ.get("DOCTOR_KEY_VALID_DAYS", "365"))

@@ -41,7 +41,7 @@ from sqlalchemy import func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from . import adapter
+from . import adapter, key_routes, m2m
 from .config import (ACCEPTED_HOLD_DAYS, AUDIENCE, CENTRAL_URL, DEFAULT_WINDOW_DAYS, GRACE_HOURS, INSTITUTION, INSTITUTION_NAME,
                      LOCAL_ID_PREFIX)
 from .models import (
@@ -116,6 +116,7 @@ def _outbox_loop() -> None:
     while not _stop.is_set():
         try:
             _deliver_once()
+            m2m.publish_loop_tick(SessionLocal)  # keys not yet in the platform's directory
         except Exception:  # noqa: BLE001 - keep the loop alive; errors are stored per item
             log.exception("outbox loop error")
         _stop.wait(3)
@@ -147,6 +148,7 @@ app.include_router(health_router(_check_db))
 app.include_router(build_admin_router(INSTITUTION, AccessGrant, AuditEvent,
                                       lambda db, pid: db.get(Patient, pid) is not None, get_db, get_principal))
 app.include_router(build_grant_service_router(INSTITUTION, AccessGrant, AuditEvent, get_db, get_principal))
+app.include_router(key_routes.build_router(get_db, get_principal))
 
 
 # --------------------------------------------------------------------------- helpers

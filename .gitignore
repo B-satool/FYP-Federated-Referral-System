@@ -34,3 +34,6 @@ contracts/fhir-samples/validator-output.txt
 
 # Shared hosted-database credentials (never commit)
 shared-db-credentials.md
+
+# Pinned participant registry (generated per installation by scripts/onboard_participants.py)
+infra/participants/participants.json

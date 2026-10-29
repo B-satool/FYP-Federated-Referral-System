@@ -58,6 +58,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         { to: "/incoming", label: "Incoming referrals", show: (doctor || hasRole(me, "clinic_staff", "institution_admin")) && kind !== "laboratory" },
         { to: "/patient-links", label: "Records requests", show: hasRole(me, "clinic_staff", "institution_admin") },
         { to: "/orders", label: "Test and scan orders", show: hasRole(me, "diagnostics_staff") },
+        { to: "/keys", label: "Device key", show: doctor },
       ],
     },
     {
@@ -72,6 +73,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       title: "Administration",
       items: [
         { to: "/admin/users", label: "Accounts", show: hasRole(me, "institution_admin") },
+        { to: "/admin/keys", label: "Doctors' keys", show: hasRole(me, "institution_admin") && kind !== "platform" },
         { to: "/admin/access", label: "Source access", show: hasRole(me, "institution_admin") && kind !== "platform" },
         { to: "/admin/audit", label: "Audit log", show: hasRole(me, "institution_admin") },
       ],

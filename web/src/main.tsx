@@ -8,6 +8,7 @@ import { ApiError } from "./api/client";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { NotifyProvider, notifyOutsideReact } from "./components/Notify";
 import { theme } from "./theme";
+import { DeviceKeysProvider } from "./crypto/session";
 import App from "./App";
 import "./styles.css";
 
@@ -37,7 +38,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <QueryClientProvider client={queryClient}>
             <BrowserRouter>
               <AuthProvider>
-                <App />
+                <DeviceKeysProvider>
+                  <App />
+                </DeviceKeysProvider>
               </AuthProvider>
             </BrowserRouter>
           </QueryClientProvider>

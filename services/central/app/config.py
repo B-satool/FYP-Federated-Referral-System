@@ -62,6 +62,9 @@ class Settings:
 
     run_jobs_inline = _bool("RUN_JOBS_INLINE", False)
 
+    # End-to-end encryption (spec v4): the platform's own signing key is sealed with this secret
+    keystore_secret = os.environ.get("KEYSTORE_SECRET", "")
+
     @property
     def llm_configured(self) -> bool:
         if self.llm_provider == "ollama":

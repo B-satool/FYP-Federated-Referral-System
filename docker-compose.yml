@@ -18,6 +18,8 @@ x-python-service: &python-service
 x-institution: &institution
   <<: *python-service
   build: {context: ., dockerfile: services/provider/Dockerfile}
+  # pinned participant registry (scripts/onboard_participants.py), read-only
+  volumes: ["./infra/participants:/etc/refx/participants:ro"]
   healthcheck: &py-health
     test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/ready').status==200 else 1)"]
     interval: 10s
@@ -101,6 +103,7 @@ services:
       SERVICE_CLIENT_ID: drali-api
       SERVICE_CLIENT_SECRET: ${DRALI_CLIENT_SECRET}
       CENTRAL_URL: http://central:8000
+      KEYSTORE_SECRET: ${DRALI_KEYSTORE_SECRET}
     ports: ["8001:8000"]
 
   chughtai:
@@ -114,6 +117,7 @@ services:
       SERVICE_CLIENT_ID: chughtai-api
       SERVICE_CLIENT_SECRET: ${CHUGHTAI_CLIENT_SECRET}
       CENTRAL_URL: http://central:8000
+      KEYSTORE_SECRET: ${CHUGHTAI_KEYSTORE_SECRET}
     ports: ["8002:8000"]
 
   ziauddin:
@@ -127,6 +131,7 @@ services:
       SERVICE_CLIENT_ID: ziauddin-api
       SERVICE_CLIENT_SECRET: ${ZIAUDDIN_CLIENT_SECRET}
       CENTRAL_URL: http://central:8000
+      KEYSTORE_SECRET: ${ZIAUDDIN_KEYSTORE_SECRET}
     ports: ["8003:8000"]
 
   akuh:
@@ -140,6 +145,7 @@ services:
       SERVICE_CLIENT_ID: akuh-api
       SERVICE_CLIENT_SECRET: ${AKUH_CLIENT_SECRET}
       CENTRAL_URL: http://central:8000
+      KEYSTORE_SECRET: ${AKUH_KEYSTORE_SECRET}
     ports: ["8004:8000"]
 
   central:
@@ -168,9 +174,11 @@ services:
       OCR_ENGINE: ${OCR_ENGINE:-tesseract}
       GOOGLE_VISION_API_KEY: ${GOOGLE_VISION_API_KEY:-}
       DOCUMENT_RETENTION_DAYS: ${DOCUMENT_RETENTION_DAYS:-365}
+      KEYSTORE_SECRET: ${PLATFORM_KEYSTORE_SECRET}
     extra_hosts: &host-gateway ["host.docker.internal:host-gateway"]
     volumes:
       - documents:/data/documents
+      - ./infra/participants:/etc/refx/participants:ro
     ports: ["8000:8000"]
     depends_on:
       postgres: {condition: service_healthy, restart: true}
@@ -186,6 +194,7 @@ services:
     extra_hosts: *host-gateway
     volumes:
       - documents:/data/documents
+      - ./infra/participants:/etc/refx/participants:ro
     depends_on:
       central: {condition: service_healthy}
       redis: {condition: service_healthy}
@@ -194,6 +203,8 @@ services:
     restart: unless-stopped
     build: {context: ./web}
     ports: ["3000:80"]
+    # the pinned participant registry is served to the browser as /participants.json
+    volumes: ["./infra/participants:/etc/refx/participants:ro"]
     depends_on:
       central: {condition: service_started}
 

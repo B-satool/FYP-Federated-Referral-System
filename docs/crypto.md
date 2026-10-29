@@ -22,10 +22,24 @@ No cryptography is written by hand: every primitive is a library call. libsodium
 | Hashes (manifest, ciphertext) | SHA-256 | Hex encoded |
 
 **Encodings:**
-- **Public keys:** SPKI DER, base64.
-- **Signatures and nonces:** base64url without padding.
-- **Ciphertext:** base64.
-- **Signed JSON:** canonical JSON (keys sorted, no spaces, UTF-8) of the object without its `signature` field.
+- **Binary values** (public keys, nonces, ciphertext, signatures): standard base64 with padding. The one exception is the JWT assertions, which use base64url as JWS requires.
+- **Public keys:** SPKI DER.
+- **Signatures:** raw `r‖s` (64 bytes).
+- **Key id:** the first 16 hex characters of SHA-256 over the SPKI bytes. A person compares it as a fingerprint in groups of four, for example `ab12 cd34 ef56 7890`.
+- **Signed JSON:** canonical JSON (keys sorted, no spaces, UTF-8) of the object without its `signature` field. Signed objects never contain fractional numbers, because Python and JavaScript print them differently.
+
+**Implementations:**
+- **Python:** `libs/common/refcommon/e2e.py`.
+- **Browser:** `web/src/crypto/suite.ts`. It has no imports, so Node runs it directly.
+- **Interop:** `libs/common/tests/test_e2e_interop.py` runs the browser file under Node against the Python one, in both directions. It checks wrap, encrypt, chunks, signatures, canonical JSON, passphrase blobs and directory entries.
+
+**Large files:** scans are encrypted in 1 MB chunks, each a separate AES-GCM message. The associated data adds the chunk index and a last-chunk marker, so chunks cannot be reordered, swapped between items or cut off at the end.
+
+**Proof of possession:** a key registration (`refx.key.registration/v1`, carrying the subject and both public keys) is signed by the new signing key. The hospital (for doctors) or the platform (for patients) refuses a registration that the new signing key did not sign.
+
+**Group keys:** a department group private key reaches a member wrapped to the member's encryption key, with the context `group|<hospital>|<department>|<version>|<member key id>`. After unwrapping, the browser checks that the key's public half matches the hospital-signed department entry for that version, so the platform cannot substitute another group key.
+
+**Key stores at the services:** the adapters and the platform seal their own private keys with AES-256-GCM. The key comes from the service's `KEYSTORE_SECRET` through HKDF-SHA-256.
 
 ## Keys and where they live
 

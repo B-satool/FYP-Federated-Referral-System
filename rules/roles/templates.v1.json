@@ -12,7 +12,9 @@
     "medicine_names": {"route": "/medicine-names", "label": "Medicine names", "group": "Rules", "roles": ["rule_reviewer"]},
     "accounts": {"route": "/admin/users", "label": "Accounts and roles", "group": "Administration", "roles": ["institution_admin"]},
     "source_access": {"route": "/admin/access", "label": "Source access", "group": "Administration", "roles": ["institution_admin"]},
-    "audit": {"route": "/admin/audit", "label": "Audit log", "group": "Administration", "roles": ["institution_admin"]}
+    "audit": {"route": "/admin/audit", "label": "Audit log", "group": "Administration", "roles": ["institution_admin"]},
+    "device_key": {"route": "/keys", "label": "Device key", "group": "Security", "roles": ["clinician"]},
+    "doctor_keys": {"route": "/admin/keys", "label": "Doctors' keys", "group": "Administration", "roles": ["institution_admin"]}
   },
   "templates": [
     {"template_id": "front_desk", "name": "Staff (referral coordinator)",
@@ -22,7 +24,7 @@
     {"template_id": "doctor", "name": "Doctor",
      "description": "Requests referrals and tests, reviews medication flags and results, and sees and answers referrals assigned to them.",
      "roles": ["clinician"], "institution_kinds": ["clinic", "hospital"], "default_grant_days": 14,
-     "home": "work_queue", "menu": ["work_queue", "requests", "incoming"]},
+     "home": "work_queue", "menu": ["work_queue", "requests", "incoming", "device_key"]},
     {"template_id": "lab_radiology", "name": "Laboratory, radiology or ECG staff",
      "description": "Confirms arriving patients, accepts or rejects test and scan orders, and reports results with images.",
      "roles": ["diagnostics_staff"], "institution_kinds": ["laboratory", "hospital", "clinic"], "default_grant_days": 7,
@@ -30,7 +32,7 @@
     {"template_id": "institution_administrator", "name": "Institution administrator",
      "description": "Manages accounts and roles, source access (grants and their expiry) and the audit log. No clinical record access.",
      "roles": ["institution_admin"], "institution_kinds": ["clinic", "hospital", "laboratory"], "default_grant_days": 14,
-     "home": "accounts", "menu": ["accounts", "source_access", "audit", "incoming", "records_requests"]},
+     "home": "accounts", "menu": ["accounts", "doctor_keys", "source_access", "audit", "incoming", "records_requests"]},
     {"template_id": "rule_reviewer", "name": "Clinical rule reviewer",
      "description": "Approves medication rules and medicine names, and sees the imported interaction data, label rules and AI model figures.",
      "roles": ["rule_reviewer"], "institution_kinds": ["clinic", "hospital"], "default_grant_days": 14,

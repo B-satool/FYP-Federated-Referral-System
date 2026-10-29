@@ -174,7 +174,8 @@ def main() -> None:
         if args.reset:
             if not args.yes:
                 sys.exit("Refusing to reset without --yes")
-            names = ", ".join(t.name for t in Base.metadata.sorted_tables)
+            # the platform signing key is pinned by every adapter at onboarding: it survives a reseed
+            names = ", ".join(t.name for t in Base.metadata.sorted_tables if t.name != "platform_keys")
             db.execute(text(f"TRUNCATE {names} RESTART IDENTITY CASCADE"))
             if settings.storage_root.exists():
                 for p in settings.storage_root.iterdir():

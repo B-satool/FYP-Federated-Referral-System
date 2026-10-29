@@ -19,7 +19,7 @@ from refcommon.db import make_session_factory
 from refcommon.sourcekit import ALL_CATEGORIES, MAX_GRANT_DAYS, grant_expiry, normalize_cnic
 
 from .config import INSTITUTION, INSTITUTION_NAME
-from .models import AccessGrant, Base, Condition, ImagingReport, LabResult, Medication, Patient, Surgery, Visit
+from .models import AccessGrant, Base, Condition, ImagingReport, KeyStore, LabResult, Medication, Patient, Surgery, Visit
 
 SEED_DIR = Path(os.environ.get("SEED_DATA_DIR", "/srv/seed-data/patients"))
 
@@ -125,8 +125,13 @@ def main() -> None:
         if args.reset:
             if not args.yes:
                 sys.exit("Refusing to reset without --yes")
+            # the hospital signing key is this installation's identity, pinned by every participant at onboarding:
+            # it survives a reseed (department group keys and doctors' keys do not)
             for table in reversed(Base.metadata.sorted_tables):
-                db.execute(table.delete())
+                stmt = table.delete()
+                if table.name == KeyStore.__tablename__:
+                    stmt = stmt.where(table.c.purpose != "hospital_signing")
+                db.execute(stmt)
             db.flush()
         count = seed(db)
         db.commit()

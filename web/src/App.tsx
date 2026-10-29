@@ -23,6 +23,8 @@ import { AdminUsers } from "./features/admin/AdminUsers";
 import { SourceAccess } from "./features/admin/SourceAccess";
 import { AuditLog } from "./features/admin/AuditLog";
 import { PatientApp } from "./features/patient/PatientApp";
+import { KeysPage } from "./features/keys/DeviceKey";
+import { DoctorKeys } from "./features/admin/DoctorKeys";
 
 function Home() {
   const { data: me, isLoading, error } = useMe();
@@ -103,6 +105,8 @@ function SignedIn() {
         <Route path="/admin/users" element={<AdminUsers />} />
         <Route path="/admin/access" element={<SourceAccess />} />
         <Route path="/admin/audit" element={<AuditLog />} />
+        <Route path="/admin/keys" element={<DoctorKeys />} />
+        <Route path="/keys" element={<KeysPage />} />
         <Route path="/privacy" element={<PrivacyNotice />} />
         <Route path="/terms" element={<TermsOfUse />} />
         <Route path="/accessibility" element={<AccessibilityStatement />} />

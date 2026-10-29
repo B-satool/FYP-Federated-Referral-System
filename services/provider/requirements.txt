@@ -5,4 +5,5 @@ psycopg[binary]==3.2.3
 alembic==1.14.0
 httpx==0.28.1
 pyjwt[crypto]==2.10.1
+cryptography==50.0.2
 pydantic==2.10.3

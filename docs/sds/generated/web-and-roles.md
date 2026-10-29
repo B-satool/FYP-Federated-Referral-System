@@ -38,6 +38,7 @@
 | `incoming` | Incoming.tsx |
 | `legal` | LegalPages.tsx |
 | `orders` | Orders.tsx |
+| `patient` | PatientApp.tsx |
 | `referrals` | AuditTab.tsx, HoldNotice.tsx, Journey.tsx, LinksTab.tsx, MedicinesTab.tsx, NewReferral.tsx, RecordsTab.tsx, ReferralForm.tsx, ReferralList.tsx, ReferralWorkspace.tsx, RequestTab.tsx, ResponseTab.tsx, SendTab.tsx, TestsTab.tsx, steps.ts |
 | `rules` | MedicineNames.tsx, RulesPage.tsx |
 | `workqueue` | WorkQueue.tsx, queue.ts |
@@ -88,6 +89,7 @@ The menu is built from `GET /me`; it only hides screens. The API checks are the 
 | `diagnostics_staff` | Laboratory, imaging or ECG staff: test and scan orders |
 | `institution_admin` | Institution administrator (accounts, source access, audit; no clinical access) |
 | `rule_reviewer` | Clinical reviewer who approves medication rules and medicine names |
+| `patient` | Patient: sees their own referrals and reads their own records from each institution |
 | `svc_central` | Central platform service identity |
 | `svc_provider` | Institution service identity |
 
@@ -139,6 +141,11 @@ A user's institution is their top-level group; the department is the subgroup.
 | lab.chughtai | diagnostics_staff | /chughtai/laboratory |
 | rad.chughtai | diagnostics_staff | /chughtai/radiology |
 | staff.chughtai | clinic_staff | /chughtai |
+| rubina.akhtar | patient |  |
+| muhammad.tariq.mahmood | patient |  |
+| abdul.rehman.gondal | patient |  |
+| shazia.parveen | patient |  |
+| imtiaz.ali.soomro | patient |  |
 
 ### Token and session settings
 

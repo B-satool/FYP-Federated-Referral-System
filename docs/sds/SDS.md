@@ -2,13 +2,13 @@
 
 | | |
 |---|---|
-| Document version | **v1.1.0** |
+| Document version | **v1.2.0** |
 | Released | 2026-10-29 |
 | System | Federated referral preparation and follow-through platform (FYP), v2 code base |
 | Status | Living document: regenerated from the code on every change, frozen per release in `docs/sds/versions/` |
-| Structure fingerprint | `4abc1cd543c76b39` |
-| Written-sections fingerprint | `36962e9bc84937a1` |
-| Source fingerprint | `85b4897e8f0cd6ac` |
+| Structure fingerprint | `8a0e9c3e510ce365` |
+| Written-sections fingerprint | `1125503b6c93bde8` |
+| Source fingerprint | `f4c8cef006f1d4eb` |
 | Maintained by | The project team. See section 17 for how to update and release it. |
 
 ## Contents
@@ -1323,6 +1323,15 @@ flowchart TD
 - **Legacy grants** without an expiry are reported so an administrator can renew or revoke them.
 
 Every decision is audited in the institution's own `audit_events`, with the referral context from `X-Referral-Id`.
+
+### 8.3.1 Patient access to their own records
+
+A third basis for reading records, alongside "own institution and role" and "an access grant": **the patient themselves** ([decision 2026-10-29](../../decisions/2026-10-29-patient-view.md)).
+
+- **Identity:** a patient account has the `patient` realm role, belongs to no institution, and carries its CNIC in the token's `cnic` claim. The CNIC is a Keycloak user attribute that only administrators can view or edit, so a patient cannot change the identity their records are matched on. Services read it only from the verified token (`Principal.cnic`).
+- **At each institution:** `GET /patient-access/summary` and `GET /patient-access/records` match the CNIC against the institution's own index and return only that patient's records: the whole history, with no referral window and including stopped medicines. Each call is audited (`patient.summary`, `patient.records`), responses are `Cache-Control: no-store`, and no other role can call them.
+- **On the platform:** `GET /patient-access/referrals` lists the referrals and test requests whose patient CNIC matches, with routing, status and a plain-language timeline; drafts are left out. Flags, retrieved records, papers and the letter are not included. The platform never relays or stores the history: the patient's device asks each institution directly.
+- **The other way round:** a patient account has no institution and no staff role, so every staff endpoint refuses it (`require_own`, `require_roles`, `load_referral`), and `decide_access` refuses it on the referral records endpoint.
 
 ## 8.4 Audit
 
@@ -4330,7 +4339,7 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 
 Generated from the FastAPI route decorators. *Access checks* lists the authorisation calls made inside each handler (roles, institution scope, service identity, optimistic-concurrency checks). Every endpoint except `/health` and `/ready` also requires a valid Keycloak access token (verified signature, issuer, audience and introspection). Parameters exclude the database session and the caller's identity.
 
-#### Central platform API (`central`, port 8000): 98 endpoints
+#### Central platform API (`central`, port 8000): 100 endpoints
 
 ##### audit and reference data
 
@@ -4412,6 +4421,13 @@ Generated from the FastAPI route decorators. *Access checks* lists the authorisa
 | GET | `/notifications` | List notifications. | _mine() | unread_only: bool | list_notifications (services/central/app/notifications.py:56) |
 | POST | `/notifications/read-all` | Mark all read. | _mine() |  | mark_all_read (services/central/app/notifications.py:75) |
 | POST | `/notifications/{notification_id}/read` | Mark read. | _mine() | notification_id: int | mark_read (services/central/app/notifications.py:64) |
+
+##### patient access
+
+| Method | Path | Purpose | Access checks | Parameters | Handler |
+|---|---|---|---|---|---|
+| GET | `/patient-access/places` | The institutions on the network. The patient's device asks each one directly whether it holds records for them; the platform does not keep that list. | require_patient → deny(patient, self, Only a patient account can use the patient view); require_patient → deny(patient, self, This patient account has no CNIC, so nothing can be matched to it); require_patient → role patient required |  | places (services/central/app/patient_access.py:124) |
+| GET | `/patient-access/referrals` | Every referral and test request for this patient, at any institution, newest first. Drafts the doctor has not submitted are left out. | require_patient → deny(patient, self, Only a patient account can use the patient view); require_patient → deny(patient, self, This patient account has no CNIC, so nothing can be matched to it); require_patient → role patient required |  | my_referrals (services/central/app/patient_access.py:102) |
 
 ##### patient links
 
@@ -4495,7 +4511,7 @@ Generated from the FastAPI route decorators. *Access checks* lists the authorisa
 |---|---|---|---|---|---|
 | GET | `/work-queue` | Work queue. | require_roles(clinician, clinic_staff, action=work_queue); role clinic_staff required; role clinician required |  | work_queue (services/central/app/workqueue.py:27) |
 
-#### Institution service API (`drali` 8001, `chughtai` 8002, `ziauddin` 8003, `akuh` 8004): 42 endpoints
+#### Institution service API (`drali` 8001, `chughtai` 8002, `ziauddin` 8003, `akuh` 8004): 44 endpoints
 
 ##### fhir
 
@@ -4527,40 +4543,47 @@ Generated from the FastAPI route decorators. *Access checks* lists the authorisa
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| POST | `/inbound/clarification-answers` | Receive answer. | _require_central() | body: ClarificationAnswer | receive_answer (services/provider/app/main.py:587) |
-| POST | `/inbound/orders` | Receive order. | _require_central() | body: DiagnosticOrder | receive_order (services/provider/app/main.py:486) |
-| POST | `/inbound/referral-expired` | The referral's time is up: remove this institution's copy of the shared records (the packages and the results forwarded with them). Its own decision, questions and response are its record and are kept. | _require_central() | body: ExpiredIn | referral_expired (services/provider/app/main.py:464) |
-| POST | `/inbound/referrals` | Idempotent receipt of a sent referral version (keyed by delivery key). | _require_central() | raw: dict | receive_package (services/provider/app/main.py:419) |
-| POST | `/inbound/results` | Receive result. | _require_central() | body: ResultForward | receive_result (services/provider/app/main.py:514) |
-| POST | `/outbound-copies` | Store our own copy of a referral we sent, or of the response to it (idempotent by key). | _require_central() | body: SentCopyIn | receive_sent_copy (services/provider/app/main.py:537) |
+| POST | `/inbound/clarification-answers` | Receive answer. | _require_central() | body: ClarificationAnswer | receive_answer (services/provider/app/main.py:671) |
+| POST | `/inbound/orders` | Receive order. | _require_central() | body: DiagnosticOrder | receive_order (services/provider/app/main.py:570) |
+| POST | `/inbound/referral-expired` | The referral's time is up: remove this institution's copy of the shared records (the packages and the results forwarded with them). Its own decision, questions and response are its record and are kept. | _require_central() | body: ExpiredIn | referral_expired (services/provider/app/main.py:548) |
+| POST | `/inbound/referrals` | Idempotent receipt of a sent referral version (keyed by delivery key). | _require_central() | raw: dict | receive_package (services/provider/app/main.py:503) |
+| POST | `/inbound/results` | Receive result. | _require_central() | body: ResultForward | receive_result (services/provider/app/main.py:598) |
+| POST | `/outbound-copies` | Store our own copy of a referral we sent, or of the response to it (idempotent by key). | _require_central() | body: SentCopyIn | receive_sent_copy (services/provider/app/main.py:621) |
 
 ##### incoming referrals
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/cases` | List cases. | _visible → _is_intake → has_any(clinic_staff, institution_admin); _visible → role clinician required; require_own(clinician, clinic_staff, institution_admin, what=see incoming referrals) |  | list_cases (services/provider/app/main.py:647) |
-| GET | `/cases/{case_id}` | Get case. | _get_case(); require_own(clinician, clinic_staff, institution_admin, what=see incoming referrals); role clinician required | case_id: int | get_case (services/provider/app/main.py:702) |
-| POST | `/cases/{case_id}/acknowledge` | Staff confirm the referral has been received here. | _get_case(); require_own(clinic_staff, institution_admin, what=acknowledge a referral) | case_id: int | acknowledge (services/provider/app/main.py:654) |
-| POST | `/cases/{case_id}/assign` | Staff send the referral to the doctor who will see the patient (can be changed until they decide). | _get_case(); require_own(clinic_staff, institution_admin, what=assign a referral) | case_id: int; body: AssignIn | assign (services/provider/app/main.py:675) |
+| GET | `/cases` | List cases. | _visible → _is_intake → has_any(clinic_staff, institution_admin); _visible → role clinician required; require_own(clinician, clinic_staff, institution_admin, what=see incoming referrals) |  | list_cases (services/provider/app/main.py:731) |
+| GET | `/cases/{case_id}` | Get case. | _get_case(); require_own(clinician, clinic_staff, institution_admin, what=see incoming referrals); role clinician required | case_id: int | get_case (services/provider/app/main.py:786) |
+| POST | `/cases/{case_id}/acknowledge` | Staff confirm the referral has been received here. | _get_case(); require_own(clinic_staff, institution_admin, what=acknowledge a referral) | case_id: int | acknowledge (services/provider/app/main.py:738) |
+| POST | `/cases/{case_id}/assign` | Staff send the referral to the doctor who will see the patient (can be changed until they decide). | _get_case(); require_own(clinic_staff, institution_admin, what=assign a referral) | case_id: int; body: AssignIn | assign (services/provider/app/main.py:759) |
 
 ##### intake
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| POST | `/intake/patient` | Staff here confirmed who an arriving patient is (through the central link request): the incoming referral and test orders for that request now point at this record. | require_own(clinic_staff, institution_admin, diagnostics_staff, what=confirm an arriving patient) | body: IntakeIn | intake_patient (services/provider/app/main.py:570) |
+| POST | `/intake/patient` | Staff here confirmed who an arriving patient is (through the central link request): the incoming referral and test orders for that request now point at this record. | require_own(clinic_staff, institution_admin, diagnostics_staff, what=confirm an arriving patient) | body: IntakeIn | intake_patient (services/provider/app/main.py:654) |
 
 ##### laboratory and imaging
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/orders` | List orders. | _require_diagnostics() |  | list_orders (services/provider/app/main.py:949) |
-| GET | `/orders/{order_id}` | Get order. | _get_order(); _require_diagnostics() | order_id: int | get_order (services/provider/app/main.py:956) |
-| POST | `/orders/{order_id}/accept` | Accept order. | _get_order(); _require_diagnostics() | order_id: int | accept_order (services/provider/app/main.py:973) |
-| GET | `/orders/{order_id}/attachments/{attachment_id}` | Order attachment. | _get_order(); _require_diagnostics() | order_id: int; attachment_id: int | order_attachment (services/provider/app/main.py:962) |
-| POST | `/orders/{order_id}/done` | Order done. | _get_order(); _require_diagnostics() | order_id: int | order_done (services/provider/app/main.py:1013) |
-| POST | `/orders/{order_id}/reject` | A rejection always carries a reason (wrong test, preparation needed, no capacity). | _get_order(); _require_diagnostics() | order_id: int; body: RejectIn | reject_order (services/provider/app/main.py:988) |
-| POST | `/orders/{order_id}/report` | Return the report (with images for scans). It is also filed in this institution's own records. | _get_order(); _require_diagnostics() | order_id: int; body: ReportIn | report_order (services/provider/app/main.py:1073) |
-| POST | `/orders/{order_id}/schedule` | Schedule order. | _get_order(); _require_diagnostics() | order_id: int; body: ScheduleIn | schedule_order (services/provider/app/main.py:1003) |
+| GET | `/orders` | List orders. | _require_diagnostics() |  | list_orders (services/provider/app/main.py:1033) |
+| GET | `/orders/{order_id}` | Get order. | _get_order(); _require_diagnostics() | order_id: int | get_order (services/provider/app/main.py:1040) |
+| POST | `/orders/{order_id}/accept` | Accept order. | _get_order(); _require_diagnostics() | order_id: int | accept_order (services/provider/app/main.py:1057) |
+| GET | `/orders/{order_id}/attachments/{attachment_id}` | Order attachment. | _get_order(); _require_diagnostics() | order_id: int; attachment_id: int | order_attachment (services/provider/app/main.py:1046) |
+| POST | `/orders/{order_id}/done` | Order done. | _get_order(); _require_diagnostics() | order_id: int | order_done (services/provider/app/main.py:1097) |
+| POST | `/orders/{order_id}/reject` | A rejection always carries a reason (wrong test, preparation needed, no capacity). | _get_order(); _require_diagnostics() | order_id: int; body: RejectIn | reject_order (services/provider/app/main.py:1072) |
+| POST | `/orders/{order_id}/report` | Return the report (with images for scans). It is also filed in this institution's own records. | _get_order(); _require_diagnostics() | order_id: int; body: ReportIn | report_order (services/provider/app/main.py:1157) |
+| POST | `/orders/{order_id}/schedule` | Schedule order. | _get_order(); _require_diagnostics() | order_id: int; body: ScheduleIn | schedule_order (services/provider/app/main.py:1087) |
+
+##### patient access
+
+| Method | Path | Purpose | Access checks | Parameters | Handler |
+|---|---|---|---|---|---|
+| GET | `/patient-access/records` | The patient's whole record at this institution: no referral window and stopped medicines included. | _own_patient_records → forbid(Only a patient account can read its own records here); _own_patient_records → forbid(This patient account has no CNIC, so no record can be matched to it); _own_patient_records → role patient required |  | patient_history (services/provider/app/main.py:460) |
+| GET | `/patient-access/summary` | Whether this institution holds records for the signed-in patient, and how many of each kind. | _own_patient_records → forbid(Only a patient account can read its own records here); _own_patient_records → forbid(This patient account has no CNIC, so no record can be matched to it); _own_patient_records → role patient required |  | patient_summary (services/provider/app/main.py:442) |
 
 ##### patients
 
@@ -4573,19 +4596,19 @@ Generated from the FastAPI route decorators. *Access checks* lists the authorisa
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| POST | `/cases/{case_id}/complete` | The referred doctor has finished with the referral. The shared records are removed 72 hours later. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int | complete_case (services/provider/app/main.py:871) |
-| POST | `/cases/{case_id}/decision` | Decide. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: DecisionIn | decide (services/provider/app/main.py:745) |
-| POST | `/cases/{case_id}/extend-hold` | The referred doctor needs the shared records for longer: kept for another 30 days from now. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: ExtendHoldIn | extend_hold (services/provider/app/main.py:891) |
-| POST | `/cases/{case_id}/info-requests` | Request info. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: InfoIn | request_info (services/provider/app/main.py:774) |
-| PUT | `/cases/{case_id}/response` | Save response. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: ResponseIn | save_response (services/provider/app/main.py:810) |
-| POST | `/cases/{case_id}/response/send` | The receiving doctor signs off and returns the response in one step. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: SendIn | send_response (services/provider/app/main.py:838) |
-| POST | `/outbox/{item_id}/retry` | Retry outbox. | require_own(clinician, diagnostics_staff, institution_admin, what=retry delivery) | item_id: int | retry_outbox (services/provider/app/main.py:1111) |
+| POST | `/cases/{case_id}/complete` | The referred doctor has finished with the referral. The shared records are removed 72 hours later. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int | complete_case (services/provider/app/main.py:955) |
+| POST | `/cases/{case_id}/decision` | Decide. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: DecisionIn | decide (services/provider/app/main.py:829) |
+| POST | `/cases/{case_id}/extend-hold` | The referred doctor needs the shared records for longer: kept for another 30 days from now. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: ExtendHoldIn | extend_hold (services/provider/app/main.py:975) |
+| POST | `/cases/{case_id}/info-requests` | Request info. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: InfoIn | request_info (services/provider/app/main.py:858) |
+| PUT | `/cases/{case_id}/response` | Save response. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: ResponseIn | save_response (services/provider/app/main.py:894) |
+| POST | `/cases/{case_id}/response/send` | The receiving doctor signs off and returns the response in one step. | _get_case(); _require_doctor → require_own(clinician, what=act on incoming referrals) | case_id: int; body: SendIn | send_response (services/provider/app/main.py:922) |
+| POST | `/outbox/{item_id}/retry` | Retry outbox. | require_own(clinician, diagnostics_staff, institution_admin, what=retry delivery) | item_id: int | retry_outbox (services/provider/app/main.py:1195) |
 
 ##### records
 
 | Method | Path | Purpose | Access checks | Parameters | Handler |
 |---|---|---|---|---|---|
-| GET | `/outbound-copies` | Our own copies for one referral (doctors and staff here). | require_own(clinician, clinic_staff, what=read our copies of sent referrals); role clinician required | referral_id: str | list_sent_copies (services/provider/app/main.py:553) |
+| GET | `/outbound-copies` | Our own copies for one referral (doctors and staff here). | require_own(clinician, clinic_staff, what=read our copies of sent referrals); role clinician required | referral_id: str | list_sent_copies (services/provider/app/main.py:637) |
 | GET | `/patients/{local_id}/activity` | When the patient was last seen here (visit, test or scan). Used to choose the most recently visited institution of each kind. | decide_access(); forbid() | local_id: str | patient_activity (services/provider/app/main.py:348) |
 
 ##### sharing
@@ -5436,10 +5459,10 @@ Every variable read with `os.environ.get`, `os.getenv` or a boolean helper, with
 | `GOOGLE_VISION_ENDPOINT` | `'https://vision.googleapis.com/v1/images:annotate'` |  | services/central/app/config.py:42 |
 | `INSTITUTION_ID` | `(required)` | drali \| chughtai \| ziauddin \| akuh | services/provider/app/config.py:6 |
 | `INSTITUTION_NAME` | `INSTITUTION` |  | services/provider/app/config.py:7 |
-| `INTROSPECT_TOKENS` | `True` |  | libs/common/refcommon/auth.py:68 |
-| `KEYCLOAK_INTERNAL_URL` | `'http://keycloak:8080'` |  | libs/common/refcommon/auth.py:63 |
-| `KEYCLOAK_PUBLIC_URL` | `'http://localhost:8080'` |  | libs/common/refcommon/auth.py:64 |
-| `KEYCLOAK_REALM` | `'referral'` |  | libs/common/refcommon/auth.py:65 |
+| `INTROSPECT_TOKENS` | `True` |  | libs/common/refcommon/auth.py:70 |
+| `KEYCLOAK_INTERNAL_URL` | `'http://keycloak:8080'` |  | libs/common/refcommon/auth.py:65 |
+| `KEYCLOAK_PUBLIC_URL` | `'http://localhost:8080'` |  | libs/common/refcommon/auth.py:66 |
+| `KEYCLOAK_REALM` | `'referral'` |  | libs/common/refcommon/auth.py:67 |
 | `LLM_API_KEY` | `''` |  | services/central/app/config.py:36 |
 | `LLM_BASE_URL` | `''` | openai_compatible: vLLM, Kimi or any other chat-completions server (…/v1) | services/central/app/config.py:35 |
 | `LLM_CONTEXT_TOKENS` | `'16384'` | local Ollama models | services/central/app/config.py:30 |
@@ -5462,8 +5485,8 @@ Every variable read with `os.environ.get`, `os.getenv` or a boolean helper, with
 | `REPO_ASSETS` | `'/srv/assets'` |  | services/central/app/config.py:16 |
 | `RUN_JOBS_INLINE` | `False` |  | services/central/app/config.py:63 |
 | `SEED_DATA_DIR` | `'/srv/seed-data/patients'` |  | services/provider/app/seed.py:24 |
-| `SERVICE_CLIENT_ID` | (none) |  | libs/common/refcommon/auth.py:66 |
-| `SERVICE_CLIENT_SECRET` | (none) |  | libs/common/refcommon/auth.py:67 |
+| `SERVICE_CLIENT_ID` | (none) |  | libs/common/refcommon/auth.py:68 |
+| `SERVICE_CLIENT_SECRET` | (none) |  | libs/common/refcommon/auth.py:69 |
 | `SOURCE_MAX_RETRIES` | `'2'` |  | services/central/app/config.py:19 |
 | `SOURCE_TIMEOUT_SECONDS` | `'10'` |  | services/central/app/config.py:18 |
 | `STORAGE_ROOT` | `'/data/documents'` |  | services/central/app/config.py:15 |
@@ -5587,6 +5610,7 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 | `incoming` | Incoming.tsx |
 | `legal` | LegalPages.tsx |
 | `orders` | Orders.tsx |
+| `patient` | PatientApp.tsx |
 | `referrals` | AuditTab.tsx, HoldNotice.tsx, Journey.tsx, LinksTab.tsx, MedicinesTab.tsx, NewReferral.tsx, RecordsTab.tsx, ReferralForm.tsx, ReferralList.tsx, ReferralWorkspace.tsx, RequestTab.tsx, ResponseTab.tsx, SendTab.tsx, TestsTab.tsx, steps.ts |
 | `rules` | MedicineNames.tsx, RulesPage.tsx |
 | `workqueue` | WorkQueue.tsx, queue.ts |
@@ -5637,6 +5661,7 @@ The menu is built from `GET /me`; it only hides screens. The API checks are the 
 | `diagnostics_staff` | Laboratory, imaging or ECG staff: test and scan orders |
 | `institution_admin` | Institution administrator (accounts, source access, audit; no clinical access) |
 | `rule_reviewer` | Clinical reviewer who approves medication rules and medicine names |
+| `patient` | Patient: sees their own referrals and reads their own records from each institution |
 | `svc_central` | Central platform service identity |
 | `svc_provider` | Institution service identity |
 
@@ -5688,6 +5713,11 @@ A user's institution is their top-level group; the department is the subgroup.
 | lab.chughtai | diagnostics_staff | /chughtai/laboratory |
 | rad.chughtai | diagnostics_staff | /chughtai/radiology |
 | staff.chughtai | clinic_staff | /chughtai |
+| rubina.akhtar | patient |  |
+| muhammad.tariq.mahmood | patient |  |
+| abdul.rehman.gondal | patient |  |
+| shazia.parveen | patient |  |
+| imtiaz.ali.soomro | patient |  |
 
 #### Token and session settings
 
@@ -5837,7 +5867,7 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 
 ### Automated tests
 
-113 tests in 21 files.
+116 tests in 22 files.
 
 #### `services/central/tests/test_ai_suggestions.py` (unit (no services), 4)
 
@@ -6010,6 +6040,14 @@ _Generated from the code by `scripts/sds/build_sds.py`. Do not edit by hand._
 |---|---|
 | `test_register_brand_and_choosing_an_ambiguous_one_by_company` |  |
 
+#### `tests/test_patient_access.py` (integration (full stack), 3)
+
+| Test | What it checks |
+|---|---|
+| `test_patient_sees_own_referrals_only` |  |
+| `test_patient_reads_own_records_from_each_institution` |  |
+| `test_patient_endpoints_refuse_everyone_else_and_staff_endpoints_refuse_patients` |  |
+
 #### `tests/test_referral_expiry.py` (integration (full stack), 2)
 
 | Test | What it checks |
@@ -6078,6 +6116,7 @@ Design decisions taken after the SRS, newest last. Each record states what was d
 | [2026-10-28-referral-expiry](../decisions/2026-10-28-referral-expiry.md) | Decision: a referral's shared records expire when the referred doctor has finished with it | decided by the project lead on 2026-10-28. Built and tested the same day. |
 | [2026-10-28-retrieval-all-sources](../decisions/2026-10-28-retrieval-all-sources.md) | Decision: retrieve from every linked institution, with limits by count and specialty | agreed by the project team (reported by the project lead on 2026-10-28). Step 1 is built. Steps 2 to 4 are planned. |
 | [2026-10-29-doctor-only-clinical-content](../decisions/2026-10-29-doctor-only-clinical-content.md) | Decision: only doctors see clinical content; the doctor reviews the referral packet | decided by the project lead on 2026-10-29, for the whole team. Built and tested the same day. |
+| [2026-10-29-patient-view](../decisions/2026-10-29-patient-view.md) | Decision: patient accounts and a patient view | requested by the project lead for the MVP defence, following the supervisor's guidance. Built on |
 
 ### Non-negotiable invariants (from `AGENTS.md`)
 

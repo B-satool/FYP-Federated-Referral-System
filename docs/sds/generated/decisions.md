@@ -14,6 +14,7 @@ Design decisions taken after the SRS, newest last. Each record states what was d
 | [2026-10-28-referral-expiry](../decisions/2026-10-28-referral-expiry.md) | Decision: a referral's shared records expire when the referred doctor has finished with it | decided by the project lead on 2026-10-28. Built and tested the same day. |
 | [2026-10-28-retrieval-all-sources](../decisions/2026-10-28-retrieval-all-sources.md) | Decision: retrieve from every linked institution, with limits by count and specialty | agreed by the project team (reported by the project lead on 2026-10-28). Step 1 is built. Steps 2 to 4 are planned. |
 | [2026-10-29-doctor-only-clinical-content](../decisions/2026-10-29-doctor-only-clinical-content.md) | Decision: only doctors see clinical content; the doctor reviews the referral packet | decided by the project lead on 2026-10-29, for the whole team. Built and tested the same day. |
+| [2026-10-29-patient-view](../decisions/2026-10-29-patient-view.md) | Decision: patient accounts and a patient view | requested by the project lead for the MVP defence, following the supervisor's guidance. Built on |
 
 ## Non-negotiable invariants (from `AGENTS.md`)
 

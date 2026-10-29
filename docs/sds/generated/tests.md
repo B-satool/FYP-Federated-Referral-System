@@ -1,6 +1,6 @@
 ## Automated tests
 
-113 tests in 21 files.
+116 tests in 22 files.
 
 ### `services/central/tests/test_ai_suggestions.py` (unit (no services), 4)
 
@@ -172,6 +172,14 @@
 | Test | What it checks |
 |---|---|
 | `test_register_brand_and_choosing_an_ambiguous_one_by_company` |  |
+
+### `tests/test_patient_access.py` (integration (full stack), 3)
+
+| Test | What it checks |
+|---|---|
+| `test_patient_sees_own_referrals_only` |  |
+| `test_patient_reads_own_records_from_each_institution` |  |
+| `test_patient_endpoints_refuse_everyone_else_and_staff_endpoints_refuse_patients` |  |
 
 ### `tests/test_referral_expiry.py` (integration (full stack), 2)
 

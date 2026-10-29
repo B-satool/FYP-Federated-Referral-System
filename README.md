@@ -86,7 +86,7 @@ python scripts/onboard_participants.py
 .\scripts\reset-and-seed.ps1 -Force   # macOS/Linux: sh scripts/reset-and-seed.sh --force
 ```
 
-**Device keys:** the first time a doctor or patient opens records, they set up a device key with a passphrase (at least 10 characters). The keys stay in that browser; another browser or a cleared one needs **Restore from backup** or a replacement key (records from institutions are fetched again; items only on the platform are then lost unless the patient has a copy).
+**Device keys are automatic:** the first time a doctor or patient signs in on a browser, it creates their keys (no set-up step, no passphrase), and every later sign-in loads them. The private keys never leave that browser. Signing in on another browser creates a new key that replaces the old one: records from institutions can be requested again, while items that existed only on the platform stay readable only with the old key (or from the patient's copy).
 
 Open **http://localhost:3000**, click **Sign in with your institution account**, and use an account from section 3.
 
@@ -189,13 +189,13 @@ Everything works without these. Change `.env`, then `docker compose up -d centra
 
 **P1 Rubina Akhtar → Aga Khan, Dentistry, surgical removal of a wisdom tooth.** Use a separate private window per person.
 
-1. **Device keys** (once per browser): `dr.ali` and `dr.faisal` (Aga Khan dentistry) → **Device key** → **Set up device key**; the patient `rubina.akhtar` → **Profile** → **Set up device key**. Passphrases of at least 10 characters.
+1. **Sign in** as `dr.faisal` (Aga Khan dentistry) once before Dr Ali signs: his first sign-in creates his device key automatically, which also creates the dentistry department's key. Doctors and the patient never set up keys by hand.
 2. **Dr Ali**: **New request** → **Refer to a doctor or department** → *Rubina* → Aga Khan University Hospital, Dentistry → reason → **A procedure is planned** → *Surgical removal of impacted lower wisdom tooth* → **Submit request**.
 3. **Hina** (`staff.ali`): **Consent & records** → **Ask the patient for consent**.
 4. **Rubina** (patient app): **Permissions** → open the request → **Agree and sign** (signed on her phone).
 5. **Hina**: **Request records**. Each institution answers under its own policy: records (encrypted), or a refusal with its reason (her psychiatric record is held back without specific consent). Hina sees titles only.
 6. **Dr Ali**:
-   - **Consent & records**: unlock the device key; the records are decrypted on his device, and the ticks start from the default selection. **Suggest with AI** (optional) shows exactly what is sent first.
+   - **Consent & records**: the records are decrypted on his device, and the ticks start from the default selection. **Suggest with AI** (optional) shows exactly what is sent first.
    - **Medicines & flags**: enter what the patient takes (e.g. *Disprin 75mg*, *Plavix 75 mg*; *Glare* asks which company's product it is). Flags from DDInter appear, checked on the device; choose **Ignore** or **Research**, then **Save the list**.
    - **Papers**: add a photo, **Read it on this device**, and correct the medicines.
    - **Approve & sign**: write notes for the specialist (share them with the patient or not), then **Approve and sign**.

@@ -2,6 +2,15 @@
 
 Newest first. Each version is frozen in `versions/`.
 
+## v2.1.0 (2026-10-30)
+
+Device keys are created and loaded automatically on sign-in (non-extractable, no passphrase); key registrations serialised at each hospital
+
+Structural changes found automatically:
+
+- Decision record added: `[2026-10-30-automatic-device-keys](../decisions/2026-10-30-automatic-device-keys.md)`
+- Written sections changed: 01-introduction.md, 02-system-overview.md, 03-architectural-drivers.md, 04-architecture.md, 05-data-architecture.md, 06-component-design.md, 07-workflows.md, 08-security.md, 09-ai-design.md, 10-medication-flagging.md, 11-interfaces.md, 12-reliability.md, 13-quality-attributes.md, 14-deployment-operations.md, 15-testing.md, 16-limitations-and-risks.md, 17-maintaining-this-document.md, 18-architecture-spec-v4.md
+
 ## v2.0.0 (2026-10-30)
 
 Architecture spec v4: end-to-end encrypted referrals. WP5 to WP11 finished on Sumaiya's WP0 to WP4: signed packages re-wrapped to the receiving department and the patient, titles-only notices, the receiving hospital's own records, the AI relay (de-identified, on request, no content logging), browser Layer 1 flags from a hash-checked bundle with Layer 2 AI suggestions and no drug-procedure table, papers read on the device, reminders and capped extensions with crypto-shredding and purge receipts, the patient's verified copy, and an append-only hash-chained audit trail. New section 18.

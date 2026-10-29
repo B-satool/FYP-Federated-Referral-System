@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from refcommon import e2e
 from refcommon.auth import Principal, forbid
 from refcommon.sourcekit import record_audit
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from . import keys, m2m, policy
@@ -26,6 +26,14 @@ class RegisterKeyIn(BaseModel):
 
 class RevokeIn(BaseModel):
     reason: str = Field(min_length=3)
+
+
+def serialize_key_changes(db: Session) -> None:
+    """One key change at a time at this institution (PostgreSQL advisory lock, released at commit). Keys are created
+    automatically on sign-in, so two requests can arrive together (a page reloaded mid-set-up); without this, both
+    could create a department's first group key."""
+    if db.bind.dialect.name == "postgresql":
+        db.execute(text("SELECT pg_advisory_xact_lock(7311012)"))
 
 
 def build_router(get_db, get_principal) -> APIRouter:
@@ -53,6 +61,7 @@ def build_router(get_db, get_principal) -> APIRouter:
                             principal: Principal = Depends(get_principal)):
         """A doctor's new public keys (generated on their device), with proof of possession."""
         require_clinician(principal)
+        serialize_key_changes(db)
         problem = keys.check_registration(body.registration, principal.subject)
         if problem:
             record_audit(db, AuditEvent, principal, "keys.register", "doctor_key", principal.subject, "rejected",
@@ -97,6 +106,7 @@ def build_router(get_db, get_principal) -> APIRouter:
     @router.post("/e2e/keys/doctors/{key_row_id}/approve")
     def approve_doctor_key(key_row_id: int, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
         require_admin(principal)
+        serialize_key_changes(db)
         doctor = db.get(DoctorKey, key_row_id)
         if doctor is None:
             raise HTTPException(404, {"code": "not_found", "message": "No such key"})
@@ -115,6 +125,7 @@ def build_router(get_db, get_principal) -> APIRouter:
         """The doctor left the department (or the key is compromised): a signed revocation, and the department
         group key is rotated so new referrals use a version the doctor never had."""
         require_admin(principal)
+        serialize_key_changes(db)
         doctor = db.get(DoctorKey, key_row_id)
         if doctor is None:
             raise HTTPException(404, {"code": "not_found", "message": "No such key"})
@@ -130,6 +141,7 @@ def build_router(get_db, get_principal) -> APIRouter:
     def rotate_department_key(department: str, body: RevokeIn, db: Session = Depends(get_db),
                               principal: Principal = Depends(get_principal)):
         require_admin(principal)
+        serialize_key_changes(db)
         row = keys.rotate_group(db, department)
         record_audit(db, AuditEvent, principal, "keys.group_rotate", "department", department, "success",
                      detail={"version": row.version, "reason": body.reason.strip()})

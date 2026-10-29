@@ -98,6 +98,13 @@ export async function generateSigningKeyPair(): Promise<CryptoKeyPair> {
   return subtle.generateKey(SIG, true, ["sign", "verify"]) as Promise<CryptoKeyPair>;
 }
 
+/** Device keys: the private halves are non-extractable from the start (the public halves are always exportable). */
+export async function generateDeviceKeyPairs(): Promise<{ enc: CryptoKeyPair; sig: CryptoKeyPair }> {
+  const enc = (await subtle.generateKey(EC, false, ["deriveBits"])) as CryptoKeyPair;
+  const sig = (await subtle.generateKey(SIG, false, ["sign", "verify"])) as CryptoKeyPair;
+  return { enc, sig };
+}
+
 export async function exportSpki(key: CryptoKey): Promise<string> {
   return b64e(await subtle.exportKey("spki", key));
 }

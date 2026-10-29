@@ -47,7 +47,7 @@ No cryptography is written by hand: every primitive is a library call. libsodium
 |---|---|---|---|
 | Hospital signing key (ECDSA) | Each institution's adapter, on first start | The adapter's key store (its own database, encrypted with the adapter's `ADAPTER_KEY_SECRET`) | Exchanged directly between adapters at onboarding (`scripts/onboard_participants.py`) and registered with the platform |
 | Platform signing key (ECDSA, ES256) | The platform, on first start | The platform's key store | Published at `/.well-known/jwks.json`; adapters pin it at onboarding |
-| Doctor encryption key (ECDH) and signing key (ECDSA) | The doctor's browser | The doctor's device: IndexedDB, as a passphrase-encrypted PKCS#8 blob, unlocked into non-extractable keys for the session | Directory entry, signed by the doctor's hospital |
+| Doctor encryption key (ECDH) and signing key (ECDSA) | The doctor's browser | The doctor's device: IndexedDB, as non-extractable `CryptoKey` objects created there (usable in that browser, never readable, even by the app) | Directory entry, signed by the doctor's hospital |
 | Department group key (ECDH) | The receiving hospital's adapter | The adapter (the hospital's own system holds a member copy by policy), and each member doctor, wrapped to their encryption key | Directory entry, signed by the hospital |
 | Patient key (ECDH and ECDSA) | The patient's browser (patient portal) | The patient's device | Directory entry, signed by the platform when the logged-in patient registers it |
 
@@ -58,4 +58,4 @@ No cryptography is written by hand: every primitive is a library call. libsodium
 
 ## Unlock UX
 
-Logging in (Keycloak) proves who you are. The device key decrypts the data. A doctor sets a passphrase once, on first use on a device. The keys are generated in the browser, and only the public keys leave the device: they are signed by the hospital and published. On later visits, the doctor types the passphrase to unlock the keys for that session. Backup: the encrypted key blob can be downloaded as a file and restored on another device with the passphrase.
+Logging in (Keycloak) proves who you are; the device key decrypts the data. **There is no set-up step and no passphrase** (decision 2026-10-30, `docs/decisions/2026-10-30-automatic-device-keys.md`). The first time a doctor or patient signs in on a browser, it generates their key pairs there, non-extractable, stores them in IndexedDB and registers the public halves (the hospital signs a doctor's by policy, the platform a patient's). Every later visit loads them with no prompt. Signing in on another browser or device creates a key there that replaces the earlier one; there is no backup file, because a non-extractable key cannot be exported. Concurrent registrations are serialised at the hospital, and a browser left holding a replaced key creates a new one on its next load.

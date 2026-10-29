@@ -29,8 +29,9 @@ demographics for matching. The threat model and its limits are in `docs/security
 
 ## 18.3 Keys and the directory
 
-Doctors' and patients' key pairs are created in the browser and kept in IndexedDB, sealed with a passphrase (PBKDF2
-600,000 iterations, AES-256-GCM). Only public keys leave the device. Hospitals sign their doctors' and departments'
+Doctors' and patients' key pairs are created automatically in the browser on first sign-in, as non-extractable keys kept
+in IndexedDB, and loaded on every later visit with no prompt (decision 2026-10-30, automatic device keys). Only public
+keys leave the device. A new browser gets a new key that replaces the earlier one. Hospitals sign their doctors' and departments'
 directory entries; the platform signs patients'. Every client and adapter verifies an entry against the issuer's key
 pinned at onboarding (`infra/participants/participants.json`, `scripts/onboard_participants.py`) before encrypting to
 it. Department group keys are held by the hospital's adapter and wrapped to each member doctor; a leaver triggers

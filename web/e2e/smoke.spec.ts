@@ -11,7 +11,6 @@ import { asUser, closeContexts, PASSWORD, shot } from "./helpers";
 
 // tests run from web/
 const SCAN = path.resolve("../seed-data/documents/imaging/synthetic_mri-knee-coronal.png");
-const PASSPHRASE = "correct horse battery staple";
 
 test.afterEach(async () => {
   await closeContexts();
@@ -43,23 +42,10 @@ async function registerNew(page: Page, note: string) {
   await expect(page.getByText(/Patient confirmed/).first()).toBeVisible({ timeout: 30_000 });
 }
 
-/** Set up the device key (first time) or unlock it (after a page load), wherever the key panel is shown. */
+/** The device key is created (first sign-in on this browser) or loaded automatically: wait until it is ready. */
 async function deviceKey(page: Page) {
-  const setup = page.getByRole("button", { name: "Set up device key" });
-  const unlock = page.getByRole("button", { name: "Unlock" });
-  await expect(setup.or(unlock).first()).toBeVisible({ timeout: 30_000 });
-  if (await setup.isVisible()) {
-    await setup.click();
-    await page.getByLabel("Passphrase", { exact: true }).fill(PASSPHRASE);
-    await page.getByLabel("Passphrase again").fill(PASSPHRASE);
-  } else {
-    await unlock.first().click();
-    await page.getByLabel("Passphrase", { exact: true }).fill(PASSPHRASE);
-  }
-  await page.getByRole("button", { name: "Continue" }).click();
-  // the dialog closes once the keys are unlocked (the compact panel then disappears where records are shown)
-  await expect(page.getByLabel("Passphrase", { exact: true })).toHaveCount(0, { timeout: 60_000 });
-  await expect(page.getByRole("button", { name: "Set up device key" }).or(page.getByRole("button", { name: "Unlock" }))).toHaveCount(0);
+  await expect(page.getByText("Preparing this device's key…")).toHaveCount(0, { timeout: 60_000 });
+  await expect(page.getByText("Not ready")).toHaveCount(0);
 }
 
 async function api(user: string): Promise<APIRequestContext> {
@@ -87,10 +73,10 @@ test("v4 referral: keys, consent in the portal, decrypt, sign, send, the receive
   // Device keys: the referring doctor, a dentist at the receiving department (its group key), the patient.
   const dr = await asUser(browser, "dr.ali");
   await go(dr, "/keys");
-  await deviceKey(dr);
+  await expect(dr.getByText("Ready, signed")).toBeVisible({ timeout: 60_000 }); // no set-up step: created on sign-in
   const dentist = await asUser(browser, "dr.faisal");
   await go(dentist, "/keys");
-  await deviceKey(dentist);
+  await expect(dentist.getByText("Ready, signed")).toBeVisible({ timeout: 60_000 });
   const patient = await asUser(browser, "rubina.akhtar");
   await patient.getByRole("button", { name: "Profile" }).click();
   await deviceKey(patient);

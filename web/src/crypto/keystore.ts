@@ -10,8 +10,13 @@ export type DeviceKeyRecord = {
   kind: "doctor" | "patient";
   enc_public: string;
   sig_public: string;
-  enc_blob: PassphraseBlob; // PKCS#8 of the encryption private key, sealed with the passphrase
-  sig_blob: PassphraseBlob;
+  // Automatic device keys (2026-10-30): the private keys themselves, created non-extractable in this browser and
+  // stored by IndexedDB as CryptoKey objects. They can be used here but never read out, even by this app's own code.
+  enc_key?: CryptoKey;
+  sig_key?: CryptoKey;
+  // Earlier passphrase-sealed keys (PKCS#8, PBKDF2 + AES-GCM), still opened with the passphrase if present
+  enc_blob?: PassphraseBlob;
+  sig_blob?: PassphraseBlob;
   created_at: string;
   entry?: DirectoryEntry | null; // the signed directory entry once issued
 };

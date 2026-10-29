@@ -15,6 +15,7 @@ Design decisions taken after the SRS, newest last. Each record states what was d
 | [2026-10-28-retrieval-all-sources](../decisions/2026-10-28-retrieval-all-sources.md) | Decision: retrieve from every linked institution, with limits by count and specialty | agreed by the project team (reported by the project lead on 2026-10-28). Step 1 is built. Steps 2 to 4 are planned. |
 | [2026-10-29-doctor-only-clinical-content](../decisions/2026-10-29-doctor-only-clinical-content.md) | Decision: only doctors see clinical content; the doctor reviews the referral packet | decided by the project lead on 2026-10-29, for the whole team. Built and tested the same day. |
 | [2026-10-29-patient-view](../decisions/2026-10-29-patient-view.md) | Decision: patient accounts and a patient view | requested by the project lead for the MVP defence, following the supervisor's guidance. Built on |
+| [2026-10-30-automatic-device-keys](../decisions/2026-10-30-automatic-device-keys.md) | Device keys are created and unlocked automatically (no passphrase) | decided; it changes spec v4 5.3 ("unlocked with the doctor's passphrase/biometric on that device"). |
 
 ## Non-negotiable invariants (from `AGENTS.md`)
 

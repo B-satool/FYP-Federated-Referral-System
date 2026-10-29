@@ -1,8 +1,8 @@
 {
   "fingerprints": {
-    "sections": "10d390901f5e37c78b1bc43e08ecf78dce1eaa119a900d3bb5f0259bb902987b",
-    "source": "24af5749843bb5f1d434b6c9d869727e440db6ebfedcb386668ea8bc2ee3d5d1",
-    "structure": "42abfbc3e696f490d93db693cbb59dd27a10807164b3abc586879d8e09b06fa4"
+    "sections": "83ec501a1363b6c789a3e9ee4633f620ed452e2143c19a0a4b7d0ee5868253eb",
+    "source": "0986d34fcf6f8de85d41eb802d8fc7b544817680aa2e40ed36511d57d781f139",
+    "structure": "ebe2af2adfb640e0782f608cae7129c96b2c2ac8745416494ce1b950c889f148"
   },
   "history": [
     {
@@ -40,6 +40,12 @@
       "date": "2026-10-30",
       "summary": "Architecture spec v4: end-to-end encrypted referrals. WP5 to WP11 finished on Sumaiya's WP0 to WP4: signed packages re-wrapped to the receiving department and the patient, titles-only notices, the receiving hospital's own records, the AI relay (de-identified, on request, no content logging), browser Layer 1 flags from a hash-checked bundle with Layer 2 AI suggestions and no drug-procedure table, papers read on the device, reminders and capped extensions with crypto-shredding and purge receipts, the patient's verified copy, and an append-only hash-chained audit trail. New section 18.",
       "version": "2.0.0"
+    },
+    {
+      "changes": 2,
+      "date": "2026-10-30",
+      "summary": "Device keys are created and loaded automatically on sign-in (non-extractable, no passphrase); key registrations serialised at each hospital",
+      "version": "2.1.0"
     }
   ],
   "inventory": {
@@ -83,7 +89,8 @@
       "[2026-10-28-referral-expiry](../decisions/2026-10-28-referral-expiry.md)",
       "[2026-10-28-retrieval-all-sources](../decisions/2026-10-28-retrieval-all-sources.md)",
       "[2026-10-29-doctor-only-clinical-content](../decisions/2026-10-29-doctor-only-clinical-content.md)",
-      "[2026-10-29-patient-view](../decisions/2026-10-29-patient-view.md)"
+      "[2026-10-29-patient-view](../decisions/2026-10-29-patient-view.md)",
+      "[2026-10-30-automatic-device-keys](../decisions/2026-10-30-automatic-device-keys.md)"
     ],
     "dependencies": {
       "libs/common/pyproject.toml": [
@@ -2098,5 +2105,5 @@
     ]
   },
   "released": "2026-10-30",
-  "version": "2.0.0"
+  "version": "2.1.0"
 }

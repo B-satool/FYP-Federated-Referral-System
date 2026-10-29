@@ -21,6 +21,10 @@ key or anyone's private key; its own signing key is the only private key it keep
 
 - **A compromised doctor's device, or malware on it,** sees what that doctor decrypts. A doctor can copy or
   photograph what they read.
+- **Device keys need no passphrase** (decision 2026-10-30). Anyone who can use the doctor's browser profile and sign in
+  as the doctor can read what the doctor can. The key itself cannot be copied out of the browser (it is
+  non-extractable). Use personal, locked devices. One device per doctor at a time: a new browser gets a new key and
+  the earlier one is revoked.
 - **The browser application is served by the platform.** A malicious platform could ship altered client code. The
   application is not signed or integrity-checked independently of the server.
 - **Metadata is visible to the platform:** who referred whom, when, the department, the urgency, the reason for

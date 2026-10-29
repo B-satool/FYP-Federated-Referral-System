@@ -2,13 +2,13 @@
 
 | | |
 |---|---|
-| Document version | **v2.0.0** |
+| Document version | **v2.1.0** |
 | Released | 2026-10-30 |
 | System | Federated referral preparation and follow-through platform (FYP), v2 code base |
 | Status | Living document: regenerated from the code on every change, frozen per release in `docs/sds/versions/` |
-| Structure fingerprint | `42abfbc3e696f490` |
-| Written-sections fingerprint | `10d390901f5e37c7` |
-| Source fingerprint | `24af5749843bb5f1` |
+| Structure fingerprint | `ebe2af2adfb640e0` |
+| Written-sections fingerprint | `83ec501a1363b6c7` |
+| Source fingerprint | `0986d34fcf6f8de8` |
 | Maintained by | The project team. See section 17 for how to update and release it. |
 
 ## Contents
@@ -2055,8 +2055,9 @@ demographics for matching. The threat model and its limits are in `docs/security
 
 ## 18.3 Keys and the directory
 
-Doctors' and patients' key pairs are created in the browser and kept in IndexedDB, sealed with a passphrase (PBKDF2
-600,000 iterations, AES-256-GCM). Only public keys leave the device. Hospitals sign their doctors' and departments'
+Doctors' and patients' key pairs are created automatically in the browser on first sign-in, as non-extractable keys kept
+in IndexedDB, and loaded on every later visit with no prompt (decision 2026-10-30, automatic device keys). Only public
+keys leave the device. A new browser gets a new key that replaces the earlier one. Hospitals sign their doctors' and departments'
 directory entries; the platform signs patients'. Every client and adapter verifies an entry against the issuer's key
 pinned at onboarding (`infra/participants/participants.json`, `scripts/onboard_participants.py`) before encrypting to
 it. Department group keys are held by the hospital's adapter and wrapped to each member doctor; a leaver triggers
@@ -7100,6 +7101,7 @@ Design decisions taken after the SRS, newest last. Each record states what was d
 | [2026-10-28-retrieval-all-sources](../decisions/2026-10-28-retrieval-all-sources.md) | Decision: retrieve from every linked institution, with limits by count and specialty | agreed by the project team (reported by the project lead on 2026-10-28). Step 1 is built. Steps 2 to 4 are planned. |
 | [2026-10-29-doctor-only-clinical-content](../decisions/2026-10-29-doctor-only-clinical-content.md) | Decision: only doctors see clinical content; the doctor reviews the referral packet | decided by the project lead on 2026-10-29, for the whole team. Built and tested the same day. |
 | [2026-10-29-patient-view](../decisions/2026-10-29-patient-view.md) | Decision: patient accounts and a patient view | requested by the project lead for the MVP defence, following the supervisor's guidance. Built on |
+| [2026-10-30-automatic-device-keys](../decisions/2026-10-30-automatic-device-keys.md) | Device keys are created and unlocked automatically (no passphrase) | decided; it changes spec v4 5.3 ("unlocked with the doctor's passphrase/biometric on that device"). |
 
 ### Non-negotiable invariants (from `AGENTS.md`)
 

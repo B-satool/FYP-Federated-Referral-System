@@ -1,19 +1,23 @@
 /**
- * The signed-in user's device keys for this browser session.
+ * The signed-in user's device keys (spec v4 5.3), set up and unlocked automatically.
  *
- * "Your login proves who you are; your device key decrypts the data." Keycloak sign-in gives a session; reading
- * records needs the private keys kept on this device, sealed with the user's passphrase. Unlocking imports them as
- * non-extractable keys held only in this tab's memory; they are never sent anywhere. Doctors also receive their
- * departments' group keys (wrapped to their own key) when they unlock.
+ * "Your login proves who you are; your device key decrypts the data." The first time a doctor or patient signs in on a
+ * browser, it creates their key pairs there, non-extractable (they can be used in this browser but never read out,
+ * even by this app), stores them in IndexedDB and registers the public halves: the doctor's hospital signs them by
+ * policy, the platform signs a patient's. On every later visit they are loaded and used with no prompt. Nothing private
+ * leaves the browser. Doctors also receive their departments' group keys, wrapped to their own key.
+ *
+ * Signing in on another browser or device creates a key there, which replaces the earlier one (the hospital revokes it
+ * and tells its administrators). Records from institutions can be requested again for the new key; items that existed
+ * only on the platform stay readable only with the old key (or from the patient's copy).
  */
-import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { api, Service } from "../api/client";
 import { useMe, hasRole } from "../hooks";
 import { DirectoryRow, verifiedEntry } from "./directory";
-import { backupFile, DeviceKeyRecord, loadDeviceKeys, parseBackup, saveDeviceKeys } from "./keystore";
+import { DeviceKeyRecord, loadDeviceKeys, saveDeviceKeys } from "./keystore";
 import {
-  DirectoryEntry, exportPkcs8, exportSpki, generateEncryptionKeyPair, generateSigningKeyPair, groupContext,
-  importEncPrivate, importSigPrivate, keyId, openWithPassphrase, publicFromPkcs8, sealWithPassphrase, signObject,
+  DirectoryEntry, exportSpki, generateDeviceKeyPairs, groupContext, importEncPrivate, keyId, publicFromPkcs8, signObject,
   unwrap, Wrapped,
 } from "./suite";
 
@@ -27,7 +31,8 @@ export type UnlockedKeys = {
   groups: Map<string, CryptoKey>; // "hospital|department|version" -> group private key
 };
 
-type Status = "loading" | "unavailable" | "none" | "locked" | "unlocked";
+/** loading: not known yet; preparing: creating or loading this device's key; failed: could not (retry offered) */
+type Status = "loading" | "unavailable" | "preparing" | "failed" | "unlocked";
 
 type DeviceKeys = {
   status: Status;
@@ -37,24 +42,27 @@ type DeviceKeys = {
   keys: UnlockedKeys | null;
   /** server-side state of the key: active (signed), pending (waits for an administrator), revoked, or none */
   keyState: string | null;
-  setup: (passphrase: string, recovery?: boolean) => Promise<void>;
-  unlock: (passphrase: string) => Promise<void>;
-  lock: () => void;
-  downloadBackup: () => void;
-  restore: (fileText: string, passphrase: string) => Promise<void>;
+  error: string | null;
+  /** create a new key on this device (replacing any other); runs automatically, offered again after a failure */
+  setup: (recovery?: boolean) => Promise<void>;
   groupKey: (hospital: string, department: string, version: number) => CryptoKey | null;
   refresh: () => Promise<void>;
 };
 
 const Ctx = createContext<DeviceKeys | null>(null);
 const REGISTRATION = "refx.key.registration/v1";
-const MIN_PASSPHRASE = 10;
 
 type MyDirectory = {
   subject_id: string;
   entries: DirectoryRow[];
   group_wraps: { hospital_id: string; department: string; group_version: number; member_key_id: string; wrapped: Wrapped }[];
 };
+
+/** One tab at a time creates a key, so two tabs opened together do not register two keys. */
+function withDeviceLock<T>(fn: () => Promise<T>): Promise<T> {
+  const locks = (navigator as Navigator & { locks?: { request: (name: string, cb: () => Promise<T>) => Promise<T> } }).locks;
+  return locks ? locks.request("refx-device-key", fn) : fn();
+}
 
 export function DeviceKeysProvider({ children }: { children: ReactNode }) {
   const { data: me } = useMe();
@@ -64,22 +72,8 @@ export function DeviceKeysProvider({ children }: { children: ReactNode }) {
   const [keys, setKeys] = useState<UnlockedKeys | null>(null);
   const [status, setStatus] = useState<Status>("loading");
   const [keyState, setKeyState] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!me) return;
-    if (!kind) {
-      setStatus("unavailable");
-      return;
-    }
-    if (!globalThis.crypto?.subtle || !("indexedDB" in globalThis)) {
-      setStatus("unavailable");
-      return;
-    }
-    loadDeviceKeys(me.id).then((rec) => {
-      setRecord(rec ?? null);
-      setStatus(rec ? "locked" : "none");
-    }, () => setStatus("unavailable"));
-  }, [me, kind]);
+  const [error, setError] = useState<string | null>(null);
+  const started = useRef(false);
 
   const serverState = useCallback(async (encKeyId: string | null): Promise<{ state: string | null; dir: MyDirectory | null }> => {
     const dir = await api.get<MyDirectory>("/e2e/directory/me").catch(() => null);
@@ -104,6 +98,7 @@ export function DeviceKeysProvider({ children }: { children: ReactNode }) {
         const entry = row ? await verifiedEntry({ ...row, revocation: null, revoked: false }) : null;
         if (!entry || entry.enc_public_key !== (await publicFromPkcs8(pkcs8))) continue;
         groups.set(`${w.hospital_id}|${w.department}|${w.group_version}`, await importEncPrivate(pkcs8));
+        pkcs8.fill(0);
       } catch {
         /* a wrap that does not open or does not match is ignored */
       }
@@ -111,21 +106,17 @@ export function DeviceKeysProvider({ children }: { children: ReactNode }) {
     return groups;
   }, []);
 
-  const activate = useCallback(async (rec: DeviceKeyRecord, passphrase: string) => {
-    const encPkcs8 = await openWithPassphrase(passphrase, rec.enc_blob);
-    const sigPkcs8 = await openWithPassphrase(passphrase, rec.sig_blob);
-    const encPrivate = await importEncPrivate(encPkcs8);
-    const sigPrivate = await importSigPrivate(sigPkcs8);
-    encPkcs8.fill(0);
-    sigPkcs8.fill(0);
+  const activate = useCallback(async (rec: DeviceKeyRecord) => {
     const encKeyId = await keyId(rec.enc_public);
     const { state, dir } = await serverState(encKeyId);
     const row = dir?.entries.find((r) => r.entry.enc_key_id === encKeyId && !r.revoked);
     const entry = row ? await verifiedEntry(row).catch(() => null) : null;
-    const groups = kind === "doctor" ? await loadGroups(dir, encPrivate, encKeyId) : new Map<string, CryptoKey>();
-    setKeys({ encPrivate, sigPrivate, encPublic: rec.enc_public, sigPublic: rec.sig_public, encKeyId, entry, groups });
+    const groups = kind === "doctor" ? await loadGroups(dir, rec.enc_key!, encKeyId) : new Map<string, CryptoKey>();
+    setKeys({ encPrivate: rec.enc_key!, sigPrivate: rec.sig_key!, encPublic: rec.enc_public, sigPublic: rec.sig_public,
+      encKeyId, entry, groups });
     setKeyState(state);
     setStatus("unlocked");
+    return state;
   }, [kind, loadGroups, serverState]);
 
   const register = useCallback(async (encPublic: string, sigPublic: string, sigPrivate: CryptoKey, recovery: boolean) => {
@@ -140,59 +131,53 @@ export function DeviceKeysProvider({ children }: { children: ReactNode }) {
     }
   }, [kind, me, subjectId]);
 
-  const setup = useCallback(async (passphrase: string, recovery = false) => {
+  const setup = useCallback(async (recovery = false) => {
     if (!me || !kind) throw new Error("This account does not hold keys");
-    if (passphrase.length < MIN_PASSPHRASE) throw new Error(`Use a passphrase of at least ${MIN_PASSPHRASE} characters`);
-    const encPair = await generateEncryptionKeyPair();
-    const sigPair = await generateSigningKeyPair();
-    const encPublic = await exportSpki(encPair.publicKey);
-    const sigPublic = await exportSpki(sigPair.publicKey);
-    const rec: DeviceKeyRecord = {
-      subject: me.id, kind, enc_public: encPublic, sig_public: sigPublic,
-      enc_blob: await sealWithPassphrase(passphrase, await exportPkcs8(encPair.privateKey)),
-      sig_blob: await sealWithPassphrase(passphrase, await exportPkcs8(sigPair.privateKey)),
-      created_at: new Date().toISOString(),
-    };
-    await register(encPublic, sigPublic, sigPair.privateKey, recovery);
+    const { enc, sig } = await generateDeviceKeyPairs();
+    const encPublic = await exportSpki(enc.publicKey);
+    const sigPublic = await exportSpki(sig.publicKey);
+    const rec: DeviceKeyRecord = { subject: me.id, kind, enc_public: encPublic, sig_public: sigPublic,
+      enc_key: enc.privateKey, sig_key: sig.privateKey, created_at: new Date().toISOString() };
+    await register(encPublic, sigPublic, sig.privateKey, recovery);
     await saveDeviceKeys(rec);
     setRecord(rec);
-    await activate(rec, passphrase);
+    await activate(rec);
   }, [activate, kind, me, register]);
 
-  const unlock = useCallback(async (passphrase: string) => {
-    if (!record) throw new Error("No device key on this browser");
+  /** Load this browser's key, or create one: no prompt either way. */
+  const prepare = useCallback(async () => {
+    setStatus("preparing");
+    setError(null);
     try {
-      await activate(record, passphrase);
-    } catch (err) {
-      void api.post("/e2e/client-events", { action: "keys.device_unlock_failed", target_type: "device_key",
-        target_id: subjectId ?? "?", detail: { reason: "unlock failed" } }).catch(() => undefined);
-      throw err;
+      await withDeviceLock(async () => {
+        const rec = await loadDeviceKeys(me!.id);
+        if (rec?.enc_key && rec.sig_key) {
+          setRecord(rec);
+          const state = await activate(rec);
+          if (state === "revoked") await setup(true); // replaced on another device and now used here again
+          return;
+        }
+        // no key in this browser (or only an older passphrase-sealed one): a new key for this device; if this account
+        // already has a key elsewhere, the new one replaces it and the hospital's administrators are told
+        const dir = await api.get<MyDirectory>("/e2e/directory/me").catch(() => null);
+        await setup(!!dir?.entries.some((r) => !r.revoked));
+      });
+    } catch (e) {
+      setStatus("failed");
+      setError(e instanceof Error ? e.message : String(e));
     }
-  }, [activate, record, subjectId]);
+  }, [activate, me, setup]);
 
-  const lock = useCallback(() => {
-    setKeys(null);
-    setStatus(record ? "locked" : "none");
-  }, [record]);
-
-  const downloadBackup = useCallback(() => {
-    if (!record) return;
-    const url = URL.createObjectURL(backupFile(record));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `device-key-backup-${record.kind}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [record]);
-
-  const restore = useCallback(async (fileText: string, passphrase: string) => {
+  useEffect(() => {
     if (!me) return;
-    const rec = parseBackup(fileText, me.id);
-    await openWithPassphrase(passphrase, rec.enc_blob); // the passphrase must open it before it replaces anything
-    await saveDeviceKeys(rec);
-    setRecord(rec);
-    await activate(rec, passphrase);
-  }, [activate, me]);
+    if (!kind || !globalThis.crypto?.subtle || !("indexedDB" in globalThis)) {
+      setStatus("unavailable");
+      return;
+    }
+    if (started.current) return;
+    started.current = true;
+    void prepare();
+  }, [me, kind, prepare]);
 
   const groupKey = useCallback((hospital: string, department: string, version: number) =>
     keys?.groups.get(`${hospital}|${department}|${version}`) ?? null, [keys]);
@@ -208,8 +193,11 @@ export function DeviceKeysProvider({ children }: { children: ReactNode }) {
   }, [keys, kind, loadGroups, serverState]);
 
   const value = useMemo<DeviceKeys>(() => ({
-    status, kind, subjectId, record, keys, keyState, setup, unlock, lock, downloadBackup, restore, groupKey, refresh,
-  }), [status, kind, subjectId, record, keys, keyState, setup, unlock, lock, downloadBackup, restore, groupKey, refresh]);
+    status, kind, subjectId, record, keys, keyState, error, setup: async (r?: boolean) => {
+      setStatus("preparing");
+      try { await withDeviceLock(() => setup(r)); } catch (e) { setStatus("failed"); setError(e instanceof Error ? e.message : String(e)); }
+    }, groupKey, refresh,
+  }), [status, kind, subjectId, record, keys, keyState, error, setup, groupKey, refresh]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

@@ -1,0 +1,12 @@
+{
+  "version": "chughtai-2026-10-29",
+  "note": "Chughtai Lab release policy (synthetic demonstration). HIV and sexual-health results are released only with the patient's specific consent and after a staff member checks the request.",
+  "auto_approve_with_valid_consent": true,
+  "excluded_categories": ["psychiatric", "hiv_sexual_health"],
+  "manual_review": {"categories": ["hiv_sexual_health"], "request_types": [], "always": false},
+  "respond_within_consent_window_only": true,
+  "allowed_record_types_from_consent": true,
+  "sensitive_title_masking": true,
+  "prohibited_by_law": [],
+  "doctor_keys": {"auto_sign": true}
+}

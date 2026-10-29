@@ -45,6 +45,9 @@ class Condition(Versioned, Base):
     snomed: Mapped[str | None] = mapped_column(String(30), nullable=True)
     clinical_status: Mapped[str] = mapped_column(String(20))
     onset: Mapped[str | None] = mapped_column(String(10), nullable=True)  # as recorded: YYYY, YYYY-MM or YYYY-MM-DD
+    # the category this institution marks sensitive (psychiatric | hiv_sexual_health | ...), released only with the
+    # patient's specific consent (spec v4 4.2, 6.2)
+    sensitive_category: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
 
 class Surgery(Versioned, Base):
@@ -65,6 +68,9 @@ class Visit(Versioned, Base):
     clinician: Mapped[str | None] = mapped_column(String(200), nullable=True)
     reason: Mapped[str] = mapped_column(Text, default="")
     summary: Mapped[str] = mapped_column(Text, default="")
+    # the category this institution marks sensitive (psychiatric | hiv_sexual_health | ...), released only with the
+    # patient's specific consent (spec v4 4.2, 6.2)
+    sensitive_category: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
 
 class Medication(Versioned, Base):
@@ -80,6 +86,9 @@ class Medication(Versioned, Base):
     status: Mapped[str] = mapped_column(String(20))  # active | stopped | completed
     prescriber: Mapped[str | None] = mapped_column(String(200), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # the category this institution marks sensitive (psychiatric | hiv_sexual_health | ...), released only with the
+    # patient's specific consent (spec v4 4.2, 6.2)
+    sensitive_category: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
 
 class LabResult(Versioned, Base):
@@ -95,6 +104,9 @@ class LabResult(Versioned, Base):
     unit: Mapped[str | None] = mapped_column(String(40), nullable=True)
     reference_range: Mapped[str | None] = mapped_column(String(60), nullable=True)
     abnormal_flag: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # the category this institution marks sensitive (psychiatric | hiv_sexual_health | ...), released only with the
+    # patient's specific consent (spec v4 4.2, 6.2)
+    sensitive_category: Mapped[str | None] = mapped_column(String(40), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="final")
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -109,6 +121,9 @@ class ImagingReport(Versioned, Base):
     findings: Mapped[str] = mapped_column(Text, default="")
     impression: Mapped[str] = mapped_column(Text, default="")
     reporter: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # the category this institution marks sensitive (psychiatric | hiv_sexual_health | ...), released only with the
+    # patient's specific consent (spec v4 4.2, 6.2)
+    sensitive_category: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
 
 class AccessGrant(AccessGrantMixin, Base):
@@ -358,3 +373,36 @@ class SeenAssertion(Base):
     jti: Mapped[str] = mapped_column(String(80), primary_key=True)
     issuer: Mapped[str] = mapped_column(String(50))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+# --------------------------------------------------------------------------- records requests (spec v4 WP2/WP3)
+class RecordRequest(Base):
+    """A request from the platform for a referral's records, checked against the patient's consent and this
+    institution's own policy. Answered at once, refused with a reason code, or queued for this institution's staff
+    (pending_manual_review). Only the decision and counts are kept here; the records stay in their own tables."""
+    __tablename__ = "record_requests"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    request_key: Mapped[str] = mapped_column(String(200), unique=True)
+    referral_ref: Mapped[str] = mapped_column(String(40), index=True)
+    requesting_org: Mapped[str] = mapped_column(String(50))
+    practitioner_id: Mapped[str] = mapped_column(String(64))
+    practitioner_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    purpose: Mapped[str] = mapped_column(String(20))
+    consent_ref: Mapped[str] = mapped_column(String(60))
+    local_patient_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    categories: Mapped[list] = mapped_column(JSON, default=list)
+    since: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    reason_text: Mapped[str | None] = mapped_column(Text, nullable=True)  # the referral reason (administrative)
+    sensitive: Mapped[list] = mapped_column(JSON, default=list)  # sensitive categories the request asks for
+    practitioner_entry: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # the requesting doctor's signed key
+    patient_entry: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # the patient's platform-signed key
+    # answered | partial | refused | pending_manual_review | declined
+    status: Mapped[str] = mapped_column(String(30), index=True)
+    refusals: Mapped[list] = mapped_column(JSON, default=list)
+    policy_version: Mapped[str] = mapped_column(String(40))
+    item_count: Mapped[int] = mapped_column(Integer, default=0)
+    decided_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    delivery_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

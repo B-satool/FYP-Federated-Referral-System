@@ -23,6 +23,8 @@ from .documents import router as documents
 from .followup import router as followup
 from .identity import router as identity
 from .keys import router as keys
+from .consent import router as consent
+from .records import router as records
 from .medications import router as medications
 from .referrals import router as referrals
 from .sending import router as sending
@@ -38,7 +40,7 @@ app = FastAPI(
 )
 
 for module in (referrals, identity, evidence_router, documents, medications, sending, diagnostics, followup, inbound,
-               notifications, workqueue, audit_router, patient_access, keys):
+               notifications, workqueue, audit_router, patient_access, keys, consent, records):
     app.include_router(module.router)
 
 

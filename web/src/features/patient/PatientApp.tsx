@@ -7,6 +7,8 @@ import { BrandMark } from "../../components/Brand";
 import { ErrorAlert, fmtDate, Loading, ReferralStatus, Tag } from "../../components/common";
 import { useMe, usePageTitle } from "../../hooks";
 import { tokens } from "../../theme";
+import { DeviceKeyPanel } from "../keys/DeviceKey";
+import { ConsentDetail, ConsentTab, usePendingConsents } from "./Consent";
 
 /**
  * The patient's own view, laid out as a phone app (for the MVP it runs inside the website).
@@ -48,10 +50,11 @@ type History = {
     reporter: string | null }[];
 };
 
-type Tab = "home" | "referrals" | "records" | "profile";
+type Tab = "home" | "referrals" | "consent" | "records" | "profile";
 const TABS: { key: Tab; label: string }[] = [
   { key: "home", label: "Home" },
   { key: "referrals", label: "Referrals" },
+  { key: "consent", label: "Permissions" },
   { key: "records", label: "My records" },
   { key: "profile", label: "Profile" },
 ];
@@ -78,18 +81,22 @@ export function PatientApp() {
   const [tab, setTab] = useState<Tab>("home");
   const [referral, setReferral] = useState<PatientReferral | null>(null);
   const [place, setPlace] = useState<Place | null>(null);
+  const [consent, setConsent] = useState<string | null>(null);
   usePageTitle("My health");
 
   const open = (t: Tab) => {
     setTab(t);
     setReferral(null);
     setPlace(null);
+    setConsent(null);
   };
   let screen: ReactNode;
   if (referral) screen = <ReferralDetail referral={referral} onBack={() => setReferral(null)} />;
   else if (place) screen = <PlaceHistory place={place} onBack={() => setPlace(null)} />;
+  else if (consent) screen = <ConsentDetail reference={consent} onBack={() => setConsent(null)} />;
   else if (tab === "home") screen = <HomeTab onReferral={setReferral} onTab={open} />;
   else if (tab === "referrals") screen = <ReferralsTab onReferral={setReferral} />;
+  else if (tab === "consent") screen = <ConsentTab onOpen={setConsent} />;
   else if (tab === "records") screen = <RecordsTab onPlace={setPlace} />;
   else screen = <ProfileTab />;
 
@@ -107,7 +114,7 @@ export function PatientApp() {
       </Box>
       <Box component="nav" aria-label="Patient app" sx={{ display: "flex", borderTop: `1px solid ${tokens.line}`, bgcolor: tokens.surface }}>
         {TABS.map((t) => {
-          const active = tab === t.key && !referral && !place;
+          const active = tab === t.key && !referral && !place && !consent;
           return (
             <ButtonBase
               key={t.key}
@@ -206,6 +213,7 @@ function HomeTab({ onReferral, onTab }: { onReferral: (r: PatientReferral) => vo
           <Typography variant="body2">Places with your records{failed ? ` (${failed} not reachable)` : ""}</Typography>
         </Card>
       </Box>
+      <PendingConsentBanner onOpen={() => onTab("consent")} />
       <Heading>Latest</Heading>
       {referrals.error && <ErrorAlert error={referrals.error} />}
       {referrals.data && referrals.data.length === 0 && (
@@ -216,6 +224,16 @@ function HomeTab({ onReferral, onTab }: { onReferral: (r: PatientReferral) => vo
         Your medical history is read from each hospital, clinic or laboratory when you open it, and shown only on this device. The referral platform does not keep a copy.
       </Alert>
     </>
+  );
+}
+
+function PendingConsentBanner({ onOpen }: { onOpen: () => void }) {
+  const pending = usePendingConsents();
+  if (!pending.length) return null;
+  return (
+    <Alert severity="warning" sx={{ mb: 2 }} action={<Button color="inherit" size="small" onClick={onOpen}>Answer</Button>}>
+      {pending.length === 1 ? "A clinic is asking for your permission to fetch your records." : `${pending.length} requests for your permission.`}
+    </Alert>
   );
 }
 
@@ -419,6 +437,7 @@ function ProfileTab() {
   return (
     <>
       <Heading>Profile</Heading>
+      <DeviceKeyPanel compact />
       <Card>
         <Field label="Name">{me?.name}</Field>
         <Field label="Account">{me?.username}</Field>

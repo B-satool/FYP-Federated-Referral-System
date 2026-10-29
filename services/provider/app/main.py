@@ -41,7 +41,7 @@ from sqlalchemy import func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from . import adapter, key_routes, m2m
+from . import adapter, key_routes, m2m, record_routes
 from .config import (ACCEPTED_HOLD_DAYS, AUDIENCE, CENTRAL_URL, DEFAULT_WINDOW_DAYS, GRACE_HOURS, INSTITUTION, INSTITUTION_NAME,
                      LOCAL_ID_PREFIX)
 from .models import (
@@ -149,6 +149,7 @@ app.include_router(build_admin_router(INSTITUTION, AccessGrant, AuditEvent,
                                       lambda db, pid: db.get(Patient, pid) is not None, get_db, get_principal))
 app.include_router(build_grant_service_router(INSTITUTION, AccessGrant, AuditEvent, get_db, get_principal))
 app.include_router(key_routes.build_router(get_db, get_principal))
+app.include_router(record_routes.build_router(get_db, get_principal))
 
 
 # --------------------------------------------------------------------------- helpers

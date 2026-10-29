@@ -76,18 +76,21 @@ def seed(db) -> int:
         for block in blocks:
             for c in block.get("conditions", []):
                 db.add(Condition(id=rid("CON"), patient_id=local_id, display=c["display"], snomed=c.get("snomed"),
-                                 clinical_status=c.get("status", "active"), onset=c.get("onset")))
+                                 clinical_status=c.get("status", "active"), onset=c.get("onset"),
+                                 sensitive_category=c.get("sensitive")))
             for s in block.get("surgeries", []):
                 db.add(Surgery(id=rid("PROC"), patient_id=local_id, procedure=s["procedure"], performed=s.get("date"),
                                location=s.get("where")))
             for v in block.get("visits", []):
                 db.add(Visit(id=rid("ENC"), patient_id=local_id, visit_date=_date(v["date"]), setting=v["setting"],
-                             clinician=v.get("doctor"), reason=v.get("reason") or "", summary=v.get("summary") or ""))
+                             clinician=v.get("doctor"), reason=v.get("reason") or "", summary=v.get("summary") or "",
+                             sensitive_category=v.get("sensitive")))
             for m in block.get("medications", []):
                 db.add(Medication(id=rid("RX"), patient_id=local_id, name=m["name"], brand_as_written=m.get("brand_as_written"),
                                   dose=m.get("dose"), route=m.get("route"), frequency=m.get("frequency"),
                                   start_date=_date(m.get("start")), status=m.get("status", "active"),
-                                  prescriber=m.get("prescriber"), note=m.get("note")))
+                                  prescriber=m.get("prescriber"), note=m.get("note"),
+                                  sensitive_category=m.get("sensitive")))
             for panel in block.get("labs", []):
                 for r in panel.get("results", []):
                     value = r.get("value")
@@ -96,7 +99,7 @@ def seed(db) -> int:
                                      test=r["test"], loinc=r.get("loinc"), value_num=float(value) if numeric else None,
                                      value_text=None if numeric or value is None else str(value), unit=r.get("unit") or None,
                                      reference_range=r.get("reference"), abnormal_flag=r.get("flag") or None,
-                                     note=panel.get("note")))
+                                     note=panel.get("note"), sensitive_category=panel.get("sensitive")))
             for i in block.get("imaging", []):
                 db.add(ImagingReport(id=rid("IMG"), patient_id=local_id, study_date=_date(i["date"]), study=i["study"],
                                      body_part=i.get("body_part"), findings=i.get("findings") or "",

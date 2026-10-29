@@ -1,4 +1,6 @@
 from .audit import AuditEvent
+from .consent import Consent, RecordRequest
+from .encrypted import EncryptedBatch, EncryptedItem, PackageManifest, PurgeReceipt, WrappedKey
 from .evidence import Document, EvidenceItem, EvidenceRevision, ExtractionRun, Job, SelectionRun, SourceRetrieval
 from .identity import PatientLink, PatientLinkEvent, User
 from .keys import DirectoryEntry, GroupKeyWrap, PlatformKey, SeenAssertion
@@ -19,7 +21,8 @@ from .referrals import (
 )
 
 __all__ = [
-    "AuditEvent", "Document", "EvidenceItem", "EvidenceRevision", "ExtractionRun", "Job", "SelectionRun", "SourceRetrieval",
+    "AuditEvent", "Consent", "RecordRequest", "EncryptedBatch", "EncryptedItem", "PackageManifest", "PurgeReceipt",
+    "WrappedKey", "Document", "EvidenceItem", "EvidenceRevision", "ExtractionRun", "Job", "SelectionRun", "SourceRetrieval",
     "PatientLink", "PatientLinkEvent", "User", "DirectoryEntry", "GroupKeyWrap", "PlatformKey", "SeenAssertion", "EvaluationRun", "FlagReview", "MedicationEntry", "MedicationFlag",
     "MedicationRule", "MedicineName", "Ingredient", "DrugInteraction", "LabelRule", "RulesetRelease", "AiSuggestion", "SuggestionReview", "Brief", "Clarification", "ConsultationResponse", "DiagnosticRequest",
     "FollowupTask", "InboundMessage", "Notification", "Outbox", "Referral", "ReferralEvent", "ReferralPackage",

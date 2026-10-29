@@ -70,6 +70,13 @@
           "snomed": "64859006",
           "onset": "2022-02",
           "status": "active"
+        },
+        {
+          "display": "Mild depressive episode",
+          "snomed": "310495003",
+          "onset": "2025-11",
+          "status": "active",
+          "sensitive": "psychiatric"
         }
       ],
       "surgeries": [
@@ -112,6 +119,14 @@
           "doctor": "Dr Ali",
           "reason": "Routine review",
           "summary": "Diabetes and blood pressure stable. HbA1c due. Continue current medicines."
+        },
+        {
+          "date": "2025-11-20",
+          "setting": "Clinic visit (mental health)",
+          "doctor": "Dr Ali",
+          "reason": "Low mood and poor sleep for six weeks",
+          "summary": "Synthetic sensitive record for the consent tests. Supportive counselling arranged; review in four weeks.",
+          "sensitive": "psychiatric"
         }
       ],
       "medications": [
@@ -253,6 +268,22 @@
               "unit": "ng/mL",
               "reference": "30-100",
               "flag": "low"
+            }
+          ]
+        },
+        {
+          "date": "2026-08-02",
+          "panel": "HIV 1/2 antibody screen",
+          "note": null,
+          "sensitive": "hiv_sexual_health",
+          "results": [
+            {
+              "test": "HIV 1/2 antibody and p24 antigen",
+              "loinc": "56888-1",
+              "value": "Non-reactive",
+              "unit": "",
+              "reference": "Non-reactive",
+              "flag": ""
             }
           ]
         }
